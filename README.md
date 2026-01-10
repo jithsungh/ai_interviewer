@@ -1,1 +1,1 @@
-# AI Interviewer Agent for technnical Interviews
+# AI Interviewer Agent for technical Interviews
