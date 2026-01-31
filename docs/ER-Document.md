@@ -1,0 +1,1 @@
+# This document contains description about ER diagram
