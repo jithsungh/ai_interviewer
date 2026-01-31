@@ -1,1 +1,1 @@
-# This document contains dscription about ER diagram
+# This document contains description about ER diagram
