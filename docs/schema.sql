@@ -1,0 +1,3342 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict 9H2vFRaQ4VhaBca47niKEZmSbMiMKSjjreW93cGkzkEdKLGYsAt76HOcJ9egI4H
+
+-- Dumped from database version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
+-- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: admin_role; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.admin_role AS ENUM (
+    'superadmin',
+    'admin',
+    'read_only'
+);
+
+
+ALTER TYPE public.admin_role OWNER TO jithsungh;
+
+--
+-- Name: admin_status; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.admin_status AS ENUM (
+    'active',
+    'inactive',
+    'suspended'
+);
+
+
+ALTER TYPE public.admin_status OWNER TO jithsungh;
+
+--
+-- Name: candidate_plan; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.candidate_plan AS ENUM (
+    'free',
+    'pro',
+    'prime'
+);
+
+
+ALTER TYPE public.candidate_plan OWNER TO jithsungh;
+
+--
+-- Name: code_execution_status; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.code_execution_status AS ENUM (
+    'pending',
+    'running',
+    'passed',
+    'failed',
+    'error',
+    'timeout'
+);
+
+
+ALTER TYPE public.code_execution_status OWNER TO jithsungh;
+
+--
+-- Name: coding_topic_type; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.coding_topic_type AS ENUM (
+    'data_structure',
+    'algorithm',
+    'pattern',
+    'system_design',
+    'language_specific'
+);
+
+
+ALTER TYPE public.coding_topic_type OWNER TO jithsungh;
+
+--
+-- Name: difficulty_level; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.difficulty_level AS ENUM (
+    'easy',
+    'medium',
+    'hard'
+);
+
+
+ALTER TYPE public.difficulty_level OWNER TO jithsungh;
+
+--
+-- Name: evaluator_type; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.evaluator_type AS ENUM (
+    'ai',
+    'human',
+    'hybrid'
+);
+
+
+ALTER TYPE public.evaluator_type OWNER TO jithsungh;
+
+--
+-- Name: interview_mode; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.interview_mode AS ENUM (
+    'async',
+    'live',
+    'hybrid'
+);
+
+
+ALTER TYPE public.interview_mode OWNER TO jithsungh;
+
+--
+-- Name: interview_scope; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.interview_scope AS ENUM (
+    'global',
+    'local',
+    'only_invited'
+);
+
+
+ALTER TYPE public.interview_scope OWNER TO jithsungh;
+
+--
+-- Name: media_type; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.media_type AS ENUM (
+    'video',
+    'audio',
+    'screen_recording'
+);
+
+
+ALTER TYPE public.media_type OWNER TO jithsungh;
+
+--
+-- Name: organization_plan; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.organization_plan AS ENUM (
+    'free',
+    'pro',
+    'enterprise'
+);
+
+
+ALTER TYPE public.organization_plan OWNER TO jithsungh;
+
+--
+-- Name: organization_status; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.organization_status AS ENUM (
+    'active',
+    'inactive',
+    'suspended'
+);
+
+
+ALTER TYPE public.organization_status OWNER TO jithsungh;
+
+--
+-- Name: organization_type; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.organization_type AS ENUM (
+    'company',
+    'non_profit',
+    'educational'
+);
+
+
+ALTER TYPE public.organization_type OWNER TO jithsungh;
+
+--
+-- Name: proctoring_severity; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.proctoring_severity AS ENUM (
+    'low',
+    'medium',
+    'high',
+    'critical'
+);
+
+
+ALTER TYPE public.proctoring_severity OWNER TO jithsungh;
+
+--
+-- Name: question_type; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.question_type AS ENUM (
+    'behavioral',
+    'technical',
+    'situational',
+    'coding'
+);
+
+
+ALTER TYPE public.question_type OWNER TO jithsungh;
+
+--
+-- Name: report_type; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.report_type AS ENUM (
+    'candidate_summary',
+    'technical_breakdown',
+    'behavioral_analysis',
+    'proctoring_risk'
+);
+
+
+ALTER TYPE public.report_type OWNER TO jithsungh;
+
+--
+-- Name: submission_status; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.submission_status AS ENUM (
+    'pending',
+    'in_progress',
+    'completed',
+    'reviewed'
+);
+
+
+ALTER TYPE public.submission_status OWNER TO jithsungh;
+
+--
+-- Name: template_scope; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.template_scope AS ENUM (
+    'global',
+    'organization'
+);
+
+
+ALTER TYPE public.template_scope OWNER TO jithsungh;
+
+--
+-- Name: user_status; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.user_status AS ENUM (
+    'active',
+    'inactive',
+    'banned'
+);
+
+
+ALTER TYPE public.user_status OWNER TO jithsungh;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: admins; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.admins (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    organization_id bigint NOT NULL,
+    role public.admin_role NOT NULL,
+    status public.admin_status DEFAULT 'active'::public.admin_status NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.admins OWNER TO jithsungh;
+
+--
+-- Name: admins_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.admins_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.admins_id_seq OWNER TO jithsungh;
+
+--
+-- Name: admins_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.admins_id_seq OWNED BY public.admins.id;
+
+
+--
+-- Name: audio_analytics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.audio_analytics (
+    id bigint NOT NULL,
+    interview_exchange_id bigint NOT NULL,
+    transcript text,
+    confidence_score numeric,
+    speech_rate_wpm integer,
+    filler_word_count integer,
+    sentiment_score numeric,
+    analysis_metadata jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.audio_analytics OWNER TO jithsungh;
+
+--
+-- Name: audio_analytics_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.audio_analytics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.audio_analytics_id_seq OWNER TO jithsungh;
+
+--
+-- Name: audio_analytics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.audio_analytics_id_seq OWNED BY public.audio_analytics.id;
+
+
+--
+-- Name: audit_logs; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.audit_logs (
+    id bigint NOT NULL,
+    organization_id bigint,
+    actor_user_id bigint,
+    action text NOT NULL,
+    entity_type text NOT NULL,
+    entity_id bigint,
+    old_value jsonb,
+    new_value jsonb,
+    ip_address inet,
+    user_agent text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.audit_logs OWNER TO jithsungh;
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.audit_logs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.audit_logs_id_seq OWNER TO jithsungh;
+
+--
+-- Name: audit_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.audit_logs_id_seq OWNED BY public.audit_logs.id;
+
+
+--
+-- Name: candidates; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.candidates (
+    id bigint NOT NULL,
+    user_id bigint NOT NULL,
+    plan public.candidate_plan DEFAULT 'free'::public.candidate_plan NOT NULL,
+    status public.user_status DEFAULT 'active'::public.user_status NOT NULL,
+    profile_metadata jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.candidates OWNER TO jithsungh;
+
+--
+-- Name: candidates_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.candidates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.candidates_id_seq OWNER TO jithsungh;
+
+--
+-- Name: candidates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.candidates_id_seq OWNED BY public.candidates.id;
+
+
+--
+-- Name: code_execution_results; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.code_execution_results (
+    id bigint NOT NULL,
+    code_submission_id bigint NOT NULL,
+    test_case_id bigint NOT NULL,
+    passed boolean NOT NULL,
+    actual_output text,
+    runtime_ms integer,
+    memory_kb integer,
+    compiler_output text,
+    runtime_output text,
+    feedback text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.code_execution_results OWNER TO jithsungh;
+
+--
+-- Name: code_execution_results_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.code_execution_results_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.code_execution_results_id_seq OWNER TO jithsungh;
+
+--
+-- Name: code_execution_results_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.code_execution_results_id_seq OWNED BY public.code_execution_results.id;
+
+
+--
+-- Name: code_submissions; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.code_submissions (
+    id bigint NOT NULL,
+    interview_exchange_id bigint NOT NULL,
+    coding_problem_id bigint NOT NULL,
+    language text NOT NULL,
+    source_code text NOT NULL,
+    execution_status public.code_execution_status DEFAULT 'pending'::public.code_execution_status NOT NULL,
+    score numeric,
+    execution_time_ms integer,
+    memory_kb integer,
+    submitted_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.code_submissions OWNER TO jithsungh;
+
+--
+-- Name: code_submissions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.code_submissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.code_submissions_id_seq OWNER TO jithsungh;
+
+--
+-- Name: code_submissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.code_submissions_id_seq OWNED BY public.code_submissions.id;
+
+
+--
+-- Name: coding_problem_topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.coding_problem_topics (
+    coding_problem_id bigint NOT NULL,
+    coding_topic_id bigint NOT NULL
+);
+
+
+ALTER TABLE public.coding_problem_topics OWNER TO jithsungh;
+
+--
+-- Name: coding_problems; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.coding_problems (
+    id bigint NOT NULL,
+    problem_text text NOT NULL,
+    difficulty public.difficulty_level NOT NULL,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    constraints text,
+    estimated_time_minutes integer DEFAULT 30 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.coding_problems OWNER TO jithsungh;
+
+--
+-- Name: coding_problems_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.coding_problems_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.coding_problems_id_seq OWNER TO jithsungh;
+
+--
+-- Name: coding_problems_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.coding_problems_id_seq OWNED BY public.coding_problems.id;
+
+
+--
+-- Name: coding_test_cases; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.coding_test_cases (
+    id bigint NOT NULL,
+    coding_problem_id bigint NOT NULL,
+    input_data text NOT NULL,
+    expected_output text NOT NULL,
+    is_hidden boolean DEFAULT true NOT NULL,
+    weight numeric DEFAULT 1.0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.coding_test_cases OWNER TO jithsungh;
+
+--
+-- Name: coding_test_cases_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.coding_test_cases_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.coding_test_cases_id_seq OWNER TO jithsungh;
+
+--
+-- Name: coding_test_cases_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.coding_test_cases_id_seq OWNED BY public.coding_test_cases.id;
+
+
+--
+-- Name: coding_topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.coding_topics (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    description text,
+    topic_type public.coding_topic_type NOT NULL,
+    parent_topic_id bigint,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.coding_topics OWNER TO jithsungh;
+
+--
+-- Name: coding_topics_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.coding_topics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.coding_topics_id_seq OWNER TO jithsungh;
+
+--
+-- Name: coding_topics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.coding_topics_id_seq OWNED BY public.coding_topics.id;
+
+
+--
+-- Name: embeddings; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.embeddings (
+    id bigint NOT NULL,
+    organization_id bigint,
+    source_type text NOT NULL,
+    source_id bigint NOT NULL,
+    model_id bigint NOT NULL,
+    vector_ref text NOT NULL,
+    dimensions integer NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.embeddings OWNER TO jithsungh;
+
+--
+-- Name: embeddings_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.embeddings_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.embeddings_id_seq OWNER TO jithsungh;
+
+--
+-- Name: embeddings_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.embeddings_id_seq OWNED BY public.embeddings.id;
+
+
+--
+-- Name: evaluation_dimension_scores; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.evaluation_dimension_scores (
+    id bigint NOT NULL,
+    evaluation_id bigint NOT NULL,
+    rubric_dimension_id bigint NOT NULL,
+    score numeric NOT NULL,
+    justification text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.evaluation_dimension_scores OWNER TO jithsungh;
+
+--
+-- Name: evaluation_dimension_scores_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.evaluation_dimension_scores_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.evaluation_dimension_scores_id_seq OWNER TO jithsungh;
+
+--
+-- Name: evaluation_dimension_scores_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.evaluation_dimension_scores_id_seq OWNED BY public.evaluation_dimension_scores.id;
+
+
+--
+-- Name: evaluations; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.evaluations (
+    id bigint NOT NULL,
+    interview_exchange_id bigint NOT NULL,
+    rubric_id bigint,
+    model_id bigint,
+    evaluator_type public.evaluator_type NOT NULL,
+    total_score numeric,
+    explanation jsonb,
+    is_final boolean DEFAULT false NOT NULL,
+    evaluated_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.evaluations OWNER TO jithsungh;
+
+--
+-- Name: evaluations_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.evaluations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.evaluations_id_seq OWNER TO jithsungh;
+
+--
+-- Name: evaluations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.evaluations_id_seq OWNED BY public.evaluations.id;
+
+
+--
+-- Name: interview_exchanges; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_exchanges (
+    id bigint NOT NULL,
+    interview_submission_id bigint NOT NULL,
+    sequence_order integer NOT NULL,
+    question_id bigint,
+    coding_problem_id bigint,
+    question_text text NOT NULL,
+    expected_answer text,
+    difficulty_at_time public.difficulty_level NOT NULL,
+    response_text text,
+    response_code text,
+    response_time_ms integer,
+    ai_followup_message text,
+    content_metadata jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT interview_exchanges_check CHECK (((question_id IS NOT NULL) OR (coding_problem_id IS NOT NULL)))
+);
+
+
+ALTER TABLE public.interview_exchanges OWNER TO jithsungh;
+
+--
+-- Name: interview_exchanges_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.interview_exchanges_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_exchanges_id_seq OWNER TO jithsungh;
+
+--
+-- Name: interview_exchanges_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.interview_exchanges_id_seq OWNED BY public.interview_exchanges.id;
+
+
+--
+-- Name: interview_results; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_results (
+    id bigint NOT NULL,
+    interview_submission_id bigint NOT NULL,
+    final_score numeric,
+    normalized_score numeric,
+    result_status text,
+    recommendation text,
+    scoring_version text NOT NULL,
+    rubric_snapshot jsonb,
+    template_weight_snapshot jsonb,
+    section_scores jsonb,
+    strengths text,
+    weaknesses text,
+    summary_notes text,
+    generated_by text NOT NULL,
+    model_id bigint,
+    is_current boolean DEFAULT true NOT NULL,
+    computed_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.interview_results OWNER TO jithsungh;
+
+--
+-- Name: interview_results_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.interview_results_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_results_id_seq OWNER TO jithsungh;
+
+--
+-- Name: interview_results_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.interview_results_id_seq OWNED BY public.interview_results.id;
+
+
+--
+-- Name: interview_submission_windows; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_submission_windows (
+    id bigint NOT NULL,
+    organization_id bigint NOT NULL,
+    admin_id bigint NOT NULL,
+    name text NOT NULL,
+    scope public.interview_scope NOT NULL,
+    start_time timestamp with time zone NOT NULL,
+    end_time timestamp with time zone NOT NULL,
+    timezone text NOT NULL,
+    max_allowed_submissions integer,
+    allow_after_end_time boolean DEFAULT false NOT NULL,
+    allow_resubmission boolean DEFAULT false NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT interview_submission_windows_check CHECK ((end_time > start_time))
+);
+
+
+ALTER TABLE public.interview_submission_windows OWNER TO jithsungh;
+
+--
+-- Name: interview_submission_windows_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.interview_submission_windows_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_submission_windows_id_seq OWNER TO jithsungh;
+
+--
+-- Name: interview_submission_windows_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.interview_submission_windows_id_seq OWNED BY public.interview_submission_windows.id;
+
+
+--
+-- Name: interview_submissions; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_submissions (
+    id bigint NOT NULL,
+    candidate_id bigint NOT NULL,
+    window_id bigint NOT NULL,
+    role_id bigint NOT NULL,
+    template_id bigint NOT NULL,
+    mode public.interview_mode DEFAULT 'async'::public.interview_mode NOT NULL,
+    status public.submission_status DEFAULT 'pending'::public.submission_status NOT NULL,
+    final_score numeric,
+    consent_captured boolean DEFAULT false NOT NULL,
+    scheduled_start timestamp with time zone,
+    scheduled_end timestamp with time zone,
+    started_at timestamp with time zone,
+    submitted_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.interview_submissions OWNER TO jithsungh;
+
+--
+-- Name: interview_submissions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.interview_submissions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_submissions_id_seq OWNER TO jithsungh;
+
+--
+-- Name: interview_submissions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.interview_submissions_id_seq OWNED BY public.interview_submissions.id;
+
+
+--
+-- Name: interview_template_roles; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_template_roles (
+    interview_template_id bigint NOT NULL,
+    role_id bigint NOT NULL
+);
+
+
+ALTER TABLE public.interview_template_roles OWNER TO jithsungh;
+
+--
+-- Name: interview_template_rubrics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_template_rubrics (
+    id bigint NOT NULL,
+    interview_template_id bigint NOT NULL,
+    rubric_id bigint NOT NULL,
+    section_name text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.interview_template_rubrics OWNER TO jithsungh;
+
+--
+-- Name: interview_template_rubrics_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.interview_template_rubrics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_template_rubrics_id_seq OWNER TO jithsungh;
+
+--
+-- Name: interview_template_rubrics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.interview_template_rubrics_id_seq OWNED BY public.interview_template_rubrics.id;
+
+
+--
+-- Name: interview_templates; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.interview_templates (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    description text,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    template_structure jsonb NOT NULL,
+    rules jsonb,
+    total_estimated_time_minutes integer,
+    version integer DEFAULT 1 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.interview_templates OWNER TO jithsungh;
+
+--
+-- Name: interview_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.interview_templates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_templates_id_seq OWNER TO jithsungh;
+
+--
+-- Name: interview_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.interview_templates_id_seq OWNED BY public.interview_templates.id;
+
+
+--
+-- Name: job_descriptions; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.job_descriptions (
+    id bigint NOT NULL,
+    organization_id bigint NOT NULL,
+    role_id bigint,
+    title text NOT NULL,
+    description_text text NOT NULL,
+    requirements jsonb,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.job_descriptions OWNER TO jithsungh;
+
+--
+-- Name: job_descriptions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.job_descriptions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.job_descriptions_id_seq OWNER TO jithsungh;
+
+--
+-- Name: job_descriptions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.job_descriptions_id_seq OWNED BY public.job_descriptions.id;
+
+
+--
+-- Name: media_artifacts; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.media_artifacts (
+    id bigint NOT NULL,
+    interview_exchange_id bigint NOT NULL,
+    media_type public.media_type NOT NULL,
+    storage_uri text NOT NULL,
+    duration_seconds integer,
+    file_size_bytes bigint,
+    captured_at timestamp with time zone NOT NULL,
+    retention_expiry timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.media_artifacts OWNER TO jithsungh;
+
+--
+-- Name: media_artifacts_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.media_artifacts_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.media_artifacts_id_seq OWNER TO jithsungh;
+
+--
+-- Name: media_artifacts_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.media_artifacts_id_seq OWNED BY public.media_artifacts.id;
+
+
+--
+-- Name: models; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.models (
+    id bigint NOT NULL,
+    provider text NOT NULL,
+    name text NOT NULL,
+    model_type text NOT NULL,
+    version text,
+    config jsonb,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.models OWNER TO jithsungh;
+
+--
+-- Name: models_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.models_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.models_id_seq OWNER TO jithsungh;
+
+--
+-- Name: models_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.models_id_seq OWNED BY public.models.id;
+
+
+--
+-- Name: organizations; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.organizations (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    organization_type public.organization_type NOT NULL,
+    plan public.organization_plan DEFAULT 'free'::public.organization_plan NOT NULL,
+    domain text,
+    status public.organization_status DEFAULT 'active'::public.organization_status NOT NULL,
+    policy_config jsonb,
+    metadata jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.organizations OWNER TO jithsungh;
+
+--
+-- Name: organizations_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.organizations_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.organizations_id_seq OWNER TO jithsungh;
+
+--
+-- Name: organizations_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.organizations_id_seq OWNED BY public.organizations.id;
+
+
+--
+-- Name: proctoring_events; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.proctoring_events (
+    id bigint NOT NULL,
+    interview_submission_id bigint NOT NULL,
+    event_type text NOT NULL,
+    severity public.proctoring_severity NOT NULL,
+    risk_weight numeric DEFAULT 1.0 NOT NULL,
+    evidence jsonb NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.proctoring_events OWNER TO jithsungh;
+
+--
+-- Name: proctoring_events_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.proctoring_events_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.proctoring_events_id_seq OWNER TO jithsungh;
+
+--
+-- Name: proctoring_events_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.proctoring_events_id_seq OWNED BY public.proctoring_events.id;
+
+
+--
+-- Name: prompt_templates; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.prompt_templates (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    prompt_type text NOT NULL,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    system_prompt text NOT NULL,
+    user_prompt text NOT NULL,
+    model_id bigint,
+    model_config jsonb NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.prompt_templates OWNER TO jithsungh;
+
+--
+-- Name: prompt_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.prompt_templates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.prompt_templates_id_seq OWNER TO jithsungh;
+
+--
+-- Name: prompt_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.prompt_templates_id_seq OWNED BY public.prompt_templates.id;
+
+
+--
+-- Name: question_topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.question_topics (
+    question_id bigint NOT NULL,
+    topic_id bigint NOT NULL
+);
+
+
+ALTER TABLE public.question_topics OWNER TO jithsungh;
+
+--
+-- Name: questions; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.questions (
+    id bigint NOT NULL,
+    question_text text NOT NULL,
+    answer_text text,
+    question_type public.question_type NOT NULL,
+    difficulty public.difficulty_level NOT NULL,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    source_type text,
+    estimated_time_minutes integer DEFAULT 5 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.questions OWNER TO jithsungh;
+
+--
+-- Name: questions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.questions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.questions_id_seq OWNER TO jithsungh;
+
+--
+-- Name: questions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.questions_id_seq OWNED BY public.questions.id;
+
+
+--
+-- Name: resumes; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.resumes (
+    id bigint NOT NULL,
+    candidate_id bigint NOT NULL,
+    file_url text NOT NULL,
+    parsed_text text,
+    extracted_data jsonb,
+    uploaded_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.resumes OWNER TO jithsungh;
+
+--
+-- Name: resumes_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.resumes_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.resumes_id_seq OWNER TO jithsungh;
+
+--
+-- Name: resumes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.resumes_id_seq OWNED BY public.resumes.id;
+
+
+--
+-- Name: role_coding_topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.role_coding_topics (
+    role_id bigint NOT NULL,
+    coding_topic_id bigint NOT NULL
+);
+
+
+ALTER TABLE public.role_coding_topics OWNER TO jithsungh;
+
+--
+-- Name: role_topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.role_topics (
+    role_id bigint NOT NULL,
+    topic_id bigint NOT NULL
+);
+
+
+ALTER TABLE public.role_topics OWNER TO jithsungh;
+
+--
+-- Name: roles; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.roles (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    description text,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.roles OWNER TO jithsungh;
+
+--
+-- Name: roles_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.roles_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.roles_id_seq OWNER TO jithsungh;
+
+--
+-- Name: roles_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.roles_id_seq OWNED BY public.roles.id;
+
+
+--
+-- Name: rubric_dimensions; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.rubric_dimensions (
+    id bigint NOT NULL,
+    rubric_id bigint NOT NULL,
+    dimension_name text NOT NULL,
+    description text,
+    max_score numeric NOT NULL,
+    weight numeric DEFAULT 1.0 NOT NULL,
+    criteria jsonb,
+    sequence_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.rubric_dimensions OWNER TO jithsungh;
+
+--
+-- Name: rubric_dimensions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.rubric_dimensions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.rubric_dimensions_id_seq OWNER TO jithsungh;
+
+--
+-- Name: rubric_dimensions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.rubric_dimensions_id_seq OWNED BY public.rubric_dimensions.id;
+
+
+--
+-- Name: rubrics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.rubrics (
+    id bigint NOT NULL,
+    organization_id bigint,
+    name text NOT NULL,
+    description text,
+    scope public.template_scope NOT NULL,
+    schema jsonb,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.rubrics OWNER TO jithsungh;
+
+--
+-- Name: rubrics_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.rubrics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.rubrics_id_seq OWNER TO jithsungh;
+
+--
+-- Name: rubrics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.rubrics_id_seq OWNED BY public.rubrics.id;
+
+
+--
+-- Name: supplementary_reports; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.supplementary_reports (
+    id bigint NOT NULL,
+    interview_submission_id bigint NOT NULL,
+    report_type public.report_type NOT NULL,
+    content jsonb NOT NULL,
+    generated_by text NOT NULL,
+    model_id bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.supplementary_reports OWNER TO jithsungh;
+
+--
+-- Name: supplementary_reports_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.supplementary_reports_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.supplementary_reports_id_seq OWNER TO jithsungh;
+
+--
+-- Name: supplementary_reports_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.supplementary_reports_id_seq OWNED BY public.supplementary_reports.id;
+
+
+--
+-- Name: test_table; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.test_table (
+);
+
+
+ALTER TABLE public.test_table OWNER TO jithsungh;
+
+--
+-- Name: TABLE test_table; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.test_table IS 'test table for demonstration purpose';
+
+
+--
+-- Name: topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.topics (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    description text,
+    parent_topic_id bigint,
+    scope public.template_scope NOT NULL,
+    organization_id bigint,
+    estimated_time_minutes integer,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.topics OWNER TO jithsungh;
+
+--
+-- Name: topics_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.topics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.topics_id_seq OWNER TO jithsungh;
+
+--
+-- Name: topics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.topics_id_seq OWNED BY public.topics.id;
+
+
+--
+-- Name: users; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.users (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    email text NOT NULL,
+    password_hash text NOT NULL,
+    status public.user_status DEFAULT 'active'::public.user_status NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.users OWNER TO jithsungh;
+
+--
+-- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.users_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.users_id_seq OWNER TO jithsungh;
+
+--
+-- Name: users_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
+
+
+--
+-- Name: window_role_templates; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.window_role_templates (
+    id bigint NOT NULL,
+    window_id bigint NOT NULL,
+    role_id bigint NOT NULL,
+    template_id bigint NOT NULL,
+    selection_weight integer DEFAULT 1 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.window_role_templates OWNER TO jithsungh;
+
+--
+-- Name: window_role_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.window_role_templates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.window_role_templates_id_seq OWNER TO jithsungh;
+
+--
+-- Name: window_role_templates_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.window_role_templates_id_seq OWNED BY public.window_role_templates.id;
+
+
+--
+-- Name: admins id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.admins ALTER COLUMN id SET DEFAULT nextval('public.admins_id_seq'::regclass);
+
+
+--
+-- Name: audio_analytics id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audio_analytics ALTER COLUMN id SET DEFAULT nextval('public.audio_analytics_id_seq'::regclass);
+
+
+--
+-- Name: audit_logs id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audit_logs ALTER COLUMN id SET DEFAULT nextval('public.audit_logs_id_seq'::regclass);
+
+
+--
+-- Name: candidates id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidates ALTER COLUMN id SET DEFAULT nextval('public.candidates_id_seq'::regclass);
+
+
+--
+-- Name: code_execution_results id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_execution_results ALTER COLUMN id SET DEFAULT nextval('public.code_execution_results_id_seq'::regclass);
+
+
+--
+-- Name: code_submissions id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_submissions ALTER COLUMN id SET DEFAULT nextval('public.code_submissions_id_seq'::regclass);
+
+
+--
+-- Name: coding_problems id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problems ALTER COLUMN id SET DEFAULT nextval('public.coding_problems_id_seq'::regclass);
+
+
+--
+-- Name: coding_test_cases id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_test_cases ALTER COLUMN id SET DEFAULT nextval('public.coding_test_cases_id_seq'::regclass);
+
+
+--
+-- Name: coding_topics id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_topics ALTER COLUMN id SET DEFAULT nextval('public.coding_topics_id_seq'::regclass);
+
+
+--
+-- Name: embeddings id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.embeddings ALTER COLUMN id SET DEFAULT nextval('public.embeddings_id_seq'::regclass);
+
+
+--
+-- Name: evaluation_dimension_scores id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluation_dimension_scores ALTER COLUMN id SET DEFAULT nextval('public.evaluation_dimension_scores_id_seq'::regclass);
+
+
+--
+-- Name: evaluations id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations ALTER COLUMN id SET DEFAULT nextval('public.evaluations_id_seq'::regclass);
+
+
+--
+-- Name: interview_exchanges id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_exchanges ALTER COLUMN id SET DEFAULT nextval('public.interview_exchanges_id_seq'::regclass);
+
+
+--
+-- Name: interview_results id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_results ALTER COLUMN id SET DEFAULT nextval('public.interview_results_id_seq'::regclass);
+
+
+--
+-- Name: interview_submission_windows id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submission_windows ALTER COLUMN id SET DEFAULT nextval('public.interview_submission_windows_id_seq'::regclass);
+
+
+--
+-- Name: interview_submissions id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions ALTER COLUMN id SET DEFAULT nextval('public.interview_submissions_id_seq'::regclass);
+
+
+--
+-- Name: interview_template_rubrics id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_rubrics ALTER COLUMN id SET DEFAULT nextval('public.interview_template_rubrics_id_seq'::regclass);
+
+
+--
+-- Name: interview_templates id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_templates ALTER COLUMN id SET DEFAULT nextval('public.interview_templates_id_seq'::regclass);
+
+
+--
+-- Name: job_descriptions id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.job_descriptions ALTER COLUMN id SET DEFAULT nextval('public.job_descriptions_id_seq'::regclass);
+
+
+--
+-- Name: media_artifacts id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.media_artifacts ALTER COLUMN id SET DEFAULT nextval('public.media_artifacts_id_seq'::regclass);
+
+
+--
+-- Name: models id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.models ALTER COLUMN id SET DEFAULT nextval('public.models_id_seq'::regclass);
+
+
+--
+-- Name: organizations id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.organizations ALTER COLUMN id SET DEFAULT nextval('public.organizations_id_seq'::regclass);
+
+
+--
+-- Name: proctoring_events id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.proctoring_events ALTER COLUMN id SET DEFAULT nextval('public.proctoring_events_id_seq'::regclass);
+
+
+--
+-- Name: prompt_templates id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.prompt_templates ALTER COLUMN id SET DEFAULT nextval('public.prompt_templates_id_seq'::regclass);
+
+
+--
+-- Name: questions id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.questions ALTER COLUMN id SET DEFAULT nextval('public.questions_id_seq'::regclass);
+
+
+--
+-- Name: resumes id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.resumes ALTER COLUMN id SET DEFAULT nextval('public.resumes_id_seq'::regclass);
+
+
+--
+-- Name: roles id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.roles ALTER COLUMN id SET DEFAULT nextval('public.roles_id_seq'::regclass);
+
+
+--
+-- Name: rubric_dimensions id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_dimensions ALTER COLUMN id SET DEFAULT nextval('public.rubric_dimensions_id_seq'::regclass);
+
+
+--
+-- Name: rubrics id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubrics ALTER COLUMN id SET DEFAULT nextval('public.rubrics_id_seq'::regclass);
+
+
+--
+-- Name: supplementary_reports id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.supplementary_reports ALTER COLUMN id SET DEFAULT nextval('public.supplementary_reports_id_seq'::regclass);
+
+
+--
+-- Name: topics id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topics ALTER COLUMN id SET DEFAULT nextval('public.topics_id_seq'::regclass);
+
+
+--
+-- Name: users id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_id_seq'::regclass);
+
+
+--
+-- Name: window_role_templates id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.window_role_templates ALTER COLUMN id SET DEFAULT nextval('public.window_role_templates_id_seq'::regclass);
+
+
+--
+-- Name: admins admins_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: admins admins_user_id_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_user_id_organization_id_key UNIQUE (user_id, organization_id);
+
+
+--
+-- Name: audio_analytics audio_analytics_interview_exchange_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audio_analytics
+    ADD CONSTRAINT audio_analytics_interview_exchange_id_key UNIQUE (interview_exchange_id);
+
+
+--
+-- Name: audio_analytics audio_analytics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audio_analytics
+    ADD CONSTRAINT audio_analytics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: audit_logs audit_logs_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidates
+    ADD CONSTRAINT candidates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: candidates candidates_user_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidates
+    ADD CONSTRAINT candidates_user_id_key UNIQUE (user_id);
+
+
+--
+-- Name: code_execution_results code_execution_results_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_execution_results
+    ADD CONSTRAINT code_execution_results_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: code_submissions code_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_submissions
+    ADD CONSTRAINT code_submissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: coding_problem_topics coding_problem_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_topics
+    ADD CONSTRAINT coding_problem_topics_pkey PRIMARY KEY (coding_problem_id, coding_topic_id);
+
+
+--
+-- Name: coding_problems coding_problems_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problems
+    ADD CONSTRAINT coding_problems_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: coding_test_cases coding_test_cases_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_test_cases
+    ADD CONSTRAINT coding_test_cases_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: coding_topics coding_topics_name_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_topics
+    ADD CONSTRAINT coding_topics_name_organization_id_key UNIQUE (name, organization_id);
+
+
+--
+-- Name: coding_topics coding_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_topics
+    ADD CONSTRAINT coding_topics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: embeddings embeddings_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.embeddings
+    ADD CONSTRAINT embeddings_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: evaluation_dimension_scores evaluation_dimension_scores_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluation_dimension_scores
+    ADD CONSTRAINT evaluation_dimension_scores_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: evaluations evaluations_interview_exchange_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations
+    ADD CONSTRAINT evaluations_interview_exchange_id_key UNIQUE (interview_exchange_id);
+
+
+--
+-- Name: evaluations evaluations_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations
+    ADD CONSTRAINT evaluations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_exchanges interview_exchanges_interview_submission_id_sequence_order_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_exchanges
+    ADD CONSTRAINT interview_exchanges_interview_submission_id_sequence_order_key UNIQUE (interview_submission_id, sequence_order);
+
+
+--
+-- Name: interview_exchanges interview_exchanges_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_exchanges
+    ADD CONSTRAINT interview_exchanges_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_results interview_results_interview_submission_id_scoring_version_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_results
+    ADD CONSTRAINT interview_results_interview_submission_id_scoring_version_key UNIQUE (interview_submission_id, scoring_version);
+
+
+--
+-- Name: interview_results interview_results_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_results
+    ADD CONSTRAINT interview_results_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_submission_windows interview_submission_windows_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submission_windows
+    ADD CONSTRAINT interview_submission_windows_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_submissions interview_submissions_candidate_id_window_id_role_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions
+    ADD CONSTRAINT interview_submissions_candidate_id_window_id_role_id_key UNIQUE (candidate_id, window_id, role_id);
+
+
+--
+-- Name: interview_submissions interview_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions
+    ADD CONSTRAINT interview_submissions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_template_roles interview_template_roles_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_roles
+    ADD CONSTRAINT interview_template_roles_pkey PRIMARY KEY (interview_template_id, role_id);
+
+
+--
+-- Name: interview_template_rubrics interview_template_rubrics_interview_template_id_rubric_id__key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_rubrics
+    ADD CONSTRAINT interview_template_rubrics_interview_template_id_rubric_id__key UNIQUE (interview_template_id, rubric_id, section_name);
+
+
+--
+-- Name: interview_template_rubrics interview_template_rubrics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_rubrics
+    ADD CONSTRAINT interview_template_rubrics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_templates interview_templates_name_version_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_templates
+    ADD CONSTRAINT interview_templates_name_version_organization_id_key UNIQUE (name, version, organization_id);
+
+
+--
+-- Name: interview_templates interview_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_templates
+    ADD CONSTRAINT interview_templates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: job_descriptions job_descriptions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.job_descriptions
+    ADD CONSTRAINT job_descriptions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: media_artifacts media_artifacts_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.media_artifacts
+    ADD CONSTRAINT media_artifacts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: models models_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.models
+    ADD CONSTRAINT models_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: models models_provider_name_version_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.models
+    ADD CONSTRAINT models_provider_name_version_key UNIQUE (provider, name, version);
+
+
+--
+-- Name: organizations organizations_domain_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT organizations_domain_key UNIQUE (domain);
+
+
+--
+-- Name: organizations organizations_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.organizations
+    ADD CONSTRAINT organizations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: proctoring_events proctoring_events_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.proctoring_events
+    ADD CONSTRAINT proctoring_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: prompt_templates prompt_templates_name_version_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.prompt_templates
+    ADD CONSTRAINT prompt_templates_name_version_organization_id_key UNIQUE (name, version, organization_id);
+
+
+--
+-- Name: prompt_templates prompt_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.prompt_templates
+    ADD CONSTRAINT prompt_templates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: question_topics question_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_topics
+    ADD CONSTRAINT question_topics_pkey PRIMARY KEY (question_id, topic_id);
+
+
+--
+-- Name: questions questions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.questions
+    ADD CONSTRAINT questions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: resumes resumes_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.resumes
+    ADD CONSTRAINT resumes_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: role_coding_topics role_coding_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_coding_topics
+    ADD CONSTRAINT role_coding_topics_pkey PRIMARY KEY (role_id, coding_topic_id);
+
+
+--
+-- Name: role_topics role_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_topics
+    ADD CONSTRAINT role_topics_pkey PRIMARY KEY (role_id, topic_id);
+
+
+--
+-- Name: roles roles_name_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_name_organization_id_key UNIQUE (name, organization_id);
+
+
+--
+-- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rubric_dimensions rubric_dimensions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_dimensions
+    ADD CONSTRAINT rubric_dimensions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rubrics rubrics_name_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubrics
+    ADD CONSTRAINT rubrics_name_organization_id_key UNIQUE (name, organization_id);
+
+
+--
+-- Name: rubrics rubrics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubrics
+    ADD CONSTRAINT rubrics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: supplementary_reports supplementary_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.supplementary_reports
+    ADD CONSTRAINT supplementary_reports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: topics topics_name_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_name_organization_id_key UNIQUE (name, organization_id);
+
+
+--
+-- Name: topics topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_email_key UNIQUE (email);
+
+
+--
+-- Name: users users_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.users
+    ADD CONSTRAINT users_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: window_role_templates window_role_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.window_role_templates
+    ADD CONSTRAINT window_role_templates_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: window_role_templates window_role_templates_window_id_role_id_template_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.window_role_templates
+    ADD CONSTRAINT window_role_templates_window_id_role_id_template_id_key UNIQUE (window_id, role_id, template_id);
+
+
+--
+-- Name: idx_admins_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_admins_org ON public.admins USING btree (organization_id);
+
+
+--
+-- Name: idx_admins_user; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_admins_user ON public.admins USING btree (user_id);
+
+
+--
+-- Name: idx_audio_analytics_exchange; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_audio_analytics_exchange ON public.audio_analytics USING btree (interview_exchange_id);
+
+
+--
+-- Name: idx_audit_actor; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_audit_actor ON public.audit_logs USING btree (actor_user_id);
+
+
+--
+-- Name: idx_audit_created; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_audit_created ON public.audit_logs USING btree (created_at);
+
+
+--
+-- Name: idx_audit_entity; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_audit_entity ON public.audit_logs USING btree (entity_type, entity_id);
+
+
+--
+-- Name: idx_audit_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_audit_org ON public.audit_logs USING btree (organization_id);
+
+
+--
+-- Name: idx_candidates_user; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_candidates_user ON public.candidates USING btree (user_id);
+
+
+--
+-- Name: idx_code_execution_results_submission; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_code_execution_results_submission ON public.code_execution_results USING btree (code_submission_id);
+
+
+--
+-- Name: idx_code_submissions_exchange; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_code_submissions_exchange ON public.code_submissions USING btree (interview_exchange_id);
+
+
+--
+-- Name: idx_coding_problems_difficulty; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problems_difficulty ON public.coding_problems USING btree (difficulty);
+
+
+--
+-- Name: idx_coding_problems_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problems_org ON public.coding_problems USING btree (organization_id);
+
+
+--
+-- Name: idx_coding_test_cases_problem; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_test_cases_problem ON public.coding_test_cases USING btree (coding_problem_id);
+
+
+--
+-- Name: idx_coding_topics_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_topics_org ON public.coding_topics USING btree (organization_id);
+
+
+--
+-- Name: idx_coding_topics_parent; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_topics_parent ON public.coding_topics USING btree (parent_topic_id);
+
+
+--
+-- Name: idx_coding_topics_type; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_topics_type ON public.coding_topics USING btree (topic_type);
+
+
+--
+-- Name: idx_embeddings_model; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_embeddings_model ON public.embeddings USING btree (model_id);
+
+
+--
+-- Name: idx_embeddings_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_embeddings_org ON public.embeddings USING btree (organization_id);
+
+
+--
+-- Name: idx_embeddings_source; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_embeddings_source ON public.embeddings USING btree (source_type, source_id);
+
+
+--
+-- Name: idx_eval_dim_scores_evaluation; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_eval_dim_scores_evaluation ON public.evaluation_dimension_scores USING btree (evaluation_id);
+
+
+--
+-- Name: idx_evaluations_exchange; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_evaluations_exchange ON public.evaluations USING btree (interview_exchange_id);
+
+
+--
+-- Name: idx_evaluations_final; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_evaluations_final ON public.evaluations USING btree (is_final) WHERE (is_final = true);
+
+
+--
+-- Name: idx_evaluations_rubric; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_evaluations_rubric ON public.evaluations USING btree (rubric_id);
+
+
+--
+-- Name: idx_exchanges_coding; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_exchanges_coding ON public.interview_exchanges USING btree (coding_problem_id);
+
+
+--
+-- Name: idx_exchanges_question; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_exchanges_question ON public.interview_exchanges USING btree (question_id);
+
+
+--
+-- Name: idx_exchanges_sequence; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_exchanges_sequence ON public.interview_exchanges USING btree (interview_submission_id, sequence_order);
+
+
+--
+-- Name: idx_exchanges_submission; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_exchanges_submission ON public.interview_exchanges USING btree (interview_submission_id);
+
+
+--
+-- Name: idx_interview_results_computed; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_interview_results_computed ON public.interview_results USING btree (computed_at);
+
+
+--
+-- Name: idx_interview_results_current; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_interview_results_current ON public.interview_results USING btree (is_current) WHERE (is_current = true);
+
+
+--
+-- Name: idx_interview_results_status; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_interview_results_status ON public.interview_results USING btree (result_status);
+
+
+--
+-- Name: idx_interview_results_submission; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_interview_results_submission ON public.interview_results USING btree (interview_submission_id);
+
+
+--
+-- Name: idx_job_descriptions_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_job_descriptions_org ON public.job_descriptions USING btree (organization_id);
+
+
+--
+-- Name: idx_job_descriptions_role; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_job_descriptions_role ON public.job_descriptions USING btree (role_id);
+
+
+--
+-- Name: idx_media_artifacts_exchange; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_media_artifacts_exchange ON public.media_artifacts USING btree (interview_exchange_id);
+
+
+--
+-- Name: idx_proctoring_severity; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_proctoring_severity ON public.proctoring_events USING btree (severity);
+
+
+--
+-- Name: idx_proctoring_submission; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_proctoring_submission ON public.proctoring_events USING btree (interview_submission_id);
+
+
+--
+-- Name: idx_prompt_templates_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_prompt_templates_active ON public.prompt_templates USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_prompt_templates_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_prompt_templates_org ON public.prompt_templates USING btree (organization_id);
+
+
+--
+-- Name: idx_prompt_templates_type; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_prompt_templates_type ON public.prompt_templates USING btree (prompt_type);
+
+
+--
+-- Name: idx_questions_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_questions_active ON public.questions USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_questions_difficulty; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_questions_difficulty ON public.questions USING btree (difficulty);
+
+
+--
+-- Name: idx_questions_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_questions_org ON public.questions USING btree (organization_id);
+
+
+--
+-- Name: idx_questions_scope; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_questions_scope ON public.questions USING btree (scope, organization_id);
+
+
+--
+-- Name: idx_questions_type; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_questions_type ON public.questions USING btree (question_type);
+
+
+--
+-- Name: idx_resumes_candidate; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_resumes_candidate ON public.resumes USING btree (candidate_id);
+
+
+--
+-- Name: idx_roles_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_roles_org ON public.roles USING btree (organization_id);
+
+
+--
+-- Name: idx_rubric_dimensions_rubric; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_rubric_dimensions_rubric ON public.rubric_dimensions USING btree (rubric_id);
+
+
+--
+-- Name: idx_rubrics_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_rubrics_org ON public.rubrics USING btree (organization_id);
+
+
+--
+-- Name: idx_submissions_candidate; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_submissions_candidate ON public.interview_submissions USING btree (candidate_id);
+
+
+--
+-- Name: idx_submissions_created; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_submissions_created ON public.interview_submissions USING btree (created_at);
+
+
+--
+-- Name: idx_submissions_role; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_submissions_role ON public.interview_submissions USING btree (role_id);
+
+
+--
+-- Name: idx_submissions_status; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_submissions_status ON public.interview_submissions USING btree (status);
+
+
+--
+-- Name: idx_submissions_window; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_submissions_window ON public.interview_submissions USING btree (window_id);
+
+
+--
+-- Name: idx_supplementary_reports_submission; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_supplementary_reports_submission ON public.supplementary_reports USING btree (interview_submission_id);
+
+
+--
+-- Name: idx_supplementary_reports_type; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_supplementary_reports_type ON public.supplementary_reports USING btree (report_type);
+
+
+--
+-- Name: idx_templates_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_templates_active ON public.interview_templates USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_templates_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_templates_org ON public.interview_templates USING btree (organization_id);
+
+
+--
+-- Name: idx_topics_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_topics_org ON public.topics USING btree (organization_id);
+
+
+--
+-- Name: idx_topics_parent; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_topics_parent ON public.topics USING btree (parent_topic_id);
+
+
+--
+-- Name: idx_window_role_templates_role; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_window_role_templates_role ON public.window_role_templates USING btree (role_id);
+
+
+--
+-- Name: idx_window_role_templates_template; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_window_role_templates_template ON public.window_role_templates USING btree (template_id);
+
+
+--
+-- Name: idx_window_role_templates_window; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_window_role_templates_window ON public.window_role_templates USING btree (window_id);
+
+
+--
+-- Name: idx_windows_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_windows_org ON public.interview_submission_windows USING btree (organization_id);
+
+
+--
+-- Name: idx_windows_time; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_windows_time ON public.interview_submission_windows USING btree (start_time, end_time);
+
+
+--
+-- Name: admins admins_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: admins admins_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.admins
+    ADD CONSTRAINT admins_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audio_analytics audio_analytics_interview_exchange_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audio_analytics
+    ADD CONSTRAINT audio_analytics_interview_exchange_id_fkey FOREIGN KEY (interview_exchange_id) REFERENCES public.interview_exchanges(id) ON DELETE CASCADE;
+
+
+--
+-- Name: audit_logs audit_logs_actor_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_actor_user_id_fkey FOREIGN KEY (actor_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: audit_logs audit_logs_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.audit_logs
+    ADD CONSTRAINT audit_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE SET NULL;
+
+
+--
+-- Name: candidates candidates_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidates
+    ADD CONSTRAINT candidates_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: code_execution_results code_execution_results_code_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_execution_results
+    ADD CONSTRAINT code_execution_results_code_submission_id_fkey FOREIGN KEY (code_submission_id) REFERENCES public.code_submissions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: code_execution_results code_execution_results_test_case_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_execution_results
+    ADD CONSTRAINT code_execution_results_test_case_id_fkey FOREIGN KEY (test_case_id) REFERENCES public.coding_test_cases(id) ON DELETE CASCADE;
+
+
+--
+-- Name: code_submissions code_submissions_coding_problem_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_submissions
+    ADD CONSTRAINT code_submissions_coding_problem_id_fkey FOREIGN KEY (coding_problem_id) REFERENCES public.coding_problems(id) ON DELETE CASCADE;
+
+
+--
+-- Name: code_submissions code_submissions_interview_exchange_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_submissions
+    ADD CONSTRAINT code_submissions_interview_exchange_id_fkey FOREIGN KEY (interview_exchange_id) REFERENCES public.interview_exchanges(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_problem_topics coding_problem_topics_coding_problem_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_topics
+    ADD CONSTRAINT coding_problem_topics_coding_problem_id_fkey FOREIGN KEY (coding_problem_id) REFERENCES public.coding_problems(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_problem_topics coding_problem_topics_coding_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_topics
+    ADD CONSTRAINT coding_problem_topics_coding_topic_id_fkey FOREIGN KEY (coding_topic_id) REFERENCES public.coding_topics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_problems coding_problems_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problems
+    ADD CONSTRAINT coding_problems_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_test_cases coding_test_cases_coding_problem_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_test_cases
+    ADD CONSTRAINT coding_test_cases_coding_problem_id_fkey FOREIGN KEY (coding_problem_id) REFERENCES public.coding_problems(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_topics coding_topics_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_topics
+    ADD CONSTRAINT coding_topics_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_topics coding_topics_parent_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_topics
+    ADD CONSTRAINT coding_topics_parent_topic_id_fkey FOREIGN KEY (parent_topic_id) REFERENCES public.coding_topics(id) ON DELETE SET NULL;
+
+
+--
+-- Name: embeddings embeddings_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.embeddings
+    ADD CONSTRAINT embeddings_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE CASCADE;
+
+
+--
+-- Name: embeddings embeddings_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.embeddings
+    ADD CONSTRAINT embeddings_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: evaluation_dimension_scores evaluation_dimension_scores_evaluation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluation_dimension_scores
+    ADD CONSTRAINT evaluation_dimension_scores_evaluation_id_fkey FOREIGN KEY (evaluation_id) REFERENCES public.evaluations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: evaluation_dimension_scores evaluation_dimension_scores_rubric_dimension_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluation_dimension_scores
+    ADD CONSTRAINT evaluation_dimension_scores_rubric_dimension_id_fkey FOREIGN KEY (rubric_dimension_id) REFERENCES public.rubric_dimensions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: evaluations evaluations_interview_exchange_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations
+    ADD CONSTRAINT evaluations_interview_exchange_id_fkey FOREIGN KEY (interview_exchange_id) REFERENCES public.interview_exchanges(id) ON DELETE CASCADE;
+
+
+--
+-- Name: evaluations evaluations_rubric_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations
+    ADD CONSTRAINT evaluations_rubric_id_fkey FOREIGN KEY (rubric_id) REFERENCES public.rubrics(id) ON DELETE SET NULL;
+
+
+--
+-- Name: evaluations fk_evaluations_model; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations
+    ADD CONSTRAINT fk_evaluations_model FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE SET NULL;
+
+
+--
+-- Name: interview_exchanges interview_exchanges_coding_problem_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_exchanges
+    ADD CONSTRAINT interview_exchanges_coding_problem_id_fkey FOREIGN KEY (coding_problem_id) REFERENCES public.coding_problems(id) ON DELETE SET NULL;
+
+
+--
+-- Name: interview_exchanges interview_exchanges_interview_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_exchanges
+    ADD CONSTRAINT interview_exchanges_interview_submission_id_fkey FOREIGN KEY (interview_submission_id) REFERENCES public.interview_submissions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_exchanges interview_exchanges_question_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_exchanges
+    ADD CONSTRAINT interview_exchanges_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.questions(id) ON DELETE SET NULL;
+
+
+--
+-- Name: interview_results interview_results_interview_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_results
+    ADD CONSTRAINT interview_results_interview_submission_id_fkey FOREIGN KEY (interview_submission_id) REFERENCES public.interview_submissions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_results interview_results_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_results
+    ADD CONSTRAINT interview_results_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE SET NULL;
+
+
+--
+-- Name: interview_submission_windows interview_submission_windows_admin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submission_windows
+    ADD CONSTRAINT interview_submission_windows_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(id);
+
+
+--
+-- Name: interview_submission_windows interview_submission_windows_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submission_windows
+    ADD CONSTRAINT interview_submission_windows_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_submissions interview_submissions_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions
+    ADD CONSTRAINT interview_submissions_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.candidates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_submissions interview_submissions_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions
+    ADD CONSTRAINT interview_submissions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_submissions interview_submissions_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions
+    ADD CONSTRAINT interview_submissions_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.interview_templates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_submissions interview_submissions_window_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_submissions
+    ADD CONSTRAINT interview_submissions_window_id_fkey FOREIGN KEY (window_id) REFERENCES public.interview_submission_windows(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_template_roles interview_template_roles_interview_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_roles
+    ADD CONSTRAINT interview_template_roles_interview_template_id_fkey FOREIGN KEY (interview_template_id) REFERENCES public.interview_templates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_template_roles interview_template_roles_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_roles
+    ADD CONSTRAINT interview_template_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_template_rubrics interview_template_rubrics_interview_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_rubrics
+    ADD CONSTRAINT interview_template_rubrics_interview_template_id_fkey FOREIGN KEY (interview_template_id) REFERENCES public.interview_templates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_template_rubrics interview_template_rubrics_rubric_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_template_rubrics
+    ADD CONSTRAINT interview_template_rubrics_rubric_id_fkey FOREIGN KEY (rubric_id) REFERENCES public.rubrics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: interview_templates interview_templates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.interview_templates
+    ADD CONSTRAINT interview_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: job_descriptions job_descriptions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.job_descriptions
+    ADD CONSTRAINT job_descriptions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: job_descriptions job_descriptions_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.job_descriptions
+    ADD CONSTRAINT job_descriptions_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: media_artifacts media_artifacts_interview_exchange_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.media_artifacts
+    ADD CONSTRAINT media_artifacts_interview_exchange_id_fkey FOREIGN KEY (interview_exchange_id) REFERENCES public.interview_exchanges(id) ON DELETE CASCADE;
+
+
+--
+-- Name: proctoring_events proctoring_events_interview_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.proctoring_events
+    ADD CONSTRAINT proctoring_events_interview_submission_id_fkey FOREIGN KEY (interview_submission_id) REFERENCES public.interview_submissions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: prompt_templates prompt_templates_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.prompt_templates
+    ADD CONSTRAINT prompt_templates_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE SET NULL;
+
+
+--
+-- Name: prompt_templates prompt_templates_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.prompt_templates
+    ADD CONSTRAINT prompt_templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: question_topics question_topics_question_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_topics
+    ADD CONSTRAINT question_topics_question_id_fkey FOREIGN KEY (question_id) REFERENCES public.questions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: question_topics question_topics_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_topics
+    ADD CONSTRAINT question_topics_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.topics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: questions questions_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.questions
+    ADD CONSTRAINT questions_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: resumes resumes_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.resumes
+    ADD CONSTRAINT resumes_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.candidates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: role_coding_topics role_coding_topics_coding_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_coding_topics
+    ADD CONSTRAINT role_coding_topics_coding_topic_id_fkey FOREIGN KEY (coding_topic_id) REFERENCES public.coding_topics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: role_coding_topics role_coding_topics_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_coding_topics
+    ADD CONSTRAINT role_coding_topics_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: role_topics role_topics_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_topics
+    ADD CONSTRAINT role_topics_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: role_topics role_topics_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_topics
+    ADD CONSTRAINT role_topics_topic_id_fkey FOREIGN KEY (topic_id) REFERENCES public.topics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: roles roles_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rubric_dimensions rubric_dimensions_rubric_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_dimensions
+    ADD CONSTRAINT rubric_dimensions_rubric_id_fkey FOREIGN KEY (rubric_id) REFERENCES public.rubrics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rubrics rubrics_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubrics
+    ADD CONSTRAINT rubrics_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: supplementary_reports supplementary_reports_interview_submission_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.supplementary_reports
+    ADD CONSTRAINT supplementary_reports_interview_submission_id_fkey FOREIGN KEY (interview_submission_id) REFERENCES public.interview_submissions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: supplementary_reports supplementary_reports_model_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.supplementary_reports
+    ADD CONSTRAINT supplementary_reports_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE SET NULL;
+
+
+--
+-- Name: topics topics_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: topics topics_parent_topic_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topics
+    ADD CONSTRAINT topics_parent_topic_id_fkey FOREIGN KEY (parent_topic_id) REFERENCES public.topics(id) ON DELETE SET NULL;
+
+
+--
+-- Name: window_role_templates window_role_templates_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.window_role_templates
+    ADD CONSTRAINT window_role_templates_role_id_fkey FOREIGN KEY (role_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: window_role_templates window_role_templates_template_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.window_role_templates
+    ADD CONSTRAINT window_role_templates_template_id_fkey FOREIGN KEY (template_id) REFERENCES public.interview_templates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: window_role_templates window_role_templates_window_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.window_role_templates
+    ADD CONSTRAINT window_role_templates_window_id_fkey FOREIGN KEY (window_id) REFERENCES public.interview_submission_windows(id) ON DELETE CASCADE;
+
+
+--
+-- Name: SCHEMA public; Type: ACL; Schema: -; Owner: pg_database_owner
+--
+
+GRANT ALL ON SCHEMA public TO jithsungh;
+GRANT ALL ON SCHEMA public TO jayanadh;
+GRANT ALL ON SCHEMA public TO vysali;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict 9H2vFRaQ4VhaBca47niKEZmSbMiMKSjjreW93cGkzkEdKLGYsAt76HOcJ9egI4H
+
