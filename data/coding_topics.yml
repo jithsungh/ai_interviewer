@@ -1,0 +1,42 @@
+coding_topics
+    - Data Structures
+        - Arrays
+        - Linked Lists
+        - Stacks
+        - Queues
+        - Trees
+        - Graphs
+    - Algorithms
+        - Sorting Algorithms
+            - Bubble Sort
+            - Selection Sort
+            - Insertion Sort
+            - Merge Sort
+            - Quick Sort
+        - Searching Algorithms
+            - Linear Search
+            - Binary Search
+        - Dynamic Programming
+        - Greedy Algorithms
+        - Backtracking
+    - Problem Solving Patterns
+        - Sliding Window
+            - Fixed Window
+            - Variable Window
+        - Two Pointers
+        - Prefix Sum
+        - Bit Manipulation
+        - Monotonic Stack
+        - Top-K Elements
+        - Recursion
+        - Overlapping Intervals
+    - Traversal Techniques
+        - Tree Traversal
+            - Preorder
+            - Inorder
+            - Postorder
+            - Level Order
+        - Graph Traversal
+            - Depth First Search
+            - Breadth First Search
+        - Matrix Traversal
