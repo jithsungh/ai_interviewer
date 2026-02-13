@@ -1,6 +1,4 @@
-
 ```
-
 backend/
 ├── app/
 │   ├── bootstrap/                # FastAPI app, middleware, lifespan

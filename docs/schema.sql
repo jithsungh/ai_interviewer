@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 9H2vFRaQ4VhaBca47niKEZmSbMiMKSjjreW93cGkzkEdKLGYsAt76HOcJ9egI4H
+\restrict er0xJRAKBnCbKNPK3q0t9geviDlLcJFaXr2DEbd0TsG8sobS6mWO5KlRxD12Hjy
 
 -- Dumped from database version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -83,7 +83,8 @@ CREATE TYPE public.coding_topic_type AS ENUM (
     'algorithm',
     'pattern',
     'system_design',
-    'language_specific'
+    'language_specific',
+    'traversal'
 );
 
 
@@ -194,6 +195,32 @@ CREATE TYPE public.organization_type AS ENUM (
 ALTER TYPE public.organization_type OWNER TO jithsungh;
 
 --
+-- Name: problem_pipeline_status; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.problem_pipeline_status AS ENUM (
+    'pending',
+    'solution_fetched',
+    'tests_validated',
+    'templates_validated',
+    'imported'
+);
+
+
+ALTER TYPE public.problem_pipeline_status OWNER TO jithsungh;
+
+--
+-- Name: problem_source; Type: TYPE; Schema: public; Owner: jithsungh
+--
+
+CREATE TYPE public.problem_source AS ENUM (
+    'leetcode'
+);
+
+
+ALTER TYPE public.problem_source OWNER TO jithsungh;
+
+--
 -- Name: proctoring_severity; Type: TYPE; Schema: public; Owner: jithsungh
 --
 
@@ -254,8 +281,9 @@ ALTER TYPE public.submission_status OWNER TO jithsungh;
 --
 
 CREATE TYPE public.template_scope AS ENUM (
-    'global',
-    'organization'
+    'public',
+    'organization',
+    'private'
 );
 
 
@@ -538,7 +566,7 @@ ALTER TABLE public.coding_problem_topics OWNER TO jithsungh;
 
 CREATE TABLE public.coding_problems (
     id bigint NOT NULL,
-    problem_text text NOT NULL,
+    body text NOT NULL,
     difficulty public.difficulty_level NOT NULL,
     scope public.template_scope NOT NULL,
     organization_id bigint,
@@ -546,7 +574,24 @@ CREATE TABLE public.coding_problems (
     estimated_time_minutes integer DEFAULT 30 NOT NULL,
     is_active boolean DEFAULT true NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    source_name public.problem_source NOT NULL,
+    source_id text NOT NULL,
+    source_slug text,
+    title text DEFAULT ''::text NOT NULL,
+    description text,
+    raw_content jsonb,
+    content_overridden boolean DEFAULT false NOT NULL,
+    overridden_content text,
+    examples jsonb DEFAULT '[]'::jsonb,
+    constraints_structured jsonb DEFAULT '[]'::jsonb,
+    hints jsonb DEFAULT '[]'::jsonb,
+    stats jsonb,
+    code_snippets jsonb DEFAULT '{}'::jsonb,
+    likes integer,
+    dislikes integer,
+    acceptance_rate numeric(5,2),
+    pipeline_status public.problem_pipeline_status DEFAULT 'pending'::public.problem_pipeline_status NOT NULL
 );
 
 
@@ -624,7 +669,8 @@ CREATE TABLE public.coding_topics (
     scope public.template_scope NOT NULL,
     organization_id bigint,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL
 );
 
 
@@ -1207,6 +1253,46 @@ ALTER SEQUENCE public.organizations_id_seq OWNED BY public.organizations.id;
 
 
 --
+-- Name: problem_language_templates; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.problem_language_templates (
+    id bigint NOT NULL,
+    problem_id bigint NOT NULL,
+    language_id bigint NOT NULL,
+    template_code text NOT NULL,
+    entry_function text,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    solution_code text
+);
+
+
+ALTER TABLE public.problem_language_templates OWNER TO jithsungh;
+
+--
+-- Name: COLUMN problem_language_templates.solution_code; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.problem_language_templates.solution_code IS 'Full working solution code for this problem in this language';
+
+
+--
+-- Name: problem_language_templates_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE public.problem_language_templates ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.problem_language_templates_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: proctoring_events; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -1243,6 +1329,47 @@ ALTER SEQUENCE public.proctoring_events_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.proctoring_events_id_seq OWNED BY public.proctoring_events.id;
+
+
+--
+-- Name: programming_languages; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.programming_languages (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    slug text NOT NULL,
+    version text,
+    execution_environment text,
+    is_active boolean DEFAULT true NOT NULL,
+    display_order integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT programming_languages_slug_format CHECK ((slug ~ '^[a-z0-9_]+$'::text))
+);
+
+
+ALTER TABLE public.programming_languages OWNER TO jithsungh;
+
+--
+-- Name: programming_languages_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.programming_languages_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.programming_languages_id_seq OWNER TO jithsungh;
+
+--
+-- Name: programming_languages_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.programming_languages_id_seq OWNED BY public.programming_languages.id;
 
 
 --
@@ -1522,6 +1649,42 @@ ALTER SEQUENCE public.rubrics_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.rubrics_id_seq OWNED BY public.rubrics.id;
+
+
+--
+-- Name: source_topics; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.source_topics (
+    id bigint NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    coding_topic_id bigint
+);
+
+
+ALTER TABLE public.source_topics OWNER TO jithsungh;
+
+--
+-- Name: source_topics_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.source_topics_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.source_topics_id_seq OWNER TO jithsungh;
+
+--
+-- Name: source_topics_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.source_topics_id_seq OWNED BY public.source_topics.id;
 
 
 --
@@ -1856,6 +2019,13 @@ ALTER TABLE ONLY public.proctoring_events ALTER COLUMN id SET DEFAULT nextval('p
 
 
 --
+-- Name: programming_languages id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.programming_languages ALTER COLUMN id SET DEFAULT nextval('public.programming_languages_id_seq'::regclass);
+
+
+--
 -- Name: prompt_templates id; Type: DEFAULT; Schema: public; Owner: jithsungh
 --
 
@@ -1895,6 +2065,13 @@ ALTER TABLE ONLY public.rubric_dimensions ALTER COLUMN id SET DEFAULT nextval('p
 --
 
 ALTER TABLE ONLY public.rubrics ALTER COLUMN id SET DEFAULT nextval('public.rubrics_id_seq'::regclass);
+
+
+--
+-- Name: source_topics id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.source_topics ALTER COLUMN id SET DEFAULT nextval('public.source_topics_id_seq'::regclass);
 
 
 --
@@ -2019,14 +2196,6 @@ ALTER TABLE ONLY public.coding_problems
 
 ALTER TABLE ONLY public.coding_test_cases
     ADD CONSTRAINT coding_test_cases_pkey PRIMARY KEY (id);
-
-
---
--- Name: coding_topics coding_topics_name_organization_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
---
-
-ALTER TABLE ONLY public.coding_topics
-    ADD CONSTRAINT coding_topics_name_organization_id_key UNIQUE (name, organization_id);
 
 
 --
@@ -2214,11 +2383,35 @@ ALTER TABLE ONLY public.organizations
 
 
 --
+-- Name: problem_language_templates problem_language_templates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.problem_language_templates
+    ADD CONSTRAINT problem_language_templates_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: proctoring_events proctoring_events_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
 ALTER TABLE ONLY public.proctoring_events
     ADD CONSTRAINT proctoring_events_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: programming_languages programming_languages_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.programming_languages
+    ADD CONSTRAINT programming_languages_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: programming_languages programming_languages_slug_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.programming_languages
+    ADD CONSTRAINT programming_languages_slug_key UNIQUE (slug);
 
 
 --
@@ -2318,6 +2511,22 @@ ALTER TABLE ONLY public.rubrics
 
 
 --
+-- Name: source_topics source_topics_name_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.source_topics
+    ADD CONSTRAINT source_topics_name_key UNIQUE (name);
+
+
+--
+-- Name: source_topics source_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.source_topics
+    ADD CONSTRAINT source_topics_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: supplementary_reports supplementary_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2339,6 +2548,22 @@ ALTER TABLE ONLY public.topics
 
 ALTER TABLE ONLY public.topics
     ADD CONSTRAINT topics_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: problem_language_templates uq_problem_language_template; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.problem_language_templates
+    ADD CONSTRAINT uq_problem_language_template UNIQUE (problem_id, language_id);
+
+
+--
+-- Name: coding_problems uq_source_problem; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problems
+    ADD CONSTRAINT uq_source_problem UNIQUE (source_name, source_id);
 
 
 --
@@ -2444,6 +2669,13 @@ CREATE INDEX idx_code_submissions_exchange ON public.code_submissions USING btre
 
 
 --
+-- Name: idx_coding_problems_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problems_active ON public.coding_problems USING btree (is_active) WHERE (is_active = true);
+
+
+--
 -- Name: idx_coding_problems_difficulty; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -2458,6 +2690,13 @@ CREATE INDEX idx_coding_problems_org ON public.coding_problems USING btree (orga
 
 
 --
+-- Name: idx_coding_problems_pipeline_status; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problems_pipeline_status ON public.coding_problems USING btree (pipeline_status);
+
+
+--
 -- Name: idx_coding_test_cases_problem; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -2465,24 +2704,31 @@ CREATE INDEX idx_coding_test_cases_problem ON public.coding_test_cases USING btr
 
 
 --
--- Name: idx_coding_topics_org; Type: INDEX; Schema: public; Owner: jithsungh
+-- Name: idx_coding_topics_org_type; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
-CREATE INDEX idx_coding_topics_org ON public.coding_topics USING btree (organization_id);
-
-
---
--- Name: idx_coding_topics_parent; Type: INDEX; Schema: public; Owner: jithsungh
---
-
-CREATE INDEX idx_coding_topics_parent ON public.coding_topics USING btree (parent_topic_id);
+CREATE INDEX idx_coding_topics_org_type ON public.coding_topics USING btree (organization_id, topic_type);
 
 
 --
--- Name: idx_coding_topics_type; Type: INDEX; Schema: public; Owner: jithsungh
+-- Name: idx_coding_topics_roots; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
-CREATE INDEX idx_coding_topics_type ON public.coding_topics USING btree (topic_type);
+CREATE INDEX idx_coding_topics_roots ON public.coding_topics USING btree (organization_id, display_order) WHERE (parent_topic_id IS NULL);
+
+
+--
+-- Name: idx_coding_topics_tree; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_topics_tree ON public.coding_topics USING btree (organization_id, parent_topic_id, display_order);
+
+
+--
+-- Name: idx_coding_topics_unique_sibling; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE UNIQUE INDEX idx_coding_topics_unique_sibling ON public.coding_topics USING btree (organization_id, parent_topic_id, name);
 
 
 --
@@ -2612,6 +2858,27 @@ CREATE INDEX idx_media_artifacts_exchange ON public.media_artifacts USING btree 
 
 
 --
+-- Name: idx_plt_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_plt_active ON public.problem_language_templates USING btree (problem_id, language_id) WHERE (is_active = true);
+
+
+--
+-- Name: idx_plt_language; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_plt_language ON public.problem_language_templates USING btree (language_id) WHERE (is_active = true);
+
+
+--
+-- Name: idx_plt_problem; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_plt_problem ON public.problem_language_templates USING btree (problem_id) WHERE (is_active = true);
+
+
+--
 -- Name: idx_proctoring_severity; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -2623,6 +2890,13 @@ CREATE INDEX idx_proctoring_severity ON public.proctoring_events USING btree (se
 --
 
 CREATE INDEX idx_proctoring_submission ON public.proctoring_events USING btree (interview_submission_id);
+
+
+--
+-- Name: idx_programming_languages_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_programming_languages_active ON public.programming_languages USING btree (is_active);
 
 
 --
@@ -3006,6 +3280,30 @@ ALTER TABLE ONLY public.evaluations
 
 
 --
+-- Name: problem_language_templates fk_plt_language; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.problem_language_templates
+    ADD CONSTRAINT fk_plt_language FOREIGN KEY (language_id) REFERENCES public.programming_languages(id) ON DELETE CASCADE;
+
+
+--
+-- Name: problem_language_templates fk_plt_problem; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.problem_language_templates
+    ADD CONSTRAINT fk_plt_problem FOREIGN KEY (problem_id) REFERENCES public.coding_problems(id) ON DELETE CASCADE;
+
+
+--
+-- Name: source_topics fk_source_topics_coding_topic; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.source_topics
+    ADD CONSTRAINT fk_source_topics_coding_topic FOREIGN KEY (coding_topic_id) REFERENCES public.coding_topics(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: interview_exchanges interview_exchanges_coding_problem_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3338,5 +3636,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 9H2vFRaQ4VhaBca47niKEZmSbMiMKSjjreW93cGkzkEdKLGYsAt76HOcJ9egI4H
+\unrestrict er0xJRAKBnCbKNPK3q0t9geviDlLcJFaXr2DEbd0TsG8sobS6mWO5KlRxD12Hjy
 

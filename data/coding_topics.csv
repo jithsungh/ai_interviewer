@@ -1,0 +1,38 @@
+id,name,description,topic_type,parent_topic_id,scope,organization_id,created_at,updated_at,display_order
+1,Arrays,Linear contiguous data structure enabling indexed access and efficient iteration.,data_structure,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,1
+2,Linked Lists,Node-based sequential structure where elements are connected via pointers.,data_structure,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,2
+3,Stacks,"LIFO (Last-In-First-Out) structure used for recursion, parsing, and backtracking.",data_structure,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,3
+4,Queues,FIFO (First-In-First-Out) structure commonly used in scheduling and traversal.,data_structure,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,4
+5,Trees,Hierarchical structure with parent-child relationships for efficient organization.,data_structure,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,5
+6,Graphs,Network structure consisting of vertices and edges modeling complex relationships.,data_structure,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,6
+7,Sorting Algorithms,Algorithms that arrange elements in a specific order based on comparison or rules.,algorithm,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,7
+8,Searching Algorithms,Algorithms designed to efficiently locate elements within datasets.,algorithm,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,8
+9,Dynamic Programming,Optimization technique solving problems via overlapping subproblems and memoization.,algorithm,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,9
+10,Greedy Algorithms,Strategy that builds solutions using locally optimal choices at each step.,algorithm,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,10
+11,Backtracking,Systematic exploration of solution spaces using recursion and pruning.,algorithm,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,11
+12,Sliding Window,Technique for processing subarrays or substrings using a moving window.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,12
+13,Two Pointers,Pattern using two indices to traverse data efficiently from different directions.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,13
+14,Prefix Sum,Precomputation technique enabling fast range-sum or cumulative queries.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,14
+15,Bit Manipulation,Low-level operations that manipulate binary representations of data.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,15
+16,Monotonic Stack,Stack structure maintaining sorted order for efficient range queries.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,16
+17,Top-K Elements,Techniques for efficiently identifying the largest or smallest K elements.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,17
+18,Recursion,Method where functions call themselves to break problems into subproblems.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,18
+19,Overlapping Intervals,Techniques for merging and analyzing overlapping interval ranges.,pattern,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,19
+20,Tree Traversal,Methods for systematically visiting nodes in tree data structures.,traversal,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,20
+21,Graph Traversal,Algorithms for exploring nodes and edges in graph structures.,traversal,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,21
+22,Matrix Traversal,Strategies for iterating through two-dimensional grid structures.,traversal,NULL,global,1,2026-02-08 14:20:26.613362+00,2026-02-08 14:20:26.613362+00,22
+23,Bubble Sort,Simple comparison sort that repeatedly swaps adjacent elements.,algorithm,7,global,1,2026-02-08 14:24:16.522121+00,2026-02-08 14:24:16.522121+00,1
+24,Selection Sort,Selects the minimum element and places it in sorted order.,algorithm,7,global,1,2026-02-08 14:24:16.522121+00,2026-02-08 14:24:16.522121+00,2
+25,Insertion Sort,Builds a sorted array by inserting elements one at a time.,algorithm,7,global,1,2026-02-08 14:24:16.522121+00,2026-02-08 14:24:16.522121+00,3
+26,Merge Sort,Divide-and-conquer sort with stable O(n log n) performance.,algorithm,7,global,1,2026-02-08 14:24:16.522121+00,2026-02-08 14:24:16.522121+00,4
+27,Quick Sort,Partition-based divide-and-conquer sorting algorithm.,algorithm,7,global,1,2026-02-08 14:24:16.522121+00,2026-02-08 14:24:16.522121+00,5
+28,Linear Search,Sequentially scans elements until a match is found.,algorithm,8,global,1,2026-02-08 14:26:48.256275+00,2026-02-08 14:26:48.256275+00,1
+29,Binary Search,Efficient search on sorted data using divide-and-conquer.,algorithm,8,global,1,2026-02-08 14:26:48.256275+00,2026-02-08 14:26:48.256275+00,2
+30,Fixed Window,Sliding window with constant size for range-based problems.,pattern,12,global,1,2026-02-08 14:27:56.877307+00,2026-02-08 14:27:56.877307+00,1
+31,Variable Window,Dynamically adjusts window size based on constraints.,pattern,12,global,1,2026-02-08 14:27:56.877307+00,2026-02-08 14:27:56.877307+00,2
+32,Preorder Traversal,Visits root before recursively traversing subtrees.,traversal,20,global,1,2026-02-08 14:28:19.765417+00,2026-02-08 14:28:19.765417+00,1
+33,Inorder Traversal,"Traverses left subtree, root, then right subtree.",traversal,20,global,1,2026-02-08 14:28:19.765417+00,2026-02-08 14:28:19.765417+00,2
+34,Postorder Traversal,Traverses subtrees before visiting the root.,traversal,20,global,1,2026-02-08 14:28:19.765417+00,2026-02-08 14:28:19.765417+00,3
+35,Level Order Traversal,Breadth-first traversal level by level.,traversal,20,global,1,2026-02-08 14:28:19.765417+00,2026-02-08 14:28:19.765417+00,4
+36,Depth First Search,Explores graph deeply before backtracking.,traversal,21,global,1,2026-02-08 14:28:37.857605+00,2026-02-08 14:28:37.857605+00,1
+37,Breadth First Search,Explores graph layer by layer using a queue.,traversal,21,global,1,2026-02-08 14:28:37.857605+00,2026-02-08 14:28:37.857605+00,2
