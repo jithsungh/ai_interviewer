@@ -3,6 +3,7 @@
 ## 1. Purpose
 
 The **Qdrant** layer provides:
+
 - Qdrant client initialization and connection management
 - Collection management (create, validate, schema enforcement)
 - Embedding storage (vectors + metadata)
@@ -10,12 +11,14 @@ The **Qdrant** layer provides:
 - Multi-tenant isolation (organization_id filtering)
 
 **Critical responsibility:** This is **pure vector storage**. It must:
+
 - Store and retrieve embeddings efficiently
 - Support metadata filtering (organization, difficulty, topic)
 - **Contain ZERO AI logic** (AI module generates embeddings)
 - **Contain ZERO business logic** (domain modules interpret results)
 
 **Architectural note:**
+
 > **Qdrant stores vectors. It does NOT generate them.**
 > AI module creates embeddings. Qdrant stores them.
 > Domain modules interpret search results.
@@ -27,6 +30,7 @@ The **Qdrant** layer provides:
 ### 2.1 Client Initialization
 
 **Must create Qdrant client with:**
+
 - Connection URL (host:port)
 - API key (for Qdrant Cloud)
 - gRPC or REST mode (gRPC recommended for performance)
@@ -34,6 +38,7 @@ The **Qdrant** layer provides:
 - Retry logic
 
 **Example configuration:**
+
 ```python
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
@@ -41,7 +46,7 @@ from qdrant_client.models import Distance, VectorParams
 def create_qdrant_client(config: QdrantConfig) -> QdrantClient:
     """
     Create Qdrant client with connection pooling.
-    
+
     Configuration:
     - qdrant_url: Server URL (http://localhost:6333 or cloud URL)
     - qdrant_api_key: API key for authentication (cloud only)
@@ -54,7 +59,7 @@ def create_qdrant_client(config: QdrantConfig) -> QdrantClient:
         prefer_grpc=config.prefer_grpc,
         timeout=config.search_timeout
     )
-    
+
     # Test connection
     try:
         collections = client.get_collections()
@@ -62,7 +67,7 @@ def create_qdrant_client(config: QdrantConfig) -> QdrantClient:
     except Exception as e:
         logger.error(f"Failed to connect to Qdrant: {e}")
         raise ConnectionError("Qdrant unavailable") from e
-    
+
     return client
 ```
 
@@ -73,6 +78,7 @@ def create_qdrant_client(config: QdrantConfig) -> QdrantClient:
 **Must support collection schema management:**
 
 **Schema:**
+
 - **Collection name:** Configurable per environment (dev/staging/prod)
 - **Vector dimension:** Must match embedding model (e.g., 1536 for OpenAI text-embedding-ada-002)
 - **Distance metric:** Cosine similarity (default) or Euclidean/Dot product
@@ -93,7 +99,7 @@ def create_collection_if_not_exists(
 ):
     """
     Create collection with schema if it doesn't exist.
-    
+
     Args:
         collection_name: Collection name (e.g., "embeddings_prod")
         vector_dimension: Vector size (e.g., 1536 for OpenAI ada-002)
@@ -103,14 +109,14 @@ def create_collection_if_not_exists(
         # Check if collection exists
         collections = client.get_collections()
         existing_names = [c.name for c in collections.collections]
-        
+
         if collection_name in existing_names:
             logger.info(f"Collection '{collection_name}' already exists")
-            
+
             # Validate vector dimension
             collection_info = client.get_collection(collection_name)
             actual_dim = collection_info.config.params.vectors.size
-            
+
             if actual_dim != vector_dimension:
                 raise ValueError(
                     f"Collection dimension mismatch: expected {vector_dimension}, got {actual_dim}"
@@ -125,7 +131,7 @@ def create_collection_if_not_exists(
                 )
             )
             logger.info(f"Created collection '{collection_name}' with dimension {vector_dimension}")
-    
+
     except Exception as e:
         logger.error(f"Failed to create collection: {e}")
         raise
@@ -143,18 +149,18 @@ def validate_collection_schema(
 ):
     """
     Validate collection schema matches expected configuration.
-    
+
     Raises:
         ValueError: If schema mismatch detected
     """
     collection_info = client.get_collection(collection_name)
     actual_dim = collection_info.config.params.vectors.size
-    
+
     if actual_dim != expected_dimension:
         raise ValueError(
             f"Vector dimension mismatch: expected {expected_dimension}, got {actual_dim}"
         )
-    
+
     logger.info(f"Collection schema validated: {collection_name} (dim={actual_dim})")
 ```
 
@@ -165,6 +171,7 @@ def validate_collection_schema(
 **Must support storing embeddings with metadata:**
 
 **Metadata schema:**
+
 ```python
 from enum import Enum
 
@@ -175,23 +182,23 @@ class SourceType(str, Enum):
 
 class EmbeddingMetadata(BaseModel):
     """Metadata stored with each embedding."""
-    
+
     # Multi-tenant isolation
     organization_id: int
-    
+
     # Source identification
     source_type: SourceType
     source_id: int  # question_id, resume_id, etc.
-    
+
     # Model provenance
     model_id: str  # "text-embedding-ada-002"
     model_version: str  # "v2"
-    
+
     # Content metadata (question-specific)
     difficulty: Optional[str] = None  # "easy", "medium", "hard"
     topic_id: Optional[int] = None
     scope: Optional[str] = None  # "public", "private", "org"
-    
+
     # Timestamps
     created_at: str  # ISO 8601
 ```
@@ -212,36 +219,36 @@ def store_embedding(
 ) -> str:
     """
     Store embedding with metadata.
-    
+
     Args:
         vector: Embedding vector (dimension must match collection)
         metadata: Metadata for filtering and provenance
-    
+
     Returns:
         point_id: Unique identifier for stored point
     """
     # Generate unique point ID
     point_id = str(uuid.uuid4())
-    
+
     # Validate vector dimension
     if len(vector) != config.vector_dimension:
         raise ValueError(
             f"Vector dimension mismatch: expected {config.vector_dimension}, got {len(vector)}"
         )
-    
+
     # Create point
     point = PointStruct(
         id=point_id,
         vector=vector,
         payload=metadata.model_dump()
     )
-    
+
     # Upsert (insert or update)
     client.upsert(
         collection_name=collection_name,
         points=[point]
     )
-    
+
     logger.debug(f"Stored embedding: {metadata.source_type}:{metadata.source_id}")
     return point_id
 ```
@@ -259,16 +266,16 @@ def store_embeddings_batch(
 ):
     """
     Store multiple embeddings in batches.
-    
+
     More efficient than individual inserts.
-    
+
     Args:
         embeddings: List of (vector, metadata) tuples
         batch_size: Points per batch (default: 100)
     """
     for i in range(0, len(embeddings), batch_size):
         batch = embeddings[i:i + batch_size]
-        
+
         points = [
             PointStruct(
                 id=str(uuid.uuid4()),
@@ -277,12 +284,12 @@ def store_embeddings_batch(
             )
             for vector, metadata in batch
         ]
-        
+
         client.upsert(
             collection_name=collection_name,
             points=points
         )
-        
+
         logger.debug(f"Stored batch: {len(points)} embeddings")
 ```
 
@@ -293,6 +300,7 @@ def store_embeddings_batch(
 **Must support semantic search with filters:**
 
 **Search parameters:**
+
 - **query_vector:** Embedding to search for (from AI module)
 - **filters:** Metadata constraints (organization_id, difficulty, topic)
 - **top_k:** Number of results to return (default: 10)
@@ -314,12 +322,12 @@ def search_embeddings(
 ) -> list[dict]:
     """
     Search for similar embeddings.
-    
+
     Args:
         query_vector: Query embedding (dimension must match collection)
         top_k: Number of results to return
         score_threshold: Minimum similarity score (0.0-1.0)
-    
+
     Returns:
         List of search results with metadata and scores
     """
@@ -329,7 +337,7 @@ def search_embeddings(
         limit=top_k,
         score_threshold=score_threshold
     )
-    
+
     return [
         {
             "point_id": result.id,
@@ -360,14 +368,14 @@ def search_with_filters(
 ) -> list[dict]:
     """
     Search embeddings with metadata filters.
-    
+
     Filters:
     - organization_id: Multi-tenant isolation (REQUIRED)
     - source_type: Filter by source (question, resume, job_description)
     - difficulty: Filter by difficulty (easy, medium, hard)
     - topic_id: Filter by topic
     - scope: Filter by scope (public, private, org)
-    
+
     Returns:
         List of filtered search results
     """
@@ -378,7 +386,7 @@ def search_with_filters(
             match=MatchValue(value=organization_id)
         )
     ]
-    
+
     if source_type:
         conditions.append(
             FieldCondition(
@@ -386,7 +394,7 @@ def search_with_filters(
                 match=MatchValue(value=source_type.value)
             )
         )
-    
+
     if difficulty:
         conditions.append(
             FieldCondition(
@@ -394,7 +402,7 @@ def search_with_filters(
                 match=MatchValue(value=difficulty)
             )
         )
-    
+
     if topic_id:
         conditions.append(
             FieldCondition(
@@ -402,7 +410,7 @@ def search_with_filters(
                 match=MatchValue(value=topic_id)
             )
         )
-    
+
     if scope:
         conditions.append(
             FieldCondition(
@@ -410,7 +418,7 @@ def search_with_filters(
                 match=MatchValue(value=scope)
             )
         )
-    
+
     # Execute search with filters
     results = client.search(
         collection_name=collection_name,
@@ -418,7 +426,7 @@ def search_with_filters(
         query_filter=Filter(must=conditions),
         limit=top_k
     )
-    
+
     return [
         {
             "point_id": result.id,
@@ -437,6 +445,7 @@ def search_with_filters(
 **Must support updating and deleting embeddings:**
 
 **Update embedding metadata:**
+
 ```python
 def update_embedding_metadata(
     client: QdrantClient,
@@ -446,7 +455,7 @@ def update_embedding_metadata(
 ):
     """
     Update metadata for existing embedding.
-    
+
     Note: Vector cannot be updated, only metadata.
     """
     client.set_payload(
@@ -454,11 +463,12 @@ def update_embedding_metadata(
         payload=metadata_updates,
         points=[point_id]
     )
-    
+
     logger.debug(f"Updated metadata for point: {point_id}")
 ```
 
 **Delete embedding:**
+
 ```python
 def delete_embedding(
     client: QdrantClient,
@@ -472,11 +482,12 @@ def delete_embedding(
         collection_name=collection_name,
         points_selector=[point_id]
     )
-    
+
     logger.debug(f"Deleted point: {point_id}")
 ```
 
 **Delete by filter (bulk delete):**
+
 ```python
 def delete_embeddings_by_source(
     client: QdrantClient,
@@ -486,7 +497,7 @@ def delete_embeddings_by_source(
 ):
     """
     Delete all embeddings for a specific source.
-    
+
     Use case: Delete embeddings when question/resume deleted.
     """
     client.delete(
@@ -504,7 +515,7 @@ def delete_embeddings_by_source(
             ]
         )
     )
-    
+
     logger.info(f"Deleted embeddings for {source_type}:{source_id}")
 ```
 
@@ -521,7 +532,7 @@ from typing import Dict, Any
 def check_qdrant_health() -> Dict[str, Any]:
     """
     Check Qdrant connectivity and collection status.
-    
+
     Returns:
         {
             "status": "healthy" | "unhealthy",
@@ -533,15 +544,15 @@ def check_qdrant_health() -> Dict[str, Any]:
     """
     try:
         start = time.time()
-        
+
         # List collections
         collections = client.get_collections()
-        
+
         latency_ms = (time.time() - start) * 1000
-        
+
         # Get collection info
         collection_info = client.get_collection(config.collection_name)
-        
+
         return {
             "status": "healthy",
             "latency_ms": round(latency_ms, 2),
@@ -554,7 +565,7 @@ def check_qdrant_health() -> Dict[str, Any]:
             },
             "error": None
         }
-    
+
     except Exception as e:
         return {
             "status": "unhealthy",
@@ -575,7 +586,7 @@ def check_qdrant_health() -> Dict[str, Any]:
 def create_qdrant_client_with_retry(config: QdrantConfig, max_retries: int = 3):
     """
     Create Qdrant client with connection retry.
-    
+
     Retries on connection failure with exponential backoff.
     """
     for attempt in range(max_retries):
@@ -586,18 +597,18 @@ def create_qdrant_client_with_retry(config: QdrantConfig, max_retries: int = 3):
                 prefer_grpc=config.prefer_grpc,
                 timeout=config.search_timeout
             )
-            
+
             # Test connection
             client.get_collections()
-            
+
             logger.info("Qdrant connection established")
             return client
-        
+
         except Exception as e:
             if attempt == max_retries - 1:
                 logger.critical(f"Failed to connect to Qdrant after {max_retries} attempts")
                 raise ConnectionError(f"Qdrant unavailable: {e}") from e
-            
+
             sleep_time = 2 ** attempt
             logger.warning(f"Qdrant connection failed (attempt {attempt + 1}/{max_retries}), retrying in {sleep_time}s...")
             time.sleep(sleep_time)
@@ -615,15 +626,15 @@ import atexit
 def cleanup_qdrant():
     """
     Close Qdrant client.
-    
+
     Called on application shutdown.
     """
     logger.info("Cleaning up Qdrant client...")
-    
+
     # Close client (if using gRPC)
     if hasattr(client, 'close'):
         client.close()
-    
+
     logger.info("Qdrant cleanup complete")
 
 atexit.register(cleanup_qdrant)
@@ -692,24 +703,24 @@ from pydantic import BaseModel, Field
 
 class QdrantConfig(BaseModel):
     """Qdrant vector database configuration."""
-    
+
     # Connection
     qdrant_url: str = Field(..., description="Qdrant server URL")
     qdrant_api_key: Optional[str] = Field(None, description="API key for cloud Qdrant")
-    
+
     # Collection
     collection_name: str = Field("embeddings", description="Default collection name")
     vector_dimension: int = Field(1536, description="Embedding vector dimension")
     distance_metric: str = Field("cosine", description="Distance metric (cosine, euclid, dot)")
-    
+
     # Search
     search_timeout: int = Field(10, ge=1, le=60, description="Search timeout (seconds)")
     default_top_k: int = Field(10, ge=1, le=100, description="Default top_k for searches")
-    
+
     # Features
     prefer_grpc: bool = Field(True, description="Use gRPC instead of REST")
     auto_create_collection: bool = Field(True, description="Auto-create collection if missing")
-    
+
     # Health check
     health_check_interval: int = Field(60, ge=10, le=300, description="Health check interval (seconds)")
 ```
@@ -732,6 +743,7 @@ class QdrantConfig(BaseModel):
 ### 9.1 Metrics
 
 **Must expose:**
+
 - `qdrant_embeddings_stored_total` (counter) - Total embeddings stored
 - `qdrant_search_requests_total` (counter) - Total search requests
 - `qdrant_search_duration_seconds` (histogram) - Search latency
@@ -742,6 +754,7 @@ class QdrantConfig(BaseModel):
 ### 9.2 Logging
 
 **Must log:**
+
 - Collection created (INFO)
 - Embedding stored (DEBUG with source_type:source_id)
 - Search performed (DEBUG with filters, top_k, result count)
@@ -749,6 +762,7 @@ class QdrantConfig(BaseModel):
 - Connection failure (ERROR with retry count)
 
 **Must NOT log:**
+
 - Full vectors (high volume, not useful)
 - Sensitive metadata (PII, if any)
 

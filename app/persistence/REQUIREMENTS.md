@@ -3,11 +3,13 @@
 ## 1. Purpose
 
 The **Persistence** module provides:
+
 - PostgreSQL connection and session management (SQLAlchemy)
 - Redis client and session utilities (caching, locks, TTL)
 - Qdrant vector database integration (embeddings storage/retrieval)
 
 **Critical responsibility:** This is the **infrastructure backbone**. It must:
+
 - Initialize and expose infrastructure clients
 - Provide safe session lifecycle management
 - Centralize connection configuration
@@ -15,6 +17,7 @@ The **Persistence** module provides:
 - **Remain business-logic free**
 
 **Architectural philosophy:**
+
 > **Persistence is DUMB PLUMBING. It connects. It does not decide.**
 > **If this layer becomes "smart," your modular boundaries collapse.**
 
@@ -23,6 +26,7 @@ The **Persistence** module provides:
 ## 2. What This Module IS
 
 **Infrastructure-only:**
+
 - PostgreSQL engine & session factory
 - Redis connection pool & client wrapper
 - Qdrant client initialization & vector operations
@@ -30,6 +34,7 @@ The **Persistence** module provides:
 - Graceful shutdown cleanup
 
 **Pure primitives:**
+
 - `get_db_session()` - database session
 - `get_redis_client()` - Redis connection
 - `store_embedding()` - vector storage
@@ -102,11 +107,13 @@ persistence/
 ### Import Direction (STRICT)
 
 **Persistence imports FROM:**
+
 - Standard library
 - Third-party libraries (SQLAlchemy, redis-py, qdrant-client)
 - Config module (connection strings, pool sizes)
 
 **Persistence MUST NOT import FROM:**
+
 - ❌ `interview` module
 - ❌ `evaluation` module
 - ❌ `auth` module
@@ -116,6 +123,7 @@ persistence/
 - ❌ ANY domain module
 
 **Higher modules import persistence:**
+
 ```python
 # ✅ CORRECT - Domain imports infrastructure
 from app.persistence.postgres import get_db_session
@@ -132,6 +140,7 @@ from app.interview.repositories import SubmissionRepository  # NEVER
 ### 6.1 PostgreSQL (SQLAlchemy)
 
 **Provides:**
+
 - Engine initialization with connection pooling
 - Session factory (`get_db_session()`)
 - Transaction management (commit/rollback)
@@ -145,6 +154,7 @@ from app.interview.repositories import SubmissionRepository  # NEVER
 ### 6.2 Redis
 
 **Provides:**
+
 - Connection pool initialization
 - Client wrapper (`get_redis_client()`)
 - Key namespacing patterns (interview:session:{id}, rate_limit:{user_id})
@@ -159,6 +169,7 @@ from app.interview.repositories import SubmissionRepository  # NEVER
 ### 6.3 Qdrant (Vector Database)
 
 **Provides:**
+
 - Client initialization (collection name, vector dimensions)
 - Collection management (create if not exists, validate schema)
 - Embedding storage (store vector + metadata)
@@ -174,12 +185,14 @@ from app.interview.repositories import SubmissionRepository  # NEVER
 ### 7.1 Connection Retry Strategy
 
 **Must implement:**
+
 - Exponential backoff on connection failure (1s, 2s, 4s, 8s, max 30s)
 - Max retry attempts (default: 3)
 - Fail fast if all retries exhausted
 - Log connection failures (include timestamp, service, error)
 
 **Example: PostgreSQL retry**
+
 ```python
 def create_engine_with_retry():
     for attempt in range(MAX_RETRIES):
@@ -202,6 +215,7 @@ def create_engine_with_retry():
 ### 7.2 Timeout Configuration
 
 **Must configure timeouts for:**
+
 - PostgreSQL query timeout (default: 30s)
 - Redis command timeout (default: 5s)
 - Qdrant search timeout (default: 10s)
@@ -214,12 +228,14 @@ def create_engine_with_retry():
 ### 7.3 Connection Pool Monitoring
 
 **Must expose metrics:**
+
 - Pool size (current active connections)
 - Pool overflow (connections beyond pool_size)
 - Checked-out connections
 - Connection checkout time (avg, p95)
 
 **Use for:**
+
 - Detecting connection leaks (checked-out never returned)
 - Sizing pool correctly (overflow indicates undersized pool)
 
@@ -228,6 +244,7 @@ def create_engine_with_retry():
 ### 7.4 Graceful Shutdown Cleanup
 
 **On application shutdown, must:**
+
 1. Close all active sessions
 2. Dispose database engine
 3. Close Redis connection pool
@@ -236,6 +253,7 @@ def create_engine_with_retry():
 6. Log cleanup completion
 
 **Example:**
+
 ```python
 import atexit
 
@@ -261,6 +279,7 @@ atexit.register(cleanup_persistence)
 **Common leak scenarios:**
 
 **Scenario 1: Session not closed**
+
 ```python
 # ❌ LEAK - Session never closed
 def get_data():
@@ -275,6 +294,7 @@ def get_data():
 ```
 
 **Scenario 2: Exception during transaction**
+
 ```python
 # ❌ LEAK - Session not closed on error
 def update_data():
@@ -293,6 +313,7 @@ def update_data():
 ```
 
 **Prevention:**
+
 - Use context managers (`with` statement)
 - Dependency injection framework auto-cleanup (FastAPI Depends)
 - Monitor checked-out connection count
@@ -302,6 +323,7 @@ def update_data():
 ### 7.6 Handle Database Failover (Future)
 
 **Design for:**
+
 - Primary/replica topology (read from replica, write to primary)
 - Automatic failover (reconnect to new primary on failure)
 - Connection pool refresh (discard stale connections)
@@ -317,26 +339,26 @@ def update_data():
 ```python
 class PostgresConfig(BaseModel):
     """PostgreSQL connection configuration."""
-    
+
     # Connection
     database_url: str = Field(..., description="PostgreSQL connection string")
-    
+
     # Pool settings
     pool_size: int = Field(20, description="Connection pool size")
     max_overflow: int = Field(10, description="Max connections beyond pool_size")
     pool_timeout: int = Field(30, description="Max seconds to wait for connection")
     pool_recycle: int = Field(3600, description="Recycle connections after N seconds")
-    
+
     # Query settings
     query_timeout: int = Field(30, description="Max query execution time (seconds)")
-    
+
     # Features
     echo: bool = Field(False, description="Log all SQL statements")
     echo_pool: bool = Field(False, description="Log pool checkout/checkin")
-    
+
     # SSL (production)
     ssl_mode: str = Field("require", description="SSL mode: disable, allow, prefer, require")
-    
+
     # Health check
     health_check_interval: int = Field(60, description="Health check interval (seconds)")
 ```
@@ -348,22 +370,22 @@ class PostgresConfig(BaseModel):
 ```python
 class RedisConfig(BaseModel):
     """Redis connection configuration."""
-    
+
     # Connection
     redis_url: str = Field(..., description="Redis connection string")
-    
+
     # Pool settings
     max_connections: int = Field(50, description="Max connections in pool")
     connection_timeout: int = Field(10, description="Connection timeout (seconds)")
     socket_timeout: int = Field(5, description="Socket read/write timeout (seconds)")
-    
+
     # Retry
     retry_on_timeout: bool = Field(True, description="Retry commands on timeout")
     max_retries: int = Field(3, description="Max command retries")
-    
+
     # Features
     decode_responses: bool = Field(True, description="Decode bytes to strings")
-    
+
     # Health check
     health_check_interval: int = Field(60, description="Health check interval (seconds)")
 ```
@@ -375,22 +397,22 @@ class RedisConfig(BaseModel):
 ```python
 class QdrantConfig(BaseModel):
     """Qdrant vector database configuration."""
-    
+
     # Connection
     qdrant_url: str = Field(..., description="Qdrant server URL")
     qdrant_api_key: Optional[str] = Field(None, description="API key for cloud Qdrant")
-    
+
     # Collections
     collection_name: str = Field("embeddings", description="Default collection name")
     vector_dimension: int = Field(1536, description="Embedding vector dimension")
-    
+
     # Search
     search_timeout: int = Field(10, description="Search timeout (seconds)")
     default_top_k: int = Field(10, description="Default top_k for searches")
-    
+
     # Features
     prefer_grpc: bool = Field(True, description="Use gRPC instead of REST")
-    
+
     # Health check
     health_check_interval: int = Field(60, description="Health check interval (seconds)")
 ```
@@ -405,7 +427,7 @@ class QdrantConfig(BaseModel):
 def check_postgres_health() -> HealthStatus:
     """
     Check PostgreSQL connectivity.
-    
+
     Returns:
         HealthStatus with status (healthy/unhealthy) and latency
     """
@@ -414,7 +436,7 @@ def check_postgres_health() -> HealthStatus:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         latency_ms = (time.time() - start) * 1000
-        
+
         return HealthStatus(
             service="postgres",
             status="healthy",
@@ -437,7 +459,7 @@ def check_postgres_health() -> HealthStatus:
 def check_redis_health() -> HealthStatus:
     """
     Check Redis connectivity.
-    
+
     Returns:
         HealthStatus with status and latency
     """
@@ -445,7 +467,7 @@ def check_redis_health() -> HealthStatus:
         start = time.time()
         redis_client.ping()
         latency_ms = (time.time() - start) * 1000
-        
+
         return HealthStatus(
             service="redis",
             status="healthy",
@@ -468,7 +490,7 @@ def check_redis_health() -> HealthStatus:
 def check_qdrant_health() -> HealthStatus:
     """
     Check Qdrant connectivity.
-    
+
     Returns:
         HealthStatus with status and collection info
     """
@@ -476,7 +498,7 @@ def check_qdrant_health() -> HealthStatus:
         start = time.time()
         collections = qdrant_client.get_collections()
         latency_ms = (time.time() - start) * 1000
-        
+
         return HealthStatus(
             service="qdrant",
             status="healthy",
@@ -498,17 +520,20 @@ def check_qdrant_health() -> HealthStatus:
 ### 10.1 Database Exceptions
 
 **Must handle:**
+
 - `OperationalError` - Connection failures, timeouts
 - `IntegrityError` - Constraint violations (unique, foreign key)
 - `DataError` - Invalid data types, out of range
 - `ProgrammingError` - SQL syntax errors
 
 **Must NOT:**
+
 - Swallow exceptions silently
 - Auto-retry on IntegrityError (indicates application bug)
 - Expose raw SQL in error messages (security risk)
 
 **Example:**
+
 ```python
 from sqlalchemy.exc import OperationalError, IntegrityError
 
@@ -536,11 +561,13 @@ def execute_query(session, query):
 ### 10.2 Redis Exceptions
 
 **Must handle:**
+
 - `ConnectionError` - Redis unavailable
 - `TimeoutError` - Command timeout
 - `ResponseError` - Command execution error
 
 **Must NOT:**
+
 - Treat Redis as persistent store (it's ephemeral cache)
 - Crash application if Redis unavailable (graceful degradation)
 
@@ -549,6 +576,7 @@ def execute_query(session, query):
 ### 10.3 Qdrant Exceptions
 
 **Must handle:**
+
 - Connection timeout
 - Collection not found
 - Dimension mismatch (vector size != expected)
@@ -654,6 +682,7 @@ def execute_query(session, query):
 ### 13.1 Metrics
 
 **Must expose:**
+
 - Database connection pool size (gauge)
 - Database query count (counter)
 - Database query latency (histogram)
@@ -667,6 +696,7 @@ def execute_query(session, query):
 ### 13.2 Logging
 
 **Must log:**
+
 - Connection establishment (INFO)
 - Connection failure (ERROR with retry count)
 - Query timeouts (WARNING)
@@ -675,6 +705,7 @@ def execute_query(session, query):
 - Graceful shutdown (INFO)
 
 **Must NOT log:**
+
 - Sensitive data (passwords, tokens, personal info)
 - Full SQL queries with user data (log parameterized queries only)
 

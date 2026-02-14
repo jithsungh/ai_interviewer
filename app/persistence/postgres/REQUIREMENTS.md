@@ -3,6 +3,7 @@
 ## 1. Purpose
 
 The **PostgreSQL** layer provides:
+
 - SQLAlchemy engine initialization with connection pooling
 - Session factory for request-scoped sessions
 - Transaction management (commit/rollback)
@@ -10,6 +11,7 @@ The **PostgreSQL** layer provides:
 - Database health checks
 
 **Critical responsibility:** This is **pure database connectivity**. It must:
+
 - Create and manage database connections
 - Provide safe session lifecycle
 - Handle connection failures gracefully
@@ -22,6 +24,7 @@ The **PostgreSQL** layer provides:
 ### 2.1 Engine Initialization
 
 **Must create SQLAlchemy engine with:**
+
 - Connection pooling (pool_size, max_overflow)
 - SSL/TLS configuration (required in production)
 - Connection timeout settings
@@ -29,6 +32,7 @@ The **PostgreSQL** layer provides:
 - Statement timeout (prevent runaway queries)
 
 **Example configuration:**
+
 ```python
 from sqlalchemy import create_engine
 from sqlalchemy.pool import QueuePool
@@ -36,7 +40,7 @@ from sqlalchemy.pool import QueuePool
 def create_db_engine(config: PostgresConfig):
     """
     Create SQLAlchemy engine with connection pooling.
-    
+
     Configuration:
     - pool_size: Number of persistent connections (default: 20)
     - max_overflow: Additional connections when pool exhausted (default: 10)
@@ -60,7 +64,7 @@ def create_db_engine(config: PostgresConfig):
             "options": f"-c statement_timeout={config.query_timeout * 1000}"  # milliseconds
         }
     )
-    
+
     return engine
 ```
 
@@ -69,16 +73,17 @@ def create_db_engine(config: PostgresConfig):
 ### 2.2 Session Factory
 
 **Must provide:**
+
 ```python
 def get_db_session() -> Iterator[Session]:
     """
     Dependency injection for database sessions.
-    
+
     Usage (FastAPI):
         @app.get("/interviews")
         def list_interviews(db: Session = Depends(get_db_session)):
             return db.query(Interview).all()
-    
+
     Lifecycle:
     - Session created on request start
     - Session closed on request end (even if error)
@@ -93,6 +98,7 @@ def get_db_session() -> Iterator[Session]:
 ```
 
 **Session configuration:**
+
 ```python
 from sqlalchemy.orm import sessionmaker
 
@@ -111,6 +117,7 @@ SessionLocal = sessionmaker(
 **Must support explicit transactions:**
 
 **Pattern 1: Context manager**
+
 ```python
 def transfer_funds(db: Session, from_account: int, to_account: int, amount: float):
     """
@@ -120,11 +127,11 @@ def transfer_funds(db: Session, from_account: int, to_account: int, amount: floa
         # Debit
         account_from = db.query(Account).filter(Account.id == from_account).first()
         account_from.balance -= amount
-        
+
         # Credit
         account_to = db.query(Account).filter(Account.id == to_account).first()
         account_to.balance += amount
-        
+
         # Commit
         db.commit()
     except Exception as e:
@@ -133,6 +140,7 @@ def transfer_funds(db: Session, from_account: int, to_account: int, amount: floa
 ```
 
 **Pattern 2: Savepoints (nested transactions)**
+
 ```python
 def update_with_savepoint(db: Session):
     """
@@ -140,14 +148,14 @@ def update_with_savepoint(db: Session):
     """
     db.add(Object1())
     db.flush()
-    
+
     savepoint = db.begin_nested()  # Create savepoint
     try:
         db.add(Object2())
         db.flush()
     except IntegrityError:
         savepoint.rollback()  # Rollback to savepoint, keep Object1
-    
+
     db.commit()  # Commit Object1
 ```
 
@@ -173,7 +181,7 @@ from app.audio.models import AudioRecording
 def create_tables():
     """
     Create all tables defined in models.
-    
+
     Call during application initialization.
     """
     Base.metadata.create_all(bind=engine)
@@ -181,13 +189,14 @@ def create_tables():
 def drop_tables():
     """
     Drop all tables.
-    
+
     ⚠️ DANGER: Only use in dev/test environments.
     """
     Base.metadata.drop_all(bind=engine)
 ```
 
 **Rationale:**
+
 - Avoid circular imports (models import Base from persistence)
 - Centralize metadata (Base.metadata) for migrations
 - Enable create_all/drop_all for testing
@@ -206,7 +215,7 @@ import time
 def check_postgres_health() -> Dict[str, Any]:
     """
     Check PostgreSQL connectivity and pool status.
-    
+
     Returns:
         {
             "status": "healthy" | "unhealthy",
@@ -222,17 +231,17 @@ def check_postgres_health() -> Dict[str, Any]:
     """
     try:
         start = time.time()
-        
+
         # Test query
         with engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
             result.fetchone()
-        
+
         latency_ms = (time.time() - start) * 1000
-        
+
         # Pool metrics
         pool = engine.pool
-        
+
         return {
             "status": "healthy",
             "latency_ms": round(latency_ms, 2),
@@ -244,7 +253,7 @@ def check_postgres_health() -> Dict[str, Any]:
             },
             "error": None
         }
-    
+
     except Exception as e:
         return {
             "status": "unhealthy",
@@ -270,26 +279,26 @@ RETRY_BACKOFF_BASE = 2  # seconds
 def create_engine_with_retry(config: PostgresConfig):
     """
     Create engine with connection retry logic.
-    
+
     Retries on OperationalError (connection refused, timeout).
     Uses exponential backoff: 2s, 4s, 8s.
     """
     for attempt in range(MAX_RETRIES):
         try:
             engine = create_db_engine(config)
-            
+
             # Test connection
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
-            
+
             logger.info("Database connection established")
             return engine
-        
+
         except OperationalError as e:
             if attempt == MAX_RETRIES - 1:
                 logger.critical(f"Failed to connect to database after {MAX_RETRIES} attempts")
                 raise ConnectionError(f"Database unavailable: {e}") from e
-            
+
             sleep_time = RETRY_BACKOFF_BASE ** attempt
             logger.warning(f"Database connection failed (attempt {attempt + 1}/{MAX_RETRIES}), retrying in {sleep_time}s...")
             time.sleep(sleep_time)
@@ -308,17 +317,17 @@ import signal
 def cleanup_postgres():
     """
     Close all sessions and dispose engine.
-    
+
     Called on application shutdown.
     """
     logger.info("Cleaning up PostgreSQL connections...")
-    
+
     # Close all sessions
     SessionLocal.close_all()
-    
+
     # Dispose engine (close all pool connections)
     engine.dispose()
-    
+
     logger.info("PostgreSQL cleanup complete")
 
 # Register cleanup handlers
@@ -340,11 +349,11 @@ from contextlib import contextmanager
 def db_session_context():
     """
     Context manager for database sessions.
-    
+
     Usage:
         with db_session_context() as session:
             session.query(Model).all()
-    
+
     Guarantees:
     - Session closed on exit
     - Rollback on exception
@@ -371,7 +380,7 @@ from fastapi import Depends
 def get_db():
     """
     FastAPI dependency for database sessions.
-    
+
     Automatically:
     - Creates session on request start
     - Closes session on request end
@@ -396,17 +405,17 @@ def list_interviews(db: Session = Depends(get_db)):
 def test_session_leak():
     """
     Test for session leaks.
-    
+
     Checks that all sessions are returned to pool after use.
     """
     initial_checked_out = engine.pool.checkedout()
-    
+
     # Perform operations
     with db_session_context() as session:
         session.query(Interview).all()
-    
+
     final_checked_out = engine.pool.checkedout()
-    
+
     # Assert no session leak
     assert final_checked_out == initial_checked_out, "Session leak detected"
 ```
@@ -504,7 +513,7 @@ def execute_with_error_handling(session, query):
         result = session.execute(query)
         session.commit()
         return result
-    
+
     except IntegrityError as e:
         session.rollback()
         logger.error(f"Integrity constraint violated: {e}")
@@ -515,22 +524,22 @@ def execute_with_error_handling(session, query):
             raise ValueError("Referenced record does not exist") from e
         else:
             raise ValueError("Data integrity error") from e
-    
+
     except OperationalError as e:
         session.rollback()
         logger.error(f"Database operation failed: {e}")
         raise ConnectionError("Database unavailable") from e
-    
+
     except DataError as e:
         session.rollback()
         logger.error(f"Data validation failed: {e}")
         raise ValueError("Invalid data") from e
-    
+
     except ProgrammingError as e:
         session.rollback()
         logger.critical(f"SQL programming error: {e}")
         raise RuntimeError("Query execution error") from e
-    
+
     except Exception as e:
         session.rollback()
         logger.error(f"Unexpected database error: {e}")
@@ -544,17 +553,20 @@ def execute_with_error_handling(session, query):
 ### 9.1 Pool Size Calculation
 
 **Formula:**
+
 ```
 pool_size = (number of application instances) × (threads per instance) × (concurrent DB operations per thread)
 ```
 
 **Example:**
+
 - 4 application instances
 - 10 worker threads per instance
 - 2 concurrent DB operations per thread (typical)
 - pool_size = 4 × 10 × 2 = 80 connections
 
 **Recommendations:**
+
 - Start with `pool_size=20`, `max_overflow=10`
 - Monitor pool exhaustion (checked_out == pool_size + max_overflow)
 - Increase if exhaustion > 1% of requests
@@ -568,11 +580,11 @@ pool_size = (number of application instances) × (threads per instance) × (conc
 def log_pool_stats():
     """
     Log connection pool statistics.
-    
+
     Call periodically (every 60 seconds).
     """
     pool = engine.pool
-    
+
     logger.info(
         f"DB Pool Stats: "
         f"size={pool.size()}, "
@@ -580,7 +592,7 @@ def log_pool_stats():
         f"overflow={pool.overflow()}, "
         f"available={pool.size() - pool.checkedout()}"
     )
-    
+
     # Alert if pool exhausted
     if pool.checkedout() >= pool.size() + pool.overflow():
         logger.warning("Database connection pool exhausted!")
@@ -619,26 +631,26 @@ from pydantic import BaseModel, Field, field_validator
 
 class PostgresConfig(BaseModel):
     """PostgreSQL connection configuration."""
-    
+
     # Connection
     database_url: str = Field(..., description="PostgreSQL connection string")
-    
+
     # Pool
     pool_size: int = Field(20, ge=1, le=100, description="Connection pool size")
     max_overflow: int = Field(10, ge=0, le=50, description="Max overflow connections")
     pool_timeout: int = Field(30, ge=1, le=300, description="Pool checkout timeout (seconds)")
     pool_recycle: int = Field(3600, ge=300, le=7200, description="Recycle connections (seconds)")
-    
+
     # Query
     query_timeout: int = Field(30, ge=1, le=300, description="Query timeout (seconds)")
-    
+
     # Features
     echo: bool = Field(False, description="Log SQL statements")
     echo_pool: bool = Field(False, description="Log pool events")
-    
+
     # SSL
     ssl_mode: str = Field("require", description="SSL mode")
-    
+
     @field_validator("ssl_mode")
     def validate_ssl_mode(cls, v):
         allowed = ["disable", "allow", "prefer", "require", "verify-ca", "verify-full"]
@@ -665,6 +677,7 @@ class PostgresConfig(BaseModel):
 ### 13.1 Metrics
 
 **Must expose:**
+
 - `db_pool_size` (gauge) - Connection pool size
 - `db_pool_checked_out` (gauge) - Currently checked-out connections
 - `db_pool_overflow` (gauge) - Overflow connections in use
@@ -676,6 +689,7 @@ class PostgresConfig(BaseModel):
 ### 13.2 Logging
 
 **Must log:**
+
 - Connection established (INFO)
 - Connection retry (WARNING with attempt count)
 - Connection failure (ERROR after all retries)
@@ -684,6 +698,7 @@ class PostgresConfig(BaseModel):
 - IntegrityError (ERROR with sanitized message)
 
 **Must NOT log:**
+
 - User passwords or tokens
 - Full SQL with sensitive data (log parameterized queries only)
 
