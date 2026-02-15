@@ -197,6 +197,7 @@ class TestConfigValidationIntegration:
     """Test configuration validation in integration scenarios"""
     
     @patch.dict(os.environ, {
+        "TESTING": "1",
         "APP_ENV": "prod",
         "DEBUG": "true",  # Invalid: prod with debug
         "BASE_URL": "https://api.example.com",
@@ -211,10 +212,11 @@ class TestConfigValidationIntegration:
         from pydantic import ValidationError
         from app.config.settings import Settings
         
-        with pytest.raises((ValidationError, SystemExit)):
+        with pytest.raises(ValidationError):
             Settings.load()
     
     @patch.dict(os.environ, {
+        "TESTING": "1",
         "APP_ENV": "dev",
         "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/db",
         "REDIS_URL": "redis://localhost:6379/0",
@@ -228,10 +230,11 @@ class TestConfigValidationIntegration:
         from pydantic import ValidationError
         from app.config.settings import Settings
         
-        with pytest.raises((ValidationError, SystemExit)):
+        with pytest.raises(ValidationError):
             Settings.load()
     
     @patch.dict(os.environ, {
+        "TESTING": "1",
         "APP_ENV": "dev",
         "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/db",
         "REDIS_URL": "redis://localhost:6379/0",
@@ -245,7 +248,7 @@ class TestConfigValidationIntegration:
         from pydantic import ValidationError
         from app.config.settings import Settings
         
-        with pytest.raises((ValidationError, SystemExit)):
+        with pytest.raises(ValidationError):
             Settings.load()
 
 
