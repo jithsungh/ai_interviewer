@@ -4,3 +4,6 @@ PLAN-*
 .trash
 .venv
 data/leetcode_problems/
+
+*/__pycache__
+*.pyc
