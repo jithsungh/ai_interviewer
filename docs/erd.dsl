@@ -135,6 +135,7 @@ coding_topics [icon: code, color: cyan] {
   organization_id bigint
   created_at timestamptz
   updated_at timestamptz
+  display_order int
 }
 
 role_topics [icon: link, color: gray] {
@@ -242,7 +243,7 @@ question_topics [icon: link, color: gray] {
 
 coding_problems [icon: code, color: red] {
   id bigserial pk
-  problem_text text
+  body text
   difficulty difficulty_level
   scope template_scope
   organization_id bigint
@@ -251,6 +252,23 @@ coding_problems [icon: code, color: red] {
   is_active boolean
   created_at timestamptz
   updated_at timestamptz
+  source_name problem_source
+  source_id text
+  source_slug text
+  title text
+  description text
+  raw_content jsonb
+  content_overridden boolean
+  overridden_content text
+  examples jsonb
+  constraints_structured jsonb
+  hints jsonb
+  stats jsonb
+  code_snippets jsonb
+  likes int
+  dislikes int
+  acceptance_rate numeric
+  pipeline_status problem_pipeline_status
 }
 
 coding_test_cases [icon: check-square, color: red] {
@@ -266,6 +284,42 @@ coding_test_cases [icon: check-square, color: red] {
 coding_problem_topics [icon: link, color: gray] {
   coding_problem_id bigint pk
   coding_topic_id bigint pk
+}
+
+// =============================================
+// === PROGRAMMING LANGUAGES & TEMPLATES ===
+// =============================================
+
+programming_languages [icon: code, color: blue] {
+  id bigserial pk
+  name text
+  slug text
+  version text
+  execution_environment text
+  is_active boolean
+  display_order int
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+problem_language_templates [icon: file-code, color: blue] {
+  id bigserial pk
+  problem_id bigint
+  language_id bigint
+  template_code text
+  entry_function text
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+  solution_code text
+}
+
+source_topics [icon: tag, color: cyan] {
+  id bigserial pk
+  name text
+  created_at timestamptz
+  updated_at timestamptz
+  coding_topic_id bigint
 }
 
 // =============================================
@@ -637,6 +691,11 @@ coding_problems.organization_id > organizations.id
 coding_test_cases.coding_problem_id > coding_problems.id
 coding_problem_topics.coding_problem_id > coding_problems.id
 coding_problem_topics.coding_topic_id > coding_topics.id
+
+// --- Programming Languages & Templates ---
+problem_language_templates.problem_id > coding_problems.id
+problem_language_templates.language_id > programming_languages.id
+source_topics.coding_topic_id > coding_topics.id
 
 // --- Rubrics ---
 rubrics.organization_id > organizations.id

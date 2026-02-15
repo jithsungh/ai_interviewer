@@ -2,4 +2,5 @@ SRS-V*
 PLAN-*
 .agent
 .trash
+.venv
 data/leetcode_problems/
