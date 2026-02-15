@@ -1,9 +1,11 @@
 SRS-V*
 PLAN-*
 .agent
+
 .trash
 .venv
 data/leetcode_problems/
 
 */__pycache__
 *.pyc
+.env
