@@ -268,8 +268,9 @@ Latency measured from call start to response/error
 
 ### Dependencies (Inbound)
 
-- `openai` - OpenAI Python SDK
-- `anthropic` - Anthropic Python SDK
+- `openai` - OpenAI Python SDK (may not require now)
+- `anthropic` - Anthropic Python SDK (may not require now)
+- `groq` - in development mode
 - `requests` or `httpx` - HTTP client with timeout support
 - `shared/errors` - Exception types (TimeoutError, RateLimitError, etc.)
 - `shared/observability` - Logging
