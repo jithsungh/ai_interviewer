@@ -364,6 +364,9 @@ class Settings(BaseSettings):
             return settings
         except Exception as e:
             logger.critical(f"Configuration validation failed: {e}")
+            # Re-raise original exception in test mode for proper pytest handling
+            if os.getenv("TESTING"):
+                raise
             raise SystemExit(1)
     
     def __repr__(self):
