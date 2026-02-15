@@ -1,0 +1,7 @@
+CREATE ROLE jithsungh WITH LOGIN PASSWORD 'jithsungh';
+CREATE ROLE jayanadh WITH LOGIN PASSWORD 'jayanadh';
+CREATE ROLE vysali WITH LOGIN PASSWORD 'vysali';
+
+GRANT ALL PRIVILEGES ON DATABASE interviewer TO jithsungh;
+GRANT ALL PRIVILEGES ON DATABASE interviewer TO jayanadh;
+GRANT ALL PRIVILEGES ON DATABASE interviewer TO vysali;

@@ -1,0 +1,51 @@
+{
+  "resume_analysis": {
+    "enabled": true,
+    "weight": 10
+  },
+
+  "self_introduction": {
+    "enabled": true,
+    "max_duration_seconds": 120,
+    "weight": 5
+  },
+
+  "topics_assessment": {
+    "enabled": true,
+    "total_questions": 6,
+    "topics": [
+      {
+        "topic_id": 12,
+        "difficulty_strategy": "dynamic",
+        "allowed_difficulties": ["easy", "medium", "hard"],
+        "weight": 15
+      },
+      {
+        "topic_id": 18,
+        "difficulty_strategy": "fixed",
+        "difficulty": "medium",
+        "weight": 20
+      }
+    ]
+  },
+
+  "coding_round": {
+    "enabled": true,
+    "total_problems": 1,
+    "difficulty": "medium",
+    "languages_allowed": ["python", "java", "cpp"],
+    "weight": 30
+  },
+
+  "complexity_analysis": {
+    "enabled": true,
+    "expectations": ["time", "space"],
+    "weight": 10
+  },
+
+  "scoring": {
+    "strategy": "weighted_sum",
+    "normalization": "percentage",
+    "pass_threshold": 60
+  }
+}
