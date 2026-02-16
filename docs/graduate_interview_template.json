@@ -1,0 +1,167 @@
+{
+  "template_name": "Graduate Software Engineer Interview",
+  "template_version": "1.0",
+  "target_level": "entry_level",
+  "estimated_duration_minutes": 45,
+  "total_questions": 10,
+
+  "sections": {
+    "resume_analysis": {
+      "enabled": true,
+      "weight": 10,
+      "description": "ATS scoring and job description matching",
+      
+      "ats_scoring": {
+        "enabled": true,
+        "parse_resume": true,
+        "extract_sections": ["education", "skills", "experience", "projects"],
+        "match_against_job_description": true,
+        "scoring_dimensions": [
+          {
+            "dimension": "skills_match",
+            "weight": 40,
+            "criteria": "Programming languages, frameworks, tools match"
+          },
+          {
+            "dimension": "education_qualification",
+            "weight": 25,
+            "criteria": "Degree, GPA, relevant coursework"
+          },
+          {
+            "dimension": "experience_relevance",
+            "weight": 20,
+            "criteria": "Internships, projects, hackathons"
+          },
+          {
+            "dimension": "resume_quality",
+            "weight": 15,
+            "criteria": "Format, clarity, completeness"
+          }
+        ],
+        "minimum_match_score": 50
+      }
+    },
+
+    "self_introduction": {
+      "enabled": true,
+      "question_count": 1,
+      "max_duration_seconds": 120,
+      "weight": 5,
+      "interaction_mode": "audio",
+      
+      "audio_analysis": {
+        "enabled": true,
+        "track_metrics": ["speech_rate", "filler_words", "confidence"]
+      }
+    },
+
+    "topics_assessment": {
+      "enabled": true,
+      "total_questions": 5,
+      "topics": [
+        {
+          "topic_id": 12,
+          "difficulty_strategy": "dynamic",
+          "allowed_difficulties": ["easy", "medium"],
+          "weight": 40
+        },
+        {
+          "topic_id": 18,
+          "difficulty_strategy": "fixed",
+          "difficulty": "easy",
+          "weight": 20
+        },
+        {
+          "topic_id": 24,
+          "difficulty_strategy": "fixed",
+          "difficulty": "easy",
+          "weight": 20
+        },
+        {
+          "topic_id": 35,
+          "difficulty_strategy": "fixed",
+          "difficulty": "easy",
+          "weight": 20
+        }
+      ]
+    },
+
+    "coding_round": {
+      "enabled": true,
+      "question_count": 2,
+      "max_duration_minutes": 20,
+      "weight": 30,
+      
+      "problems": [
+        {
+          "difficulty": "easy",
+          "topics": ["arrays", "strings"],
+          "estimated_time_minutes": 8,
+          "weight": 40
+        },
+        {
+          "difficulty": "medium",
+          "topics": ["hash_maps", "sorting"],
+          "estimated_time_minutes": 12,
+          "weight": 60
+        }
+      ],
+      
+      "execution_config": {
+        "languages_allowed": ["python3", "java", "cpp"],
+        "time_limit_ms": 2000,
+        "memory_limit_kb": 262144
+      },
+      
+      "scoring": {
+        "correctness_weight": 80,
+        "code_quality_weight": 20,
+        "minimum_pass_percentage": 50
+      }
+    },
+
+    "complexity_analysis": {
+      "enabled": true,
+      "question_count": 1,
+      "max_duration_minutes": 4,
+      "weight": 10,
+      "expectations": ["time_complexity", "space_complexity"]
+    },
+
+    "behavioral": {
+      "enabled": true,
+      "question_count": 1,
+      "max_duration_minutes": 5,
+      "weight": 10,
+      "topics": ["teamwork", "learning_ability", "problem_solving"]
+    }
+  },
+
+  "scoring": {
+    "strategy": "weighted_sum",
+    "normalization": "percentage",
+    "pass_threshold": 60,
+    
+    "section_weights": {
+      "resume_analysis": 10,
+      "self_introduction": 5,
+      "topics_assessment": 25,
+      "coding_round": 30,
+      "complexity_analysis": 10,
+      "behavioral": 10,
+      "bonus_points": 10
+    }
+  },
+
+  "proctoring": {
+    "enabled": true,
+    "advisory_only": true,
+    "basic_monitoring": ["tab_switch", "face_detection"]
+  },
+
+  "settings": {
+    "auto_submit_on_timeout": true,
+    "allow_resume_session": false,
+    "show_progress": true
+  }
+}

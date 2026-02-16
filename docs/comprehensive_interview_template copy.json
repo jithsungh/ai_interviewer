@@ -1,0 +1,827 @@
+{
+  "$schema": "interview_template_v2.0",
+  "template_metadata": {
+    "template_id": null,
+    "template_name": "Senior Full-Stack Engineer - Comprehensive Assessment",
+    "template_version": "2.0",
+    "organization_id": null,
+    "scope": "organization",
+    "created_by": null,
+    "description": "Complete technical assessment for senior full-stack roles covering resume analysis, behavioral competencies, technical depth, system design, live coding, and complexity analysis",
+    "estimated_duration_minutes": 90,
+    "difficulty_level": "senior",
+    "target_roles": ["Senior Software Engineer", "Full-Stack Engineer", "Backend Engineer", "Technical Lead"]
+  },
+
+  "interview_structure": {
+    "total_sections": 8,
+    "total_questions": 18,
+    "section_sequence": [
+      "resume_analysis",
+      "self_introduction",
+      "behavioral_assessment", 
+      "technical_concepts",
+      "system_design",
+      "live_coding",
+      "complexity_analysis",
+      "closing_questions"
+    ]
+  },
+
+  "sections": {
+    "resume_analysis": {
+      "enabled": true,
+      "section_order": 1,
+      "section_name": "Resume & Experience Analysis",
+      "section_type": "ai_driven",
+      "question_count": 2,
+      "max_duration_minutes": 8,
+      "weight": 8,
+      "description": "AI-powered personalized questions based on candidate's resume and job requirements",
+      
+      "selection_strategy": {
+        "mode": "semantic_retrieval",
+        "personalization": {
+          "use_resume": true,
+          "use_job_description": true,
+          "resume_sections": ["experience", "projects", "skills"],
+          "max_embedding_similarity": 0.85
+        },
+        "fallback_strategy": "ai_generation"
+      },
+
+      "question_config": {
+        "question_type": "text",
+        "interaction_mode": "text_or_audio",
+        "topics": ["career_progression", "project_experience", "technical_decisions"],
+        "difficulty_strategy": "fixed",
+        "difficulty": "medium",
+        "allow_followups": true,
+        "max_followup_count": 1
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Relevance",
+            "weight": 40,
+            "max_score": 10,
+            "criteria": "How well candidate's experience aligns with role requirements"
+          },
+          {
+            "dimension_name": "Depth",
+            "weight": 35,
+            "max_score": 10,
+            "criteria": "Technical depth demonstrated in past projects"
+          },
+          {
+            "dimension_name": "Communication",
+            "weight": 25,
+            "max_score": 10,
+            "criteria": "Clarity and structure in explaining experience"
+          }
+        ]
+      }
+    },
+
+    "self_introduction": {
+      "enabled": true,
+      "section_order": 2,
+      "section_name": "Self Introduction",
+      "section_type": "structured",
+      "question_count": 1,
+      "max_duration_minutes": 3,
+      "weight": 5,
+      "description": "Candidate introduces themselves and explains interest in the role",
+
+      "selection_strategy": {
+        "mode": "static_pool",
+        "question_ids": [1001]
+      },
+
+      "question_config": {
+        "question_type": "audio",
+        "interaction_mode": "audio_only",
+        "max_duration_seconds": 180,
+        "silence_threshold_ms": 3000,
+        "require_transcript": true
+      },
+
+      "audio_analysis": {
+        "enabled": true,
+        "metrics": [
+          "speech_rate_wpm",
+          "filler_word_count",
+          "pause_analysis",
+          "confidence_score",
+          "sentiment_analysis"
+        ]
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Clarity",
+            "weight": 40,
+            "max_score": 10,
+            "criteria": "Clear articulation and structured delivery"
+          },
+          {
+            "dimension_name": "Enthusiasm",
+            "weight": 30,
+            "max_score": 10,
+            "criteria": "Genuine interest and passion for the role"
+          },
+          {
+            "dimension_name": "Professionalism",
+            "weight": 30,
+            "max_score": 10,
+            "criteria": "Professional tone and appropriate communication"
+          }
+        ]
+      }
+    },
+
+    "behavioral_assessment": {
+      "enabled": true,
+      "section_order": 3,
+      "section_name": "Behavioral & Situational",
+      "section_type": "adaptive",
+      "question_count": 3,
+      "max_duration_minutes": 15,
+      "weight": 15,
+      "description": "STAR-based behavioral questions assessing leadership, collaboration, and problem-solving",
+
+      "selection_strategy": {
+        "mode": "semantic_retrieval",
+        "retrieval_params": {
+          "k": 10,
+          "min_similarity": 0.3,
+          "reranking_enabled": true
+        },
+        "repetition_prevention": {
+          "enabled": true,
+          "similarity_threshold": 0.85,
+          "check_previous_sections": true
+        },
+        "fallback_strategy": "static_pool"
+      },
+
+      "question_config": {
+        "question_type": "text",
+        "interaction_mode": "text_or_audio",
+        "topics": [
+          {
+            "topic_id": 201,
+            "topic_name": "Leadership & Mentoring",
+            "weight": 35
+          },
+          {
+            "topic_id": 202,
+            "topic_name": "Conflict Resolution",
+            "weight": 30
+          },
+          {
+            "topic_id": 203,
+            "topic_name": "Decision Making Under Pressure",
+            "weight": 35
+          }
+        ],
+        "difficulty_strategy": "fixed",
+        "difficulty": "medium",
+        "estimated_time_per_question_seconds": 300
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "STAR Structure",
+            "weight": 25,
+            "max_score": 10,
+            "criteria": "Clear Situation, Task, Action, Result structure"
+          },
+          {
+            "dimension_name": "Problem Solving",
+            "weight": 30,
+            "max_score": 10,
+            "criteria": "Analytical approach and creative solutions"
+          },
+          {
+            "dimension_name": "Impact",
+            "weight": 25,
+            "max_score": 10,
+            "criteria": "Measurable outcomes and business impact"
+          },
+          {
+            "dimension_name": "Self-Awareness",
+            "weight": 20,
+            "max_score": 10,
+            "criteria": "Recognition of learnings and areas for improvement"
+          }
+        ]
+      }
+    },
+
+    "technical_concepts": {
+      "enabled": true,
+      "section_order": 4,
+      "section_name": "Technical Depth Questions",
+      "section_type": "adaptive",
+      "question_count": 4,
+      "max_duration_minutes": 20,
+      "weight": 20,
+      "description": "Adaptive difficulty technical questions covering multiple CS fundamentals and architecture",
+
+      "selection_strategy": {
+        "mode": "semantic_retrieval",
+        "retrieval_params": {
+          "k": 15,
+          "personalization_weight": 0.3,
+          "diversity_penalty": 0.2
+        },
+        "repetition_prevention": {
+          "enabled": true,
+          "similarity_threshold": 0.80,
+          "semantic_similarity_check": true
+        },
+        "fallback_strategy": "ai_generation"
+      },
+
+      "question_config": {
+        "question_type": "text",
+        "interaction_mode": "text_or_audio",
+        "topics": [
+          {
+            "topic_id": 12,
+            "topic_name": "Data Structures & Algorithms",
+            "question_count": 1,
+            "weight": 25,
+            "allowed_difficulties": ["medium", "hard"]
+          },
+          {
+            "topic_id": 18,
+            "topic_name": "Database Design & SQL",
+            "question_count": 1,
+            "weight": 25,
+            "allowed_difficulties": ["medium", "hard"]
+          },
+          {
+            "topic_id": 24,
+            "topic_name": "API Design & REST",
+            "question_count": 1,
+            "weight": 25,
+            "allowed_difficulties": ["easy", "medium", "hard"]
+          },
+          {
+            "topic_id": 31,
+            "topic_name": "Concurrency & Threading",
+            "question_count": 1,
+            "weight": 25,
+            "allowed_difficulties": ["medium", "hard"]
+          }
+        ],
+        "difficulty_strategy": "dynamic",
+        "difficulty_adaptation": {
+          "enabled": true,
+          "initial_difficulty": "medium",
+          "threshold_up": 0.75,
+          "threshold_down": 0.40,
+          "max_jump": 1,
+          "min_difficulty": "easy",
+          "max_difficulty": "hard",
+          "adaptation_logging": true
+        },
+        "estimated_time_per_question_seconds": 300
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Technical Accuracy",
+            "weight": 35,
+            "max_score": 10,
+            "criteria": "Correctness of technical concepts and explanations"
+          },
+          {
+            "dimension_name": "Depth of Understanding",
+            "weight": 30,
+            "max_score": 10,
+            "criteria": "Goes beyond surface-level to demonstrate deep comprehension"
+          },
+          {
+            "dimension_name": "Practical Application",
+            "weight": 20,
+            "max_score": 10,
+            "criteria": "Relates concepts to real-world scenarios and trade-offs"
+          },
+          {
+            "dimension_name": "Communication",
+            "weight": 15,
+            "max_score": 10,
+            "criteria": "Ability to explain complex concepts clearly"
+          }
+        ]
+      }
+    },
+
+    "system_design": {
+      "enabled": true,
+      "section_order": 5,
+      "section_name": "System Design",
+      "section_type": "structured",
+      "question_count": 1,
+      "max_duration_minutes": 15,
+      "weight": 18,
+      "description": "High-level system design discussion for scalable, distributed systems",
+
+      "selection_strategy": {
+        "mode": "semantic_retrieval",
+        "retrieval_params": {
+          "k": 5,
+          "personalization_weight": 0.4
+        },
+        "fallback_strategy": "static_pool"
+      },
+
+      "question_config": {
+        "question_type": "text",
+        "interaction_mode": "text_or_audio",
+        "topics": [
+          {
+            "topic_id": 45,
+            "topic_name": "Distributed Systems Design",
+            "weight": 100
+          }
+        ],
+        "difficulty_strategy": "fixed",
+        "difficulty": "hard",
+        "allow_diagram_upload": true,
+        "estimated_time_seconds": 900
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Requirements Gathering",
+            "weight": 15,
+            "max_score": 10,
+            "criteria": "Asks clarifying questions and defines scope"
+          },
+          {
+            "dimension_name": "High-Level Architecture",
+            "weight": 25,
+            "max_score": 10,
+            "criteria": "Sound overall system structure with key components"
+          },
+          {
+            "dimension_name": "Scalability & Performance",
+            "weight": 25,
+            "max_score": 10,
+            "criteria": "Consideration of load, caching, partitioning, replication"
+          },
+          {
+            "dimension_name": "Trade-offs Analysis",
+            "weight": 20,
+            "max_score": 10,
+            "criteria": "Understands and articulates design trade-offs (CAP, consistency vs availability)"
+          },
+          {
+            "dimension_name": "Practical Considerations",
+            "weight": 15,
+            "max_score": 10,
+            "criteria": "Monitoring, deployment, failure handling, security"
+          }
+        ]
+      }
+    },
+
+    "live_coding": {
+      "enabled": true,
+      "section_order": 6,
+      "section_name": "Live Coding Challenge",
+      "section_type": "coding",
+      "question_count": 2,
+      "max_duration_minutes": 25,
+      "weight": 25,
+      "description": "Hands-on coding problems with test case validation",
+
+      "selection_strategy": {
+        "mode": "static_pool",
+        "coding_problem_ids": null,
+        "selection_criteria": {
+          "difficulty": "medium",
+          "topics": ["arrays", "strings", "trees", "dynamic_programming", "graphs"],
+          "estimated_time_range": [10, 15]
+        }
+      },
+
+      "coding_problems": [
+        {
+          "problem_sequence": 1,
+          "difficulty": "medium",
+          "topics": ["arrays", "hash_maps", "two_pointers"],
+          "estimated_time_minutes": 12,
+          "weight": 50
+        },
+        {
+          "problem_sequence": 2,
+          "difficulty": "medium",
+          "topics": ["trees", "recursion", "dfs"],
+          "estimated_time_minutes": 13,
+          "weight": 50
+        }
+      ],
+
+      "execution_config": {
+        "languages_allowed": ["python3", "java", "cpp", "javascript"],
+        "time_limit_ms": 2000,
+        "memory_limit_kb": 262144,
+        "allow_multiple_submissions": true,
+        "show_test_results": "partial",
+        "visible_test_cases_percentage": 40,
+        "execution_environment": "sandboxed"
+      },
+
+      "scoring_config": {
+        "strategy": "test_case_weighted",
+        "passing_required_percentage": 60,
+        "components": {
+          "correctness": {
+            "weight": 70,
+            "calculation": "percentage_tests_passed"
+          },
+          "code_quality": {
+            "weight": 15,
+            "evaluation": "ai_assisted",
+            "criteria": ["readability", "modularity", "naming"]
+          },
+          "efficiency": {
+            "weight": 15,
+            "evaluation": "execution_metrics",
+            "criteria": ["runtime_percentile", "memory_usage"]
+          }
+        }
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Correctness",
+            "weight": 40,
+            "max_score": 10,
+            "criteria": "Percentage of test cases passed (visible + hidden)"
+          },
+          {
+            "dimension_name": "Code Quality",
+            "weight": 20,
+            "max_score": 10,
+            "criteria": "Clean, readable, well-structured code with proper naming"
+          },
+          {
+            "dimension_name": "Algorithmic Efficiency",
+            "weight": 25,
+            "max_score": 10,
+            "criteria": "Optimal time and space complexity for the problem"
+          },
+          {
+            "dimension_name": "Problem Solving Approach",
+            "weight": 15,
+            "max_score": 10,
+            "criteria": "Systematic approach, edge case handling, debugging skills"
+          }
+        ]
+      }
+    },
+
+    "complexity_analysis": {
+      "enabled": true,
+      "section_order": 7,
+      "section_name": "Complexity Analysis",
+      "section_type": "follow_up",
+      "question_count": 2,
+      "max_duration_minutes": 8,
+      "weight": 7,
+      "description": "Time and space complexity analysis of submitted code solutions",
+
+      "selection_strategy": {
+        "mode": "dynamic_follow_up",
+        "based_on": "live_coding",
+        "question_generation": "ai_powered"
+      },
+
+      "question_config": {
+        "question_type": "text",
+        "interaction_mode": "text_or_audio",
+        "expectations": ["time_complexity", "space_complexity", "optimization_suggestions"],
+        "difficulty_strategy": "inherit_from_parent",
+        "estimated_time_per_question_seconds": 240
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Time Complexity Accuracy",
+            "weight": 40,
+            "max_score": 10,
+            "criteria": "Correct Big-O notation for time complexity"
+          },
+          {
+            "dimension_name": "Space Complexity Accuracy",
+            "weight": 40,
+            "max_score": 10,
+            "criteria": "Correct Big-O notation for space complexity"
+          },
+          {
+            "dimension_name": "Optimization Awareness",
+            "weight": 20,
+            "max_score": 10,
+            "criteria": "Recognizes potential optimizations and trade-offs"
+          }
+        ]
+      }
+    },
+
+    "closing_questions": {
+      "enabled": true,
+      "section_order": 8,
+      "section_name": "Closing & Questions",
+      "section_type": "structured",
+      "question_count": 3,
+      "max_duration_minutes": 6,
+      "weight": 2,
+      "description": "Candidate questions, availability, and interview feedback",
+
+      "selection_strategy": {
+        "mode": "static_pool",
+        "question_ids": [9001, 9002, 9003]
+      },
+
+      "question_config": {
+        "question_type": "text",
+        "interaction_mode": "text_or_audio",
+        "topics": ["candidate_questions", "availability", "interview_feedback"],
+        "difficulty_strategy": "fixed",
+        "difficulty": "easy",
+        "required": true
+      },
+
+      "evaluation_rubric": {
+        "dimensions": [
+          {
+            "dimension_name": "Engagement",
+            "weight": 50,
+            "max_score": 10,
+            "criteria": "Thoughtful questions demonstrating interest"
+          },
+          {
+            "dimension_name": "Professionalism",
+            "weight": 50,
+            "max_score": 10,
+            "criteria": "Professional conduct throughout closing"
+          }
+        ]
+      }
+    }
+  },
+
+  "global_settings": {
+    "time_management": {
+      "total_duration_minutes": 90,
+      "hard_timeout_enabled": true,
+      "section_timeout_strategy": "soft_warning",
+      "warning_at_percentage": 80,
+      "auto_submit_on_expiry": true
+    },
+
+    "proctoring": {
+      "enabled": true,
+      "advisory_only": true,
+      "monitored_events": [
+        "tab_switch",
+        "window_blur",
+        "face_detection",
+        "multiple_faces",
+        "camera_disabled",
+        "microphone_disabled",
+        "copy_paste_attempt"
+      ],
+      "risk_scoring": {
+        "enabled": true,
+        "flag_threshold": "medium",
+        "severity_weights": {
+          "low": 1,
+          "medium": 3,
+          "high": 7,
+          "critical": 15
+        }
+      },
+      "screen_recording": {
+        "enabled": false,
+        "require_consent": true
+      },
+      "prohibited_features": [
+        "emotion_recognition",
+        "eye_tracking",
+        "facial_expression_analysis",
+        "auto_rejection"
+      ]
+    },
+
+    "audio_configuration": {
+      "enabled": true,
+      "sample_rate_hz": 16000,
+      "silence_threshold_ms": 3000,
+      "max_silence_before_prompt_ms": 5000,
+      "speech_to_text_provider": "whisper",
+      "language": "en-US",
+      "confidence_threshold": 0.75,
+      "behavioral_analysis": {
+        "enabled": true,
+        "metrics": [
+          "speech_rate_wpm",
+          "filler_word_count",
+          "pause_analysis",
+          "sentiment_score"
+        ]
+      }
+    },
+
+    "ai_configuration": {
+      "question_generation": {
+        "enabled": true,
+        "provider": "openai",
+        "model": "gpt-4-turbo",
+        "temperature": 0.7,
+        "max_tokens": 800,
+        "fallback_to_static": true,
+        "validation": {
+          "similarity_check": true,
+          "difficulty_verification": true,
+          "topic_alignment": true
+        }
+      },
+      "evaluation": {
+        "enabled": true,
+        "evaluator_type": "ai",
+        "provider": "anthropic",
+        "model": "claude-3-sonnet",
+        "temperature": 0.3,
+        "require_justification": true,
+        "dimension_level_scoring": true,
+        "human_review_threshold": 0.5
+      }
+    },
+
+    "candidate_experience": {
+      "show_progress_bar": true,
+      "show_timer": true,
+      "show_section_names": true,
+      "allow_section_navigation": false,
+      "allow_question_skip": false,
+      "show_remaining_questions": true,
+      "provide_feedback_option": true
+    },
+
+    "accessibility": {
+      "screen_reader_support": true,
+      "keyboard_navigation": true,
+      "high_contrast_mode": true,
+      "adjustable_font_size": true,
+      "extendedtime_accommodation": {
+        "enabled": true,
+        "multiplier": 1.5
+      }
+    }
+  },
+
+  "scoring_configuration": {
+    "strategy": "weighted_sum",
+    "normalization": "percentage",
+    "scale": "0-100",
+    
+    "section_weights": {
+      "resume_analysis": 8,
+      "self_introduction": 5,
+      "behavioral_assessment": 15,
+      "technical_concepts": 20,
+      "system_design": 18,
+      "live_coding": 25,
+      "complexity_analysis": 7,
+      "closing_questions": 2
+    },
+
+    "pass_threshold": {
+      "percentage": 65,
+      "minimum_section_scores": {
+        "live_coding": 50,
+        "technical_concepts": 55
+      }
+    },
+
+    "recommendation_bands": {
+      "strong_hire": {
+        "min_score": 85,
+        "description": "Exceptional candidate, highly recommend"
+      },
+      "hire": {
+        "min_score": 70,
+        "description": "Strong candidate, recommend for hire"
+      },
+      "review": {
+        "min_score": 60,
+        "description": "Borderline, requires additional review"
+      },
+      "no_hire": {
+        "min_score": 0,
+        "description": "Does not meet requirements"
+      }
+    },
+
+    "aggregation_method": {
+      "primary": "weighted_average",
+      "include_proctoring_adjustment": true,
+      "proctoring_max_penalty_percentage": 10,
+      "manual_override_allowed": true
+    },
+
+    "result_generation": {
+      "generate_strengths": true,
+      "generate_weaknesses": true,
+      "generate_summary": true,
+      "max_strengths": 5,
+      "max_weaknesses": 5,
+      "include_section_breakdown": true,
+      "include_dimension_scores": true
+    }
+  },
+
+  "audit_and_compliance": {
+    "immutability": {
+      "template_snapshot_on_start": true,
+      "exchange_immutability": true,
+      "evaluation_versioning": true,
+      "rubric_snapshot_on_eval": true
+    },
+    "data_retention": {
+      "submission_retention_days": 730,
+      "recording_retention_days": 90,
+      "evaluation_retention_days": 1825
+    },
+    "compliance_flags": {
+      "gdpr_compliant": true,
+      "ccpa_compliant": true,
+      "ada_compliant": true,
+      "requires_consent": true
+    },
+    "audit_trail": {
+      "log_difficulty_adaptations": true,
+      "log_question_selection": true,
+      "log_ai_generation": true,
+      "log_proctoring_events": true,
+      "log_human_overrides": true
+    }
+  },
+
+  "multi_tenancy": {
+    "organization_id": null,
+    "isolation_level": "strict",
+    "allow_cross_org_questions": false,
+    "question_scopes_allowed": ["public", "organization"],
+    "custom_branding": {
+      "enabled": true,
+      "logo_url": null,
+      "primary_color": null,
+      "welcome_message": null
+    }
+  },
+
+  "notifications": {
+    "candidate_notifications": {
+      "interview_scheduled": true,
+      "interview_reminder": true,
+      "interview_started": false,
+      "interview_completed": true,
+      "results_available": false
+    },
+    "admin_notifications": {
+      "interview_completed": true,
+      "proctoring_flag_raised": true,
+      "evaluation_ready": true,
+      "technical_error": true
+    }
+  },
+
+  "metadata": {
+    "created_at": null,
+    "updated_at": null,
+    "version_history": [],
+    "usage_statistics": {
+      "total_submissions": 0,
+      "average_completion_rate": 0,
+      "average_score": 0,
+      "average_duration_minutes": 0
+    },
+    "tags": ["full-stack", "senior", "technical", "comprehensive", "ai-powered"],
+    "changelog": []
+  }
+}
