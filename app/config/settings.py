@@ -65,6 +65,8 @@ class DatabaseSettings(BaseSettings):
     db_pool_timeout: int = Field(default=30, env="DB_POOL_TIMEOUT")
     db_pool_recycle: int = Field(default=3600, env="DB_POOL_RECYCLE")
     db_echo: bool = Field(default=False, env="DB_ECHO")
+    db_pool_pre_ping: bool = Field(default=True, env="DB_POOL_PRE_PING")
+    db_query_timeout: int = Field(default=30, env="DB_QUERY_TIMEOUT")
     
     @model_validator(mode='after')
     def validate_pool_settings(self):

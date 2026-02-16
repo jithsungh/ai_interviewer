@@ -8,6 +8,7 @@ python-multipart==0.0.6
 # Database & ORM
 sqlalchemy[asyncio]==2.0.25
 asyncpg==0.29.0
+psycopg2-binary==2.9.9  # Sync driver for integration tests
 alembic==1.13.1
 
 # Redis
