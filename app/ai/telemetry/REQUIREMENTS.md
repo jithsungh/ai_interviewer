@@ -61,7 +61,7 @@ with telemetry_tracker.track(operation_type: str) as span:
 - `prompt_tokens` (required): Integer >= 0
 - `completion_tokens` (required): Integer >= 0
 - `model_id` (required): String, provider-specific model identifier
-- `provider` (required): `openai` | `anthropic` | `local`
+- `provider` (required): `groq` | `gemini` | `openai` | `anthropic` | `local`
 - `success` (required): Boolean
 
 ### Optional Fields
@@ -434,6 +434,55 @@ See [TESTING.md](TESTING.md) for comprehensive testing strategies.
 ```python
 # Pricing per 1K tokens (USD)
 MODEL_PRICING = {
+    # Groq Models (Development - very cost effective)
+    "llama-3.3-70b-versatile": {
+        "prompt": 0.00059,
+        "completion": 0.00079
+    },
+    "llama-3.1-70b-versatile": {
+        "prompt": 0.00059,
+        "completion": 0.00079
+    },
+    "llama-3.1-8b-instant": {
+        "prompt": 0.00005,
+        "completion": 0.00008
+    },
+    "mixtral-8x7b-32768": {
+        "prompt": 0.00024,
+        "completion": 0.00024
+    },
+    "gemma2-9b-it": {
+        "prompt": 0.00020,
+        "completion": 0.00020
+    },
+
+    # Gemini Models (Development - cost effective)
+    "gemini-2.0-flash-exp": {
+        "prompt": 0.0,  # Free during preview
+        "completion": 0.0
+    },
+    "gemini-1.5-pro": {
+        "prompt": 0.00125,
+        "completion": 0.005
+    },
+    "gemini-1.5-flash": {
+        "prompt": 0.000075,
+        "completion": 0.0003
+    },
+    "gemini-1.5-flash-8b": {
+        "prompt": 0.0000375,
+        "completion": 0.00015
+    },
+    "text-embedding-004": {
+        "prompt": 0.00001,
+        "completion": 0.0
+    },
+
+    # OpenAI Models (Production)
+    "gpt-4o": {
+        "prompt": 0.0025,
+        "completion": 0.01
+    },
     "gpt-4": {
         "prompt": 0.03,
         "completion": 0.06
@@ -446,21 +495,39 @@ MODEL_PRICING = {
         "prompt": 0.0005,
         "completion": 0.0015
     },
-    "claude-3-opus": {
-        "prompt": 0.015,
-        "completion": 0.075
+    "text-embedding-3-large": {
+        "prompt": 0.00013,
+        "completion": 0.0
     },
-    "claude-3-sonnet": {
-        "prompt": 0.003,
-        "completion": 0.015
-    },
-    "claude-3-haiku": {
-        "prompt": 0.00025,
-        "completion": 0.00125
+    "text-embedding-3-small": {
+        "prompt": 0.00002,
+        "completion": 0.0
     },
     "text-embedding-ada-002": {
         "prompt": 0.0001,
-        "completion": 0.0  # Embeddings have no completion cost
+        "completion": 0.0
+    },
+
+    # Anthropic Models (Production Fallback)
+    "claude-3-5-sonnet-20241022": {
+        "prompt": 0.003,
+        "completion": 0.015
+    },
+    "claude-3-5-haiku-20241022": {
+        "prompt": 0.001,
+        "completion": 0.005
+    },
+    "claude-3-opus-20240229": {
+        "prompt": 0.015,
+        "completion": 0.075
+    },
+    "claude-3-sonnet-20240229": {
+        "prompt": 0.003,
+        "completion": 0.015
+    },
+    "claude-3-haiku-20240307": {
+        "prompt": 0.00025,
+        "completion": 0.00125
     }
 }
 ```

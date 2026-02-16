@@ -6,7 +6,7 @@ The AI module provides a **provider-agnostic abstraction layer** for all Large L
 
 **Core Responsibilities:**
 
-- Provider abstraction (OpenAI, Anthropic, local models)
+- Provider abstraction (Groq, Gemini, OpenAI, Anthropic)
 - Structured output enforcement with JSON schema validation
 - Timeout, retry, and fallback strategies
 - Token usage and latency tracking
@@ -318,9 +318,11 @@ THEN temperature=0, top_p=1, seed=fixed (if supported)
 
 ### External Systems
 
-- **OpenAI API** - Primary LLM provider
-- **Anthropic API** - Alternative/fallback LLM provider
-- **Embedding Service** - Vector embedding generation (Qdrant or OpenAI)
+- **Groq API** - Fast LLM provider (primary for development)
+- **Gemini API** - Google's LLM provider (primary for development)
+- **OpenAI API** - Primary LLM provider (production)
+- **Anthropic API** - Alternative/fallback LLM provider (production)
+- **Embedding Service** - Vector embedding generation (Qdrant or provider-specific)
 - **Speech-to-Text API** - Audio transcription (if audio interviews enabled)
 - **Secrets Manager** - API credential storage (Vault, AWS Secrets Manager)
 
@@ -405,8 +407,10 @@ THEN temperature=0, top_p=1, seed=fixed (if supported)
 
 ### Provider Abstraction (Infrastructure Goal)
 
+- [ ] Groq provider implements full interface contract
+- [ ] Gemini provider implements full interface contract
 - [ ] OpenAI provider implements full interface contract
-- [ ] Anthropic provider implements same interface contract
+- [ ] Anthropic provider implements full interface contract
 - [ ] Switching provider requires zero changes in calling modules
 - [ ] Provider selection configurable per organization
 - [ ] Fallback provider triggers on primary failure

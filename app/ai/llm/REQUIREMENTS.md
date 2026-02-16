@@ -7,7 +7,8 @@ The LLM layer provides **provider abstractions** for Large Language Model intera
 **Core Responsibilities:**
 
 - Define base interface contract for all LLM providers
-- Implement provider-specific adapters (OpenAI, Anthropic, local models)
+- Implement provider-specific adapters (Groq, Gemini, OpenAI, Anthropic)
+- Implement response formatters for each provider's output structure
 - Handle API authentication and connection management
 - Convert provider-specific responses to unified format
 - Implement timeout enforcement at HTTP client level
@@ -91,21 +92,124 @@ class BaseLLMProvider(ABC):
 
 ### Provider-Specific Requirements
 
-#### OpenAI Provider
+#### Groq Provider (Development Primary)
+
+- API key from environment: `GROQ_API_KEY`
+- API endpoint: `https://api.groq.com/openai/v1`
+- Supported models:
+  - `llama-3.3-70b-versatile` (recommended for general use)
+  - `openai-gpt-oss-120b` (using this probably for large tasks)
+  - `llama-3.1-70b-versatile`
+  - `llama-3.1-8b-instant` (fast inference)
+  - `mixtral-8x7b-32768` (large context)
+  - `gemma2-9b-it`
+- Structured output:
+  - Native JSON mode support via `response_format={"type": "json_object"}`
+  - Schema enforcement via prompt engineering
+  - Response formatter validates and normalizes output
+- Embeddings: Not supported natively
+- Audio: Not supported natively
+- Key features:
+  - Extremely fast inference (optimized LPU architecture)
+  - Cost-effective for development
+  - OpenAI-compatible API format
+- Response formatter requirements:
+  - Parse streaming and non-streaming responses
+  - Handle rate limit headers
+  - Extract usage metadata (prompt_tokens, completion_tokens, total_tokens)
+  - Normalize error codes to standard format
+
+#### Gemini Provider (Development Primary)
+
+- API key from environment: `GEMINI_API_KEY`
+- API endpoint: `https://generativelanguage.googleapis.com/v1beta`
+- Supported models:
+  - `gemini-2.0-flash-exp` (recommended, fast and capable)
+  - `gemini-2.5-pro` (advanced reasoning)
+  - `gemini-2.5-flash` (fast responses)
+  - `gemini-2.5-flash-8b` (lightweight)
+  - `gemini-3.0-pro` (latest, most capable)
+- Structured output:
+  - Native JSON mode via `generation_config.response_mime_type = "application/json"`
+  - Schema validation via `generation_config.response_schema`
+  - Response formatter validates against expected schema
+- Embeddings:
+  - `text-embedding-004` (768 dimensions)
+  - `embedding-001` (legacy, 768 dimensions)
+- Audio: Not implemented for this use case
+- Key features:
+  - Large context windows (up to 2M tokens)
+  - Multimodal capabilities (text, images, video)
+  - Cost-effective for development
+  - Grounding with Google Search (optional)
+- Response formatter requirements:
+  - Parse Google-specific response structure
+  - Handle safety ratings and content filtering
+  - Extract usage metadata (promptTokenCount, candidatesTokenCount, totalTokenCount)
+  - Convert finish_reason to standard format
+  - Handle blocked responses gracefully
+
+#### OpenAI Provider (Production Primary)
 
 - API key from environment: `OPENAI_API_KEY`
-- Supported models: `gpt-4`, `gpt-4-turbo`, `gpt-3.5-turbo`, `gpt-4o`
-- Structured output: Use `response_format={"type": "json_object"}` + schema in prompt
-- Embeddings: `text-embedding-ada-002`, `text-embedding-3-small`, `text-embedding-3-large`
-- Audio: `whisper-1`
+- API endpoint: `https://api.openai.com/v1`
+- Supported models:
+  - `gpt-4o` (recommended, latest GPT-4 optimized)
+  - `gpt-4-turbo` (advanced reasoning)
+  - `gpt-4` (original GPT-4)
+  - `gpt-3.5-turbo` (cost-effective)
+- Structured output:
+  - Native JSON mode via `response_format={"type": "json_object"}`
+  - Structured Outputs with schema via `response_format={"type": "json_schema", "json_schema": {...}}`
+  - Response formatter validates JSON structure
+- Embeddings:
+  - `text-embedding-3-large` (3072 dimensions, best quality)
+  - `text-embedding-3-small` (1536 dimensions, cost-effective)
+  - `text-embedding-ada-002` (1536 dimensions, legacy)
+- Audio:
+  - `whisper-1` (speech-to-text)
+  - `tts-1` / `tts-1-hd` (text-to-speech, optional)
+- Key features:
+  - Best-in-class reasoning and instruction following
+  - Function calling capabilities
+  - Vision capabilities (GPT-4V)
+  - Production-ready reliability
+- Response formatter requirements:
+  - Parse choices array and handle multiple completions
+  - Extract usage data (prompt_tokens, completion_tokens, total_tokens)
+  - Handle finish_reason mapping (stop, length, content_filter, function_call)
+  - Support streaming response aggregation
+  - Handle function calling responses (if enabled)
 
-#### Anthropic Provider
+#### Anthropic Provider (Production Fallback)
 
 - API key from environment: `ANTHROPIC_API_KEY`
-- Supported models: `claude-3-opus`, `claude-3-sonnet`, `claude-3-haiku`
-- Structured output: Prompt engineering with schema validation
-- No native embedding support (not implemented)
-- No native audio support (not implemented)
+- API endpoint: `https://api.anthropic.com/v1`
+- Supported models:
+  - `claude-3-5-sonnet-20241022` (recommended, latest Sonnet)
+  - `claude-3-5-haiku-20241022` (fast, cost-effective)
+  - `claude-3-opus-20240229` (most capable, expensive)
+  - `claude-3-sonnet-20240229` (balanced)
+  - `claude-3-haiku-20240307` (fast responses)
+- Structured output:
+  - No native JSON mode
+  - Schema enforcement via system prompt + user prompt engineering
+  - Response formatter validates and extracts JSON from markdown code blocks
+  - Extended Thinking mode for complex reasoning (claude-3-7-sonnet)
+- Embeddings: Not supported natively (use Voyage AI integration or third-party)
+- Audio: Not supported natively
+- Key features:
+  - Long context windows (200K tokens)
+  - Strong reasoning and analysis capabilities
+  - High reliability and safety
+  - Extended Thinking mode for complex problems
+- Response formatter requirements:
+  - Parse content array with text and tool_use blocks
+  - Extract JSON from markdown code blocks (```json ... ```)
+  - Handle stop_reason mapping (end_turn, max_tokens, stop_sequence)
+  - Extract usage data (input_tokens, output_tokens)
+  - Support Claude-specific thinking blocks
+  - Handle multi-turn conversation format
 
 #### Local Model Provider (Future)
 
@@ -268,10 +372,11 @@ Latency measured from call start to response/error
 
 ### Dependencies (Inbound)
 
-- `openai` - OpenAI Python SDK (may not require now)
-- `anthropic` - Anthropic Python SDK (may not require now)
-- `groq` - in development mode
-- `requests` or `httpx` - HTTP client with timeout support
+- `groq` - Groq Python SDK (optional, can use requests directly)
+- `google-generativeai` - Google Gemini Python SDK
+- `openai` - OpenAI Python SDK (may not require for Groq compatibility)
+- `anthropic` - Anthropic Python SDK
+- `requests` or `httpx` - HTTP client with timeout support (for direct API calls)
 - `shared/errors` - Exception types (TimeoutError, RateLimitError, etc.)
 - `shared/observability` - Logging
 - `pydantic` - Response validation
@@ -283,6 +388,8 @@ Latency measured from call start to response/error
 
 ### External Systems
 
+- **Groq API** (`https://api.groq.com/openai/v1`)
+- **Gemini API** (`https://generativelanguage.googleapis.com/v1beta`)
 - **OpenAI API** (`https://api.openai.com/v1`)
 - **Anthropic API** (`https://api.anthropic.com/v1`)
 - **Local Model Endpoint** (future, configurable URL)
@@ -332,6 +439,8 @@ Latency measured from call start to response/error
 
 ### Interface Contract
 
+- [ ] Groq provider implements BaseLLMProvider fully
+- [ ] Gemini provider implements BaseLLMProvider fully
 - [ ] OpenAI provider implements BaseLLMProvider fully
 - [ ] Anthropic provider implements BaseLLMProvider fully
 - [ ] Provider factory can instantiate any provider by name
@@ -346,6 +455,8 @@ Latency measured from call start to response/error
 
 ### Response Normalization
 
+- [ ] Groq responses normalized to LLMResponse
+- [ ] Gemini responses normalized to LLMResponse
 - [ ] OpenAI responses normalized to LLMResponse
 - [ ] Anthropic responses normalized to LLMResponse
 - [ ] Provider-specific response accessible via raw_response field
@@ -353,6 +464,8 @@ Latency measured from call start to response/error
 
 ### Error Handling
 
+- [ ] Groq rate limit → LLMError(type="rate_limit", retryable=True)
+- [ ] Gemini quota exceeded → LLMError(type="rate_limit", retryable=True)
 - [ ] OpenAI rate limit → LLMError(type="rate_limit", retryable=True)
 - [ ] Anthropic authentication failure → LLMError(type="authentication", retryable=False)
 - [ ] Network timeout → LLMError(type="timeout", retryable=True)
@@ -361,6 +474,8 @@ Latency measured from call start to response/error
 
 ### Structured Generation
 
+- [ ] Groq structured generation uses JSON mode + schema prompt
+- [ ] Gemini structured generation uses native JSON schema support
 - [ ] OpenAI structured generation uses JSON mode + schema prompt
 - [ ] Anthropic structured generation uses prompt engineering
 - [ ] Schema validation applied to all structured outputs
@@ -368,7 +483,8 @@ Latency measured from call start to response/error
 
 ### Embedding Generation
 
-- [ ] OpenAI embedding returns vector of correct dimensions
+- [ ] Gemini embedding returns vector of correct dimensions (768)
+- [ ] OpenAI embedding returns vector of correct dimensions (1536/3072)
 - [ ] Embedding telemetry includes token count
 - [ ] Unsupported provider returns clear error (not implemented)
 
@@ -378,6 +494,15 @@ Latency measured from call start to response/error
 - [ ] Language detection works (if not specified)
 - [ ] Confidence score included if available
 - [ ] Unsupported provider returns clear error
+
+### Response Formatters
+
+- [ ] Groq response formatter extracts usage and content correctly
+- [ ] Gemini response formatter handles safety ratings and content filtering
+- [ ] OpenAI response formatter handles choices array and function calls
+- [ ] Anthropic response formatter extracts JSON from markdown code blocks
+- [ ] All formatters normalize finish_reason to standard values
+- [ ] All formatters preserve raw_response for debugging
 
 ### Thread Safety
 
@@ -405,6 +530,11 @@ See [TESTING.md](TESTING.md) for comprehensive testing strategies.
 
 ### Provider-Specific Quirks
 
+- **Groq:** OpenAI-compatible API, extremely fast responses due to LPU architecture
+- **Groq:** May return responses faster than expected, ensure proper timeout handling
+- **Gemini:** Content filtering may block responses based on safety ratings
+- **Gemini:** Required to handle SAFETY_RATING responses and RECITATION blocks
+- **Gemini:** Token counting uses promptTokenCount/candidatesTokenCount naming
 - **OpenAI:** `max_tokens` exceeded returns truncated output (not error)
 - **Anthropic:** Context window exceeded returns error (not truncation)
 - **OpenAI:** Structured output may return plain text if model ignores instruction
@@ -468,17 +598,24 @@ See [TESTING.md](TESTING.md) for comprehensive testing strategies.
 ### Environment Variables
 
 ```bash
-# OpenAI
+# Groq (Development Primary)
+GROQ_API_KEY=gsk_...
+
+# Gemini (Development Primary)
+GEMINI_API_KEY=AI...
+
+# OpenAI (Production Primary)
 OPENAI_API_KEY=sk-...
 OPENAI_ORG_ID=org-...  # Optional
 
-# Anthropic
+# Anthropic (Production Fallback)
 ANTHROPIC_API_KEY=sk-ant-...
 
-# Default models
-DEFAULT_TEXT_MODEL=gpt-4
-DEFAULT_EMBEDDING_MODEL=text-embedding-ada-002
-DEFAULT_AUDIO_MODEL=whisper-1
+# Default models (per environment)
+DEFAULT_TEXT_MODEL_DEV=llama-3.3-70b-versatile  # Groq for development
+DEFAULT_TEXT_MODEL_PROD=gpt-4o                  # OpenAI for production
+DEFAULT_EMBEDDING_MODEL=text-embedding-3-small  # OpenAI
+DEFAULT_AUDIO_MODEL=whisper-1                   # OpenAI
 
 # Timeouts
 LLM_DEFAULT_TIMEOUT=60
@@ -489,26 +626,58 @@ LLM_MAX_TIMEOUT=300
 
 ```yaml
 providers:
+  groq:
+    text_models:
+      - llama-3.3-70b-versatile
+      - llama-3.1-70b-versatile
+      - llama-3.1-8b-instant
+      - mixtral-8x7b-32768
+      - gemma2-9b-it
+    embedding_models: []  # Not supported
+    audio_models: []      # Not supported
+
+  gemini:
+    text_models:
+      - gemini-2.0-flash-exp
+      - gemini-1.5-pro
+      - gemini-1.5-flash
+      - gemini-1.5-flash-8b
+    embedding_models:
+      - text-embedding-004
+      - embedding-001
+    audio_models: []      # Not implemented
+
   openai:
     text_models:
-      - gpt-4
+      - gpt-4o
       - gpt-4-turbo
+      - gpt-4
       - gpt-3.5-turbo
     embedding_models:
-      - text-embedding-ada-002
+      - text-embedding-3-large
       - text-embedding-3-small
+      - text-embedding-ada-002
     audio_models:
       - whisper-1
 
   anthropic:
     text_models:
-      - claude-3-opus
-      - claude-3-sonnet
-      - claude-3-haiku
+      - claude-3-5-sonnet-20241022
+      - claude-3-5-haiku-20241022
+      - claude-3-opus-20240229
+      - claude-3-sonnet-20240229
+      - claude-3-haiku-20240307
+    embedding_models: []  # Not supported
+    audio_models: []      # Not supported
 
 model_fallbacks:
-  gpt-4: gpt-4-turbo
-  claude-3-opus: claude-3-sonnet
+  # Development fallbacks
+  llama-3.3-70b-versatile: mixtral-8x7b-32768
+  gemini-2.0-flash-exp: gemini-1.5-flash
+
+  # Production fallbacks
+  gpt-4o: gpt-4-turbo
+  claude-3-5-sonnet-20241022: claude-3-sonnet-20240229
 ```
 
 ---
