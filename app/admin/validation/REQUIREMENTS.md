@@ -2,15 +2,17 @@
 
 ## 1. Purpose
 
-The validation layer provides **structural and cross-entity validation**:
+The validation layer provides **structural and cross-entity validation** for all admin content types:
 
 - Template structure schema validation (JSON schema)
 - Rubric dimension consistency checks
-- Cross-reference validation (rubric exists, role exists)
+- Cross-reference validation (rubric exists, role exists, etc.)
 - Pre-activation validation workflows
+- **Override field validation (ensures override fields are valid subsets of base content)**
+- **RBAC validation support (validates user has permission to perform operation)**
 
-**Responsibilities:** Validation logic that requires database lookups or complex rules
-**Not Responsible For:** Simple type/format checks (handled by Pydantic), business logic
+**Responsibilities:** Validation logic that requires database lookups or complex rules, override integrity checks
+**Not Responsible For:** Simple type/format checks (handled by Pydantic), business logic, authorization enforcement
 
 ---
 
@@ -32,6 +34,15 @@ The validation layer provides **structural and cross-entity validation**:
 - Template structure must match expected JSON schema
 - Rubric dimensions must have valid criteria JSONB
 - Window mappings must reference existing active roles/templates
+- **Override Validation:**
+  - Override fields must be valid subset of base content schema
+  - Cannot override immutable fields (id, organization_id, scope, created_at)
+  - Base content must exist and be owned by super org (org_id=1)
+  - Override must not break structural integrity of base content
+- **Cross-content validation:**
+  - Questions must reference valid topics
+  - Coding problems must reference valid coding topics
+  - Templates must reference valid rubrics and roles
 
 ---
 
@@ -49,6 +60,19 @@ ValidationError(
     field="template_structure.sections[0].rubric_id",
     message="Referenced rubric ID 999 not found",
     code="INVALID_REFERENCE"
+)
+
+# Override-specific errors
+ValidationError(
+    field="override_fields.id",
+    message="Cannot override immutable field 'id'",
+    code="IMMUTABLE_FIELD_OVERRIDE"
+)
+
+ValidationError(
+    field="base_template_id",
+    message="Base template must be owned by super org (org_id=1)",
+    code="INVALID_BASE_CONTENT"
 )
 ```
 
@@ -123,6 +147,35 @@ def test_invalid_rubric_reference():
     result = TemplateValidator.validate(template)
     assert not result.is_valid
     assert "rubric ID 999 not found" in result.errors
+
+def test_override_immutable_field_validation():
+    """Cannot override immutable fields"""
+    override_fields = {"id": 999, "organization_id": 2, "name": "Modified"}
+    result = OverrideValidator.validate_fields(override_fields, "template")
+    assert not result.is_valid
+    assert "Cannot override immutable field 'id'" in result.errors
+
+def test_override_base_content_ownership():
+    """Base content must be super org owned"""
+    # Mock repository to return template with org_id=2
+    result = OverrideValidator.validate_base(base_template_id=123)
+    assert not result.is_valid
+    assert "must be owned by super org" in result.errors
+
+def test_question_override_validation():
+    """Question override with valid fields passes"""
+    override_fields = {"text": "Modified question?", "difficulty": "hard"}
+    result = OverrideValidator.validate_fields(override_fields, "question")
+    assert result.is_valid
+
+def test_coding_problem_override_validation():
+    """Coding problem override maintains structure"""
+    override_fields = {
+        "title": "Modified Title",
+        "description": "New description"
+    }
+    result = OverrideValidator.validate_fields(override_fields, "coding_problem")
+    assert result.is_valid
 ```
 
 ---

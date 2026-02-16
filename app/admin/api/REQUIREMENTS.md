@@ -9,16 +9,20 @@ The Admin API layer provides **RESTful HTTP endpoints** for administrative CRUD 
 - Roles and topic associations
 - Interview submission windows
 - Window-role-template mappings
+- **Questions (behavioral/technical)**
+- **Coding problems**
+- **All content types with override support**
 
 This layer handles:
 
 - HTTP request/response serialization
 - Input validation (format, types)
-- Authentication/authorization enforcement
+- **Authentication/authorization enforcement (superadmin, admin, read_only)**
 - Error handling and response formatting
 - Rate limiting (optional)
+- **Override management endpoints**
 
-**Responsibilities:** Request handling, validation, delegation to domain layer
+**Responsibilities:** Request handling, validation, delegation to domain layer, RBAC enforcement
 **Not Responsible For:** Business logic, database access, complex validation rules
 
 ---
@@ -39,11 +43,12 @@ This layer handles:
 
 ### Authorization
 
-- RBAC enforcement:
-  - `superadmin`: All operations on global and organization resources
-  - `admin`: All operations within own organization
-  - `read_only`: Only GET operations
+- **RBAC enforcement with 3 role types:**
+  - **`superadmin`**: Full access to super org (org_id=1) base content, all tenant operations, cross-tenant visibility
+  - **`admin`**: Full CRUD on tenant-owned content and override management, tenant-scoped visibility only
+  - **`read_only`**: GET operations only, effective merged view (base + overrides), tenant-scoped visibility
 - Missing/insufficient permissions → 403 Forbidden
+- Cross-tenant access attempts → 403 Forbidden (except superadmin)
 
 ### Content Negotiation
 
@@ -415,9 +420,98 @@ def test_create_template_e2e(client, admin_jwt):
 
 ### Roles & Topics
 
-| Method | Path                   | Description  |
-| ------ | ---------------------- | ------------ |
-| GET    | `/api/v1/admin/roles`  | List roles   |
-| POST   | `/api/v1/admin/roles`  | Create role  |
-| GET    | `/api/v1/admin/topics` | List topics  |
-| POST   | `/api/v1/admin/topics` | Create topic |
+| Method | Path                                 | Description                |
+| ------ | ------------------------------------ | -------------------------- |
+| GET    | `/api/v1/admin/roles`                | List roles                 |
+| POST   | `/api/v1/admin/roles`                | Create role                |
+| GET    | `/api/v1/admin/roles/{id}`           | Get role by ID             |
+| POST   | `/api/v1/admin/roles/{id}/overrides` | Create override for role   |
+| PUT    | `/api/v1/admin/roles/{id}/overrides` | Update role override       |
+| DELETE | `/api/v1/admin/roles/{id}/overrides` | Delete role override       |
+| GET    | `/api/v1/admin/topics`               | List topics                |
+| POST   | `/api/v1/admin/topics`               | Create topic               |
+| GET    | `/api/v1/admin/topics/{id}`          | Get topic by ID            |
+| POST   | `/api/v1/admin/topics/{id}/overrides`| Create override for topic  |
+| PUT    | `/api/v1/admin/topics/{id}/overrides`| Update topic override      |
+| DELETE | `/api/v1/admin/topics/{id}/overrides`| Delete topic override      |
+
+### Questions
+
+| Method | Path                                       | Description                    |
+| ------ | ------------------------------------------ | ------------------------------ |
+| GET    | `/api/v1/admin/questions`                  | List questions (paginated)     |
+| POST   | `/api/v1/admin/questions`                  | Create native question         |
+| GET    | `/api/v1/admin/questions/{id}`             | Get question by ID             |
+| PUT    | `/api/v1/admin/questions/{id}`             | Update question                |
+| DELETE | `/api/v1/admin/questions/{id}`             | Delete question                |
+| POST   | `/api/v1/admin/questions/{id}/overrides`   | Create override for question   |
+| GET    | `/api/v1/admin/questions/{id}/overrides`   | Get current org's override     |
+| PUT    | `/api/v1/admin/questions/{id}/overrides`   | Update question override       |
+| DELETE | `/api/v1/admin/questions/{id}/overrides`   | Delete override (revert)       |
+| PUT    | `/api/v1/admin/questions/{id}/activate`    | Activate question              |
+| POST   | `/api/v1/admin/questions/bulk-import`      | Bulk import questions          |
+
+### Coding Problems
+
+| Method | Path                                           | Description                        |
+| ------ | ---------------------------------------------- | ---------------------------------- |
+| GET    | `/api/v1/admin/coding-problems`                | List coding problems (paginated)   |
+| POST   | `/api/v1/admin/coding-problems`                | Create native coding problem       |
+| GET    | `/api/v1/admin/coding-problems/{id}`           | Get coding problem by ID           |
+| PUT    | `/api/v1/admin/coding-problems/{id}`           | Update coding problem              |
+| DELETE | `/api/v1/admin/coding-problems/{id}`           | Delete coding problem              |
+| POST   | `/api/v1/admin/coding-problems/{id}/overrides` | Create override for coding problem |
+| GET    | `/api/v1/admin/coding-problems/{id}/overrides` | Get current org's override         |
+| PUT    | `/api/v1/admin/coding-problems/{id}/overrides` | Update coding problem override     |
+| DELETE | `/api/v1/admin/coding-problems/{id}/overrides` | Delete override (revert)           |
+| PUT    | `/api/v1/admin/coding-problems/{id}/activate`  | Activate coding problem            |
+| GET    | `/api/v1/admin/coding-problems/{id}/test-cases`| Get test cases for problem         |
+| POST   | `/api/v1/admin/coding-problems/{id}/test-cases`| Add test case to problem           |
+
+### Reports & Analytics (Read-only for all admins)
+
+| Method | Path                                     | Description                     |
+| ------ | ---------------------------------------- | ------------------------------- |
+| GET    | `/api/v1/admin/reports/candidate-summary`| Generate candidate summary      |
+| GET    | `/api/v1/admin/reports/proctoring-risk`  | Generate proctoring risk report |
+| POST   | `/api/v1/admin/reports/{type}/publish`   | Publish report                  |
+| GET    | `/api/v1/admin/analytics/dashboard`      | Get dashboard metrics           |
+
+### Live Monitoring (Admin and Superadmin only)
+
+| Method | Path                                       | Description                   |
+| ------ | ------------------------------------------ | ----------------------------- |
+| GET    | `/api/v1/admin/monitoring/ongoing`         | List ongoing interviews       |
+| GET    | `/api/v1/admin/monitoring/sessions/{id}`   | View live session details     |
+| POST   | `/api/v1/admin/monitoring/sessions/{id}/pause`| Pause interview            |
+| POST   | `/api/v1/admin/monitoring/sessions/{id}/flag` | Flag incident              |
+
+### Review Queue (Admin and Superadmin only)
+
+| Method | Path                                       | Description                   |
+| ------ | ------------------------------------------ | ----------------------------- |
+| GET    | `/api/v1/admin/review/flagged`             | List flagged submissions      |
+| GET    | `/api/v1/admin/review/submissions/{id}`    | Get submission details        |
+| POST   | `/api/v1/admin/review/submissions/{id}/override`| Apply score override      |
+| POST   | `/api/v1/admin/review/submissions/{id}/finalize`| Finalize review           |
+
+### Governance (Superadmin only)
+
+| Method | Path                                  | Description              |
+| ------ | ------------------------------------- | ------------------------ |
+| GET    | `/api/v1/admin/audit-logs`            | Query audit logs         |
+| GET    | `/api/v1/admin/retention-policies`    | List retention policies  |
+| POST   | `/api/v1/admin/deletion-requests`     | Create deletion request  |
+| GET    | `/api/v1/admin/consent-records`       | List consent records     |
+
+### System Settings (Superadmin only)
+
+| Method | Path                               | Description             |
+| ------ | ---------------------------------- | ----------------------- |
+| GET    | `/api/v1/admin/settings/admins`    | List admin users        |
+| POST   | `/api/v1/admin/settings/admins`    | Create admin user       |
+| PUT    | `/api/v1/admin/settings/admins/{id}/role`| Update admin role |
+| GET    | `/api/v1/admin/settings/models`    | List AI models          |
+| PUT    | `/api/v1/admin/settings/models/{id}`| Update model config    |
+| GET    | `/api/v1/admin/settings/prompts`   | List prompt templates   |
+| PUT    | `/api/v1/admin/settings/feature-flags`| Update feature flags |

@@ -25,6 +25,8 @@ The Admin module serves as the **configuration and control-plane boundary** for 
 
 ### Primary Ownership
 
+**Base Content Tables (Super Org owned, org_id=1):**
+
 - `interview_templates` - Template definitions with structure and rules
 - `interview_template_roles` - Template-to-role mappings
 - `interview_template_rubrics` - Template-to-rubric-to-section mappings
@@ -33,14 +35,39 @@ The Admin module serves as the **configuration and control-plane boundary** for 
 - `roles` - Role definitions (scope: global/organization)
 - `topics` - General interview topics (behavioral, technical, situational)
 - `coding_topics` - Specialized coding problem topics
+- `questions` - Behavioral and technical questions
+- `coding_problems` - Coding assessment problems
 - `interview_submission_windows` - Scheduling windows with access control
 - `window_role_templates` - Direct window-role-template mapping
+
+**Override Tables (Tenant-specific modifications):**
+
+- `template_overrides` - Tenant-specific template field overrides
+- `rubric_overrides` - Tenant-specific rubric modifications
+- `role_overrides` - Tenant-specific role customizations
+- `topic_overrides` - Tenant-specific topic modifications
+- `question_overrides` - Tenant-specific question customizations
+- `coding_problem_overrides` - Tenant-specific coding problem modifications
 
 ### Read-Only Access
 
 - `organizations` - Tenant context for multi-tenancy enforcement
-- `admins` - Authorization verification
+- `admins` - Authorization verification (superadmin, admin, read_only roles)
 - `interview_submissions` - Check if template is in use (immutability enforcement)
+
+### Content Ownership Model
+
+**Super Organization (org_id=1) - Project Owner:**
+- Owns ALL base content (templates, rubrics, roles, topics, questions, coding_problems)
+- Base content serves as canonical seed data for all tenants
+- Base content is visible to all tenants (read-only)
+- Can create/edit base content directly (superadmin only)
+
+**Tenant Organizations (org_id != 1):**
+- Can create native content within their organization boundary
+- Can customize super org content via override tables
+- Overrides are tenant-scoped and isolated
+- Cannot modify base content directly
 
 ---
 
@@ -49,38 +76,95 @@ The Admin module serves as the **configuration and control-plane boundary** for 
 ### Authentication & Authorization
 
 - All requests MUST include valid JWT with admin role claims
-- RBAC enforcement: `superadmin`, `admin`, or `read_only`
+- **RBAC enforcement with 3 role types:**
+  - `superadmin`: Full access to super org (org_id=1) base content and all tenant operations
+  - `admin`: Full CRUD on tenant-owned content and override management
+  - `read_only`: View-only access to tenant-scoped content and effective merged views
 - Multi-tenancy: Operations MUST be scoped to authenticated admin's organization
 - Cross-tenant operations SHALL NOT be permitted (NFR-7.1)
+- **Role-specific permissions:**
+  - `superadmin`: Create/edit/delete base content, manage all overrides, cross-tenant visibility
+  - `admin`: Create/edit/delete native tenant content, manage own overrides, tenant-scoped visibility
+  - `read_only`: GET operations only, effective merged view (base + overrides), tenant-scoped visibility
 
-### Template Management
+### Content Management (All Content Types)
 
-#### Super Organization (org_id=1)
+All managed content follows the same override pattern:
+- Templates
+- Rubrics
+- Roles
+- Topics (general and coding)
+- Questions (behavioral/technical)
+- Coding Problems
 
-- Can create/edit base templates directly
-- Base templates are immutable once referenced by ANY tenant submission
-- Versioning applies to base content
+#### Super Organization (org_id=1) - Project Owner
+
+- **Superadmin only** can create/edit base content directly
+- Base content is immutable once referenced by ANY tenant submission
+- Versioning applies to base content when modifications are needed post-usage
+- Base content is visible to all tenants as read-only canonical data
 
 #### Tenant Organizations (org_id != 1)
 
-- **Creating Native Templates:** Full CRUD on templates with `organization_id = <tenant_id>`
-- **Modifying Super Org Templates:** CANNOT edit base template directly
-  - MUST create entry in `template_overrides` table
+- **Creating Native Content:** Full CRUD on content with `organization_id = <tenant_id>`
+- **Modifying Super Org Content:** CANNOT edit base content directly
+  - MUST create entry in corresponding `*_overrides` table
   - Override contains only modified fields (JSONB sparse overlay)
   - Override is tenant-scoped and does not affect other tenants
+  - Overrides apply to: templates, rubrics, roles, topics, questions, coding_problems
 - **Override Constraints:**
-  - `base_template_id` MUST reference active super org template
-  - Override fields MUST be valid JSON subset of template structure
-  - Cannot override template `scope` or structural integrity
+  - `base_*_id` MUST reference active super org content
+  - Override fields MUST be valid JSON subset of content structure
+  - Cannot override immutable fields (id, organization_id, scope)
+  - Override must maintain structural integrity of base content
 
 #### Query Resolution (Runtime)
 
 ```python
-effective_template = merge(
-    base_template,           # From super org
-    tenant_override          # If exists for this tenant
+# Generic override resolution pattern
+effective_content = merge(
+    base_content,           # From super org (org_id=1)
+    tenant_override         # If exists for this tenant
 )
+
+# Example: Template resolution
+effective_template = get_effective_template(base_template_id, tenant_org_id)
+
+# Example: Question resolution
+effective_question = get_effective_question(base_question_id, tenant_org_id)
 ```
+
+### Admin UI Integration
+
+The admin interface provides:
+
+1. **Content Management:**
+   - Question Bank (behavioral/technical questions)
+   - Coding Problems management
+   - Template versioning and publishing
+   - Rubric definition with dimension weighting
+
+2. **Scheduling:**
+   - Interview submission windows
+   - Role-template-window mappings
+   - Proctoring configuration
+
+3. **Monitoring & Review:**
+   - Live interview monitoring
+   - Flagged submission review queue
+   - Human oversight and score overrides
+
+4. **Governance:**  (least priority, can be ignored now)
+   - Audit logs
+   - Retention policies
+   - Consent management
+   - Deletion requests
+
+5. **System Configuration:**
+   - Admin user management (superadmin/admin/read_only)
+   - AI model registry
+   - Prompt templates
+   - Feature flags
 
 ### Rubric Management
 
@@ -171,17 +255,19 @@ THEN template_structure of T SHALL NOT be modified
 
 ### Scope Enforcement & Override Hierarchy
 
-#### Base Content (Super Org)
+#### Base Content (Super Org - org_id=1)
 
 - Super org content is visible to ALL tenants (read-only)
-- Acts as canonical/seed data
+- Acts as canonical/seed data provided by project owner
 - Versioned independently
+- Applies to: templates, rubrics, roles, topics, questions, coding_problems
 
 #### Tenant Native Content
 
 - Tenant-created content visible only to owning organization
 - Full CRUD within tenant boundary
 - Can reference super org base content OR own native content
+- Applies to all content types
 
 #### Override Layering Rules
 
@@ -190,6 +276,29 @@ THEN template_structure of T SHALL NOT be modified
 3. **Partial Overrides:** Can override specific fields, inherit rest from base
 4. **Override Deletion:** Deleting override reverts to base content
 5. **Base Deletion:** Deactivating base content cascades to all tenant overrides (mark stale)
+6. **Multi-Content Support:** Override pattern applies to all managed content types
+7. **Isolation:** Tenant A's overrides are invisible to Tenant B
+
+#### Override Table Schema Pattern
+
+All override tables follow this structure:
+```sql
+CREATE TABLE <content_type>_overrides (
+    id BIGSERIAL PRIMARY KEY,
+    organization_id BIGINT NOT NULL REFERENCES organizations(id),
+    base_<content_type>_id BIGINT NOT NULL REFERENCES <content_type>(id),
+    override_fields JSONB NOT NULL,  -- Sparse field overrides
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    is_active BOOLEAN DEFAULT TRUE,
+    UNIQUE(organization_id, base_<content_type>_id)
+);
+```
+
+Examples:
+- `template_overrides(organization_id, base_template_id, override_fields)`
+- `question_overrides(organization_id, base_question_id, override_fields)`
+- `coding_problem_overrides(organization_id, base_coding_problem_id, override_fields)`
 
 ---
 
@@ -203,19 +312,27 @@ THEN template_structure of T SHALL NOT be modified
 
 ### Security Violations
 
-- SHALL NOT expose templates/rubrics across tenant boundaries (NFR-7.1)
-- SHALL NOT allow editing of templates owned by other organizations
+- SHALL NOT expose content across tenant boundaries (NFR-7.1)
+- SHALL NOT allow editing of content owned by other organizations
 - SHALL NOT allow tenants to directly edit super org base content
 - SHALL NOT allow overrides on non-super-org content (overrides only apply to org_id=1 base)
 - SHALL NOT expose other tenants' overrides
 - SHALL NOT bypass RBAC checks
-- `read_only` admins SHALL NOT mutate data
+- **Role-specific restrictions:**
+  - `read_only` admins SHALL NOT mutate data
+  - `admin` SHALL NOT access super org base content modification
+  - Only `superadmin` can modify base content (org_id=1)
+  - `admin` and `read_only` SHALL NOT have cross-tenant visibility
 
 ### Data Integrity
 
-- SHALL NOT delete templates referenced by submissions (soft delete or archive only)
+- SHALL NOT delete content referenced by submissions (soft delete or archive only)
 - SHALL NOT create orphaned window_role_templates (missing role/template)
-- SHALL NOT modify templates without validation passing
+- SHALL NOT modify content without validation passing
+- SHALL NOT create overrides for non-existent base content
+- SHALL NOT create overrides for content not owned by super org (org_id=1)
+- SHALL NOT create duplicate overrides (organization_id, base_*_id uniqueness)
+- SHALL NOT allow override fields that violate base content schema
 
 ### Schema Violations
 
