@@ -1,5 +1,7 @@
 # Interview Exchanges - Immutable Exchange Creation & Snapshot Persistence
 
+**See Also:** [Clarifications Architecture](../../docs/CLARIFICATIONS-ARCHITECTURE.md) - High-level overview of intent classification, clarifications, and fairness tracking.
+
 ## 1. Purpose
 
 The **Exchanges** layer is responsible for:
@@ -23,6 +25,422 @@ The **Exchanges** layer is responsible for:
 > **Exchanges are IMMUTABLE. Create once, never modify.**
 > **Exchanges are SNAPSHOTS. Copy data, don't reference.**
 > **Exchanges are SEQUENCED. No gaps, no duplicates.**
+
+---
+
+## 2. Intent Classification Taxonomy (Strict)
+
+### Purpose
+
+Every candidate utterance must be classified **deterministically** before any business logic runs. This ensures fair, auditable, and reproducible interviews.
+
+### Classification Output Schema
+
+```python
+@dataclass
+class UtteranceIntentClassification:
+    intent: Literal[
+        "ANSWER",              # Solution attempt (code logic, algorithm)
+        "CLARIFICATION",       # Requesting clarification of question
+        "REPEAT",              # Asking for question to be repeated
+        "POST_ANSWER",         # Speech after submission (unsolicited)
+        "INVALID",             # Unintelligible, silence, noise
+        "INCOMPLETE",          # Fragment (incomplete thought, waiting to continue)
+        "UNKNOWN",             # Ambiguous
+    ]
+    confidence: float          # 0.0-1.0 (classification confidence)
+    contains_solution_attempt: bool  # True if solution logic detected
+    semantic_level: Literal["none", "surface", "deep"]  # Depth of content
+```
+
+### Classification Rules
+
+| Intent | Triggers | Examples |
+|--------|----------|----------|
+| **ANSWER** | Solution logic, algorithm steps, code-like language | "I would use a queue...", "My approach is...", "We can implement..." |
+| **CLARIFICATION** | Question about wording, terms, constraints | "Can you rephrase that?", "What do you mean by...?" |
+| **REPEAT** | Request to hear question again | "Can you say that again?", "Could you repeat?" |
+| **POST_ANSWER** | Speech AFTER submission marked | Any utterance after response submitted |
+| **INVALID** | Silence, unintelligible, noise, off-topic rambling | [Silence >3s], "hhh... umm..." (no content) |
+| **INCOMPLETE** | Fragment suggesting more to come | "So... like...", "I think", "It would..." (incomplete sentence) |
+
+### Classification Algorithm (Temperature = 0)
+
+```python
+class UtteranceIntentClassifier:
+    """
+    Lightweight intent classifier (can be separate model or LLM call with temperature=0).
+    Must be fast (<500ms) and deterministic.
+    """
+    
+    def classify(self, transcript: str, context: InterviewContext) -> UtteranceIntentClassification:
+        """
+        Classify utterance intent.
+        
+        Returns:
+            UtteranceIntentClassification with strict deterministic output
+        
+        Raises:
+            ClassificationError: If classification fails
+        """
+        raise NotImplementedError
+```
+
+### Critical Rules
+
+1. **Default to ANSWER (conservative):** If ambiguity between CLARIFICATION + ANSWER → treat as ANSWER
+2. **Temperature = 0 (or near 0):** No randomness in classification
+3. **Immutable logging:** Every classification logged (audit trail)
+4. **No evaluation logic before classification:** Classification runs FIRST
+
+### Example Classifications
+
+**Example 1: Mixed Clarification + Answer**
+```
+Transcript: "So this is about BFS right? I would use a queue..."
+
+Classification:
+  intent: ANSWER
+  confidence: 0.95
+  contains_solution_attempt: true
+  semantic_level: deep
+  
+Reason: Contains "I would use" (solution logic). Treat as ANSWER.
+```
+
+**Example 2: Pure Clarification**
+```
+Transcript: "Can you define what you mean by 'optimal'?"
+
+Classification:
+  intent: CLARIFICATION
+  confidence: 0.98
+  contains_solution_attempt: false
+  semantic_level: surface
+```
+
+**Example 3: Incomplete Fragment**
+```
+Transcript: "I think we could use... like..."
+
+Classification:
+  intent: INCOMPLETE
+  confidence: 0.85
+  contains_solution_attempt: false
+  semantic_level: surface
+  
+Reason: Incomplete sentence, suggests candidate will continue.
+```
+
+---
+
+## 3. Question State Machine with Clarifications
+
+### State Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      ASKED                                       │
+│          (Question presented to candidate)                       │
+└────────────────────┬────────────────────────────────────────────┘
+                     │
+                     ↓
+┌─────────────────────────────────────────────────────────────────┐
+│                  WAITING_INPUT                                   │
+│     (Listening for candidate response)                           │
+│     clarification_count: 0                                       │
+└────┬────────────────┬────────────────┬──────────────────────────┘
+     │                │                │
+     │ (CLARIFICATION)│ (ANSWER)       │ (REPEAT)
+     │                │                │
+     ↓                ↓                ↓
+┌──────────────────┐  │  ┌──────────────────────┐
+│ CLARIFICATION    │  │  │ WAITING_INPUT        │
+│ _REQUESTED       │  │  │ (same state)         │
+│                  │  │  │ clarification_count++│
+│ clarification    │  │  └──────────────────────┘
+│ _count++         │  │
+│                  │  │ (if count < 3, replay
+│ (max 3)          │  │  question + wait again)
+│                  │  │
+└────────┬─────────┘  │
+         │            │
+         │ (response  │
+         │  to clarif)│
+         │            │
+         └────┬───────┘
+              │
+         (if count >= 3,
+         auto-skip;
+         else loop back)
+              │
+              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              ANSWER_SUBMITTED                                    │
+│        (Response received & recorded)                            │
+│        clarification_count: final value                          │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│            POST_ANSWER_WINDOW (5-10 seconds)                     │
+│     (Candidate may speak, but only recorded for info)            │
+│     Any contribution rejected; "Answer recorded"                 │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│              EVALUATED                                           │
+│       (Exchange immutably persisted)                             │
+│       (Evaluation complete or pending)                           │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+                 ↓
+┌─────────────────────────────────────────────────────────────────┐
+│            NEXT_QUESTION                                         │
+│   (Prepare next question or end interview)                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### State Machine Entity: interview_exchanges (Extended)
+
+```sql
+CREATE TABLE interview_exchanges (
+    id SERIAL PRIMARY KEY,
+    interview_submission_id INTEGER NOT NULL REFERENCES interview_submissions(id) ON DELETE CASCADE,
+    sequence_order INTEGER NOT NULL,
+
+    -- Question snapshot (IMMUTABLE)
+    question_id INTEGER NOT NULL REFERENCES questions(id),
+    question_text TEXT NOT NULL,
+    question_type VARCHAR(20) NOT NULL CHECK (
+        question_type IN ('text', 'coding', 'audio')
+    ),
+    question_difficulty VARCHAR(20),
+    expected_answer TEXT,
+    section_name VARCHAR(50) NOT NULL,
+
+    -- Response snapshot (IMMUTABLE)
+    response_text TEXT,
+    response_code TEXT,
+    response_language VARCHAR(20),
+    response_time_ms INTEGER,
+
+    -- ⭐ CLARIFICATION TRACKING
+    clarification_count INTEGER NOT NULL DEFAULT 0 CHECK (clarification_count >= 0),
+    clarification_limit_exceeded BOOLEAN NOT NULL DEFAULT FALSE,
+    clarification_exchange_ids INTEGER[] DEFAULT ARRAY[]::INTEGER[],  -- IDs of clarification attempts
+    
+    -- ⭐ INTENT CLASSIFICATION AUDIT
+    intent_sequence JSONB NOT NULL DEFAULT '[]'::JSONB,  -- Array of all intents in order
+    final_intent VARCHAR(50),  -- Last classify intent (ANSWER, INVALID, etc)
+    final_intent_confidence FLOAT CHECK (final_intent_confidence >= 0.0 AND final_intent_confidence <= 1.0),
+    
+    -- Foreign keys to related entities
+    code_submission_id INTEGER REFERENCES code_submissions(id),
+    audio_recording_id INTEGER REFERENCES audio_recordings(id),
+
+    -- Metadata
+    ai_followup_message TEXT,
+    responded_at TIMESTAMP DEFAULT NOW(),
+
+    -- Constraints
+    UNIQUE(interview_submission_id, sequence_order),
+    UNIQUE(interview_submission_id, question_id),
+    CHECK (
+        (response_text IS NOT NULL AND question_type = 'text') OR
+        (response_text IS NOT NULL AND question_type = 'audio') OR
+        (response_code IS NOT NULL AND question_type = 'coding')
+    )
+);
+
+CREATE INDEX idx_exchanges_submission ON interview_exchanges(interview_submission_id);
+CREATE INDEX idx_exchanges_sequence ON interview_exchanges(interview_submission_id, sequence_order);
+CREATE INDEX idx_exchanges_question ON interview_exchanges(question_id);
+CREATE INDEX idx_exchanges_clarification_count ON interview_exchanges(clarification_count);
+```
+
+### State Machine Fields
+
+```python
+@dataclass
+class ExchangeStateSnapshot:
+    """Current state of an exchange through its lifecycle."""
+    exchange_id: int
+    current_state: Literal[
+        "ASKED",
+        "WAITING_INPUT",
+        "CLARIFICATION_REQUESTED",
+        "ANSWER_SUBMITTED",
+        "POST_ANSWER_WINDOW",
+        "EVALUATED",
+        "NEXT_QUESTION"
+    ]
+    clarification_count: int          # Current count (0-3)
+    clarification_limit_exceeded: bool  # True if count >= 3
+    intent_sequence: List[UtteranceIntentClassification]  # All intents in order
+    last_intent: Optional[UtteranceIntentClassification]  # Most recent classification
+    response_locked: bool              # True after ANSWER_SUBMITTED
+```
+
+---
+
+## 4. Clarification Policy (Strict Bounds)
+
+### Max Clarifications = 3 Rule
+
+```
+IF clarification_count >= 3:
+    → Lock clarification requests
+    → Auto transition to ANSWER_SUBMITTED
+    → Mark reason: CLARIFICATION_LIMIT_EXCEEDED
+    → No emotional message (neutral system response)
+    → Log event immutably
+```
+
+### What LLM Can Do During Clarification
+
+**ALLOWED:**
+- Rephrase question wording
+- Define ambiguous terms
+- Restate constraints (e.g., "You have 5 minutes")
+- Provide abstract analogy (max 1 per question)
+- Ask candidate to clarify THEIR interpretation
+
+**RARELY ALLOWED (Quantified):**
+- 1 conceptual example per question (max)
+  - Must NOT show solution structure
+  - Example: "Like sorting a deck of cards" (not "use quicksort")
+- 1 micro-hint per question (optional, recommend: disable)
+  - Micro-hint: "Think about X" (not "Use algorithm Y")
+  - Both candidates must get identical hints for fairness
+
+**FORBIDDEN:**
+- Algorithm suggestions ("Use DFS")
+- Data structure suggestions ("Use a hash table")
+- Step sequencing ("First do X, then do Y")
+- Partial solution validation ("That's the right direction")
+- Encouraging phrases ("You're on the right track")
+- Describing answer ("The answer involves recursion")
+- Giving examples with solution code
+
+### Clarification Prompt Contract
+
+```python
+CLARIFICATION_SYSTEM_PROMPT_CONSTRAINTS = {
+    "MAX_WORDS": 120,
+    "ALLOW_ANALOGY": True,
+    "ANALOGY_COUNT": 1,  # Max 1 per question
+    "ALLOW_HINT": False,  # Recommend: False for fairness
+    "HINT_COUNT": 0,     # If enabled, max 1 per question
+    "PROHIBITIONS": [
+        "algorithm_suggestions",
+        "data_structure_suggestions",
+        "step_sequencing",
+        "partial_validation",
+        "encouraging_phrases",
+        "answer_description",
+        "solution_examples"
+    ],
+    "OUTPUT_FORMAT": "natural_language",  # No JSON, no scoring
+}
+```
+
+### Clarification LLM Request Template
+
+```python
+@dataclass
+class ClarificationRequest:
+    original_question: str         # REQUIRED: Verbatim question text
+    candidate_clarification_request: str  # What candidate asked
+    clarification_count_so_far: int       # Current count (0-2)
+    constraints: Dict[str, Any]   # Policy constraints (above)
+    allow_hint: bool = False       # If True, max 1 hint allowed
+    previous_clarifications: List[str] = []  # Prior clarifications given
+    
+    
+class ClarificationResponse:
+    clarification_text: str        # LLM response (<=120 words)
+    contains_hint: bool            # True if hint given
+    contains_analogy: bool         # True if analogy given
+    violates_policy: bool          # True if policy violation detected
+```
+
+---
+
+## 5. Clarification Audit Logging
+
+### Log Schema (Immutable)
+
+Every question's clarification activity must be logged:
+
+```json
+{
+  "question_id": 101,
+  "exchange_id": 5001,
+  "submission_id": 1000,
+  "clarification_count": 2,
+  "clarification_limit_exceeded": false,
+  "hint_given": false,
+  "replays": 1,
+  "auto_skipped": false,
+  "final_intent_sequence": [
+    {"intent": "CLARIFICATION", "confidence": 0.95, "timestamp_ms": 1000},
+    {"intent": "CLARIFICATION", "confidence": 0.92, "timestamp_ms": 3500},
+    {"intent": "ANSWER", "confidence": 0.88, "timestamp_ms": 8000}
+  ],
+  "fairness_score": {
+    "clarification_equity": "fair",  # All candidates got similar # of clarifications
+    "hint_given_equity": "fair"      # Either all got hints or none did
+  }
+}
+```
+
+### Critical for Audit
+
+- Every classification logged immutably
+- Every clarification decision logged
+- Every auto-skip logged with reason
+- Enables candidate defense ("I requested clarification X times")
+- Enables fairness analysis (comparing similar candidates)
+
+---
+
+## 6. Voice-Specific ASR Risks
+
+### Problem: ASR Misclassification
+
+ASR noise or misrecognition can cause:
+
+```
+Actual speech: "I think maybe we can use recursion"
+ASR error:     "I think may be we can lose recursion"
+Classification: Could misclassify as INVALID or UNCLEAR
+```
+
+### Mitigation: Confidence Threshold
+
+```python
+class ASRConfidenceHandler:
+    """Handle low-confidence ASR results."""
+    
+    ASR_CONFIDENCE_THRESHOLD = 0.70  # Below this, ask for repeat
+    
+    def should_ask_for_repeat(self, transcript: str, asr_confidence: float) -> bool:
+        """
+        If ASR confidence too low, ask candidate to repeat.
+        
+        Returns:
+            True if repeat should be requested
+        """
+        if asr_confidence < self.ASR_CONFIDENCE_THRESHOLD:
+            return True
+        return False
+    
+    def build_repeat_request(self) -> str:
+        """Build neutral repeat request."""
+        return "I didn't quite catch that. Could you please repeat?"
+```
 
 ---
 

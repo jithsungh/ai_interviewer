@@ -1,5 +1,7 @@
 # AI LLM Layer Requirements
 
+**See Also:** [Clarifications Architecture](../../docs/CLARIFICATIONS-ARCHITECTURE.md) - High-level overview of clarification LLM contract, fairness, and audit logging.
+
 ## 1. Purpose
 
 The LLM layer provides **provider abstractions** for Large Language Model interactions.
@@ -219,7 +221,319 @@ class BaseLLMProvider(ABC):
 
 ---
 
-## 4. Output Guarantees
+## 4. Clarification Prompt Contract (Strict Mode)
+
+### Purpose
+
+Define the **bounded, auditable contract** for LLM clarification requests during interviews.
+
+> **Every clarification must be fair, safe, and auditable.**
+> **No LLM drift. No leaked hints. No moving goalposts.**
+
+---
+
+### Clarification System Prompt (Template)
+
+```
+You are a **clarification assistant** for technical interviews.
+
+ROLE: You answer candidate questions about the interview question, NOT solve the problem.
+
+ORIGINAL QUESTION:
+{original_question}
+
+CANDIDATE'S CLARIFICATION REQUEST:
+{candidate_clarification_request}
+
+---
+
+YOU MAY:
+✓ Rephrase the question in different words
+✓ Define ambiguous terms (e.g., "optimal" means fewest operations)
+✓ Clarify constraints (e.g., "Input is sorted")
+✓ Ask the candidate to clarify their OWN understanding
+
+YOU MAY RARELY:
+~ Provide ONE abstract analogy per question (e.g., "like sorting cards")
+  - Analogy must NOT show solution structure
+  - Analogy must be simple and conceptual
+
+YOU MUST NEVER:
+✗ Suggest algorithms (use DFS, use dynamic programming, etc.)
+✗ Suggest data structures (hash table, queue, tree, etc.)
+✗ Describe steps or approach ("first you would", "next do", etc.)
+✗ Give hints about structure ("you'll need recursion", "think about trees")
+✗ Validate their attempt ("that's right", "you're on the right track")
+✗ Use encouraging language ("great question", "excellent thinking")
+✗ Describe the answer or solution
+✗ Provide code examples or solution patterns
+✗ Suggest testing approaches or edge cases to consider
+
+---
+
+CONSTRAINTS:
+- Maximum response length: 120 words
+- Response format: Natural language only (no JSON, no scoring)
+- No meta-commentary (don't mention these rules)
+- If you cannot provide safe clarification, ask candidate to rephrase their question
+
+---
+
+Provide a brief, direct clarification.
+```
+
+---
+
+### Clarification Request Contract
+
+```python
+@dataclass
+class ClarificationRequestContract:
+    """
+    Strict contract for clarification requests.
+    All clarifications MUST conform to this contract.
+    """
+    
+    # Identity
+    submission_id: int                   # REQUIRED: Audit trail linkage
+    exchange_sequence: int               # REQUIRED: Question number
+    question_id: int                     # REQUIRED: For traceability
+    
+    # Question Context
+    original_question: str               # REQUIRED: Verbatim question
+    candidate_clarification_request: str # REQUIRED: How they asked
+    
+    # Counter
+    clarification_number: int            # REQUIRED: 1, 2, or 3 (0-indexed)
+    
+    # Policy Constraints
+    constraints: ClarificationConstraints
+    
+    # Metadata
+    timestamp: datetime                  # When requested
+    asr_confidence: Optional[float] = None  # Transcription confidence
+
+
+@dataclass
+class ClarificationConstraints:
+    """Hard bounds for clarification responses."""
+    
+    max_words: int = 120
+    allow_analogy: bool = True
+    max_analogies: int = 1              # Per question
+    allow_hint: bool = False             # RECOMMEND: False
+    max_hints: int = 0                   # If hints enabled, max per question
+    
+    # Prohibition list (must not appear in response)
+    prohibitions: List[str] = None       # Auto-set from above
+    
+    def __post_init__(self):
+        if self.prohibitions is None:
+            self.prohibitions = [
+                "algorithm", "approach", "dynamic programming", "dfs", "bfs", 
+                "dijkstra", "recursion", "hash table", "queue", "stack", "tree",
+                "linked list", "binary search", "bubble sort", "merge sort",
+                "would", "suggest", "use", "try", "first", "next", "then",
+                "you're right", "correct", "that's", "good", "excellent",
+                "right track", "on the right", "brilliant", "great"
+            ]
+```
+
+---
+
+### Clarification Response Contract
+
+```python
+@dataclass
+class ClarificationResponseContract:
+    """
+    Response from LLM for clarification.
+    MUST pass validation before delivering to client.
+    """
+    
+    # Content
+    clarification_text: str              # LLM response
+    word_count: int                      # Actual word count
+    
+    # Compliance
+    violates_policy: bool                # True if policy violation
+    violation_reason: Optional[str] = None  # If violated
+    contains_analogy: bool = False       # Did we use analogy?
+    contains_hint: bool = False          # Did we give hint?
+    
+    # Auditing
+    model_used: str                      # Which model generated this
+    temperature_used: float              # Should be 0.0 or near 0
+    telemetry: Optional[dict] = None     # Token usage, latency
+```
+
+---
+
+### Validation & Policy Enforcement
+
+```python
+class ClarificationValidator:
+    """Validate clarification responses against policy."""
+    
+    PROHIBITED_PATTERNS = {
+        "algorithm": r'\b(algorithm|approach|solution|strategy|method)\b',
+        "data_structure": r'\b(tree|list|queue|stack|heap|graph|table|hash)\b',
+        "hint": r'\b(recursion|recursive|loop|cycle|try|think about|consider)\b',
+        "validation": r'\b(right|correct|good|yes|exactly|that[\s\']s|you[\s\']re|on the right)\b',
+        "code": r'(\{\{|>>>|code|function|implement|write)',
+    }
+    
+    MAX_WORDS = 120
+    MAX_ANALOGIES_PER_QUESTION = 1
+    
+    def validate(
+        self, 
+        response: ClarificationResponseContract,
+        constraints: ClarificationConstraints
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Validate response.
+        
+        Returns:
+            (is_valid: bool, violation_reason: Optional[str])
+        """
+        
+        # Check word count
+        if response.word_count > constraints.max_words:
+            return False, f"Exceeds max words ({response.word_count} > {constraints.max_words})"
+        
+        # Check prohibited patterns
+        text_lower = response.clarification_text.lower()
+        for category, pattern in self.PROHIBITED_PATTERNS.items():
+            if re.search(pattern, text_lower):
+                return False, f"Contains prohibited pattern: {category}"
+        
+        # Check for prohibited words in constraints list
+        for prohibited in constraints.prohibitions:
+            if prohibited in text_lower:
+                return False, f"Contains prohibited word: {prohibited}"
+        
+        # If hints disabled, check not present
+        if not constraints.allow_hint and response.contains_hint:
+            return False, "Hints not allowed but hint detected"
+        
+        # If analogies limited, check count
+        if response.contains_analogy and constraints.max_analogies == 0:
+            return False, "Analogies not allowed but analogy detected"
+        
+        return True, None
+```
+
+---
+
+### Temperature = 0 Requirement
+
+```python
+async def generate_clarification(
+    llm_provider: BaseLLMProvider,
+    request: ClarificationRequestContract
+) -> ClarificationResponseContract:
+    """
+    Generate clarification with strict temperature control.
+    
+    CRITICAL: temperature=0 (or near 0) ensures:
+    - Deterministic output (same input → same output)
+    - No randomness or creativity
+    - Fair treatment across all candidates
+    - Reproducible audit trail
+    """
+    
+    system_prompt = CLARIFICATION_SYSTEM_PROMPT_TEMPLATE.format(
+        original_question=request.original_question,
+        candidate_clarification_request=request.candidate_clarification_request
+    )
+    
+    response = await llm_provider.generate_text(
+        prompt="",  # Empty, using system prompt only
+        system=system_prompt,
+        model="gpt-4o",  # or similar
+        temperature=0.0,  # ⭐ DETERMINISTIC
+        max_tokens=150,
+        timeout_seconds=5
+    )
+    
+    if not response.success:
+        raise ClarificationGenerationError(f"LLM call failed: {response.error}")
+    
+    text = response.data.get('content', '').strip()
+    word_count = len(text.split())
+    
+    # Validate immediately
+    validation_response = ClarificationResponseContract(
+        clarification_text=text,
+        word_count=word_count,
+        violates_policy=False,
+        model_used=response.telemetry.model_id,
+        temperature_used=0.0,
+        telemetry=asdict(response.telemetry)
+    )
+    
+    # Run policy validation
+    validator = ClarificationValidator()
+    is_valid, violation_reason = validator.validate(validation_response, request.constraints)
+    
+    if not is_valid:
+        # Log violation for audit
+        log_violation({
+            "submission_id": request.submission_id,
+            "reason": violation_reason,
+            "clarification_text": text
+        })
+        
+        # Return safe fallback
+        return ClarificationResponseContract(
+            clarification_text="I can't provide that clarification. Could you rephrase your question?",
+            word_count=9,
+            violates_policy=True,
+            violation_reason=violation_reason,
+            model_used=response.telemetry.model_id,
+            temperature_used=0.0,
+            telemetry=asdict(response.telemetry)
+        )
+    
+    return validation_response
+```
+
+---
+
+### Audit Logging
+
+Every clarification request MUST be logged immutably:
+
+```python
+def log_clarification(
+    request: ClarificationRequestContract,
+    response: ClarificationResponseContract
+) -> None:
+    """Log clarification for audit trail."""
+    
+    audit_entry = {
+        "event_type": "clarification",
+        "submission_id": request.submission_id,
+        "exchange_sequence": request.exchange_sequence,
+        "question_id": request.question_id,
+        "clarification_number": request.clarification_number,
+        "candidate_request": request.candidate_clarification_request,
+        "llm_response": response.clarification_text,
+        "violates_policy": response.violates_policy,
+        "word_count": response.word_count,
+        "model": response.model_used,
+        "temperature": response.temperature_used,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    
+    # Write to immutable log (database or append-only file)
+    audit_log.append(audit_entry)
+```
+
+---
+
+## 6. Output Guarantees
 
 ### LLMResponse Structure
 
@@ -298,7 +612,7 @@ class LLMError:
 
 ---
 
-## 5. Invariants
+## 7. Invariants
 
 ### Interface Contract Invariant
 

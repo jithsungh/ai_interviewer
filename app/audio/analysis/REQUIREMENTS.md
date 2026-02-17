@@ -1,5 +1,7 @@
 # Audio Analysis Module
 
+**See Also:** [Clarifications Architecture](../../docs/CLARIFICATIONS-ARCHITECTURE.md) - High-level overview of intent classification and its role in the state machine.
+
 ## 1. Purpose
 
 **Why this submodule exists:**
@@ -125,6 +127,246 @@ class SentimentResult:
 ---
 
 ## 5. Acceptance Criteria
+### SentimentResult
+
+```python
+@dataclass
+class SentimentResult:
+    sentiment_score: float               # -1.0 (negative) to +1.0 (positive)
+    confidence_level: Literal["high", "medium", "low"]  # Derived from prosody
+    hesitation_detected: bool            # Excessive fillers, long pauses
+    frustration_detected: bool           # Negative sentiment + tense prosody
+```
+
+---
+
+## 5a. Intent Classification (Lightweight)
+
+### Purpose
+
+Classify candidate utterance intent in real-time for state machine decisions.
+
+**Critical:** This classification **must happen BEFORE any business logic runs** (exchange creation, evaluation, etc).
+
+### IntentClassificationRequest
+
+```python
+@dataclass
+class IntentClassificationRequest:
+    transcript: str                      # REQUIRED: Candidate's transcribed speech
+    confidence_score: float              # ASR confidence (0.0-1.0)
+    previous_submissions: int = 0        # How many times answered/clarified already
+    question_context: Optional[str] = None  # The actual question (for context)
+```
+
+### IntentClassificationResult
+
+```python
+@dataclass
+class IntentClassificationResult:
+    intent: Literal[                     # Primary classification
+        "ANSWER",                        # Solution attempt detected
+        "CLARIFICATION",                 # Requesting clarification
+        "REPEAT",                        # Asking to repeat question
+        "POST_ANSWER",                   # Speech after submission
+        "INVALID",                       # Unintelligible/silence/noise
+        "INCOMPLETE",                    # Fragment (more to come)
+        "UNKNOWN"                        # Ambiguous
+    ]
+    confidence: float                    # 0.0-1.0 (classification confidence)
+    contains_solution_attempt: bool      # True if algorithm/code logic detected
+    semantic_depth: Literal["none", "surface", "deep"]  # Content complexity
+    low_asr_confidence_warning: bool     # True if ASR confidence < threshold
+```
+
+### Intent Classification Algorithm
+
+```python
+class IntentClassifier:
+    """
+    Lightweight intent classifier (temperature=0, deterministic).
+    Can be rule-based NLP or LLM with very strict constraints.
+    """
+    
+    # Thresholds
+    ASR_CONFIDENCE_THRESHOLD = 0.70
+    INTENT_CONFIDENCE_THRESHOLD = 0.75
+    
+    # Keywords/patterns for solution detection
+    SOLUTION_KEYWORDS = {
+        "algorithm", "approach", "logic", "code", "loop", "recursion",
+        "if", "condition", "variable", "array", "queue", "stack",
+        "would", "use", "implement", "call", "pass", "filter"
+    }
+    
+    CLARIFICATION_KEYWORDS = {
+        "what", "mean", "define", "clarify", "understand", "explain",
+        "rephrase", "again", "repeat", "unclear", "specify"
+    }
+    
+    def classify(self, request: IntentClassificationRequest) -> IntentClassificationResult:
+        """
+        Classify utterance intent deterministically.
+        
+        Returns:
+            IntentClassificationResult
+        
+        Algorithm:
+        1. Check ASR confidence (if too low → ask repeat)
+        2. Check for silence/empty (→ INVALID)
+        3. Check for solution keywords (→ ANSWER)
+        4. Check for clarification keywords (→ CLARIFICATION)
+        5. Check for repeat request (→ REPEAT)
+        6. Otherwise → UNKNOWN (conservative)
+        """
+        # Step 0: Immutability
+        if request.previous_submissions >= 1:
+            # If already answered once, any new speech is POST_ANSWER
+            return IntentClassificationResult(
+                intent="POST_ANSWER",
+                confidence=0.95,
+                contains_solution_attempt=False,
+                semantic_depth="none",
+                low_asr_confidence_warning=False
+            )
+        
+        # Step 1: ASR confidence check
+        if request.confidence_score < self.ASR_CONFIDENCE_THRESHOLD:
+            return IntentClassificationResult(
+                intent="INVALID",
+                confidence=0.80,
+                contains_solution_attempt=False,
+                semantic_depth="none",
+                low_asr_confidence_warning=True
+            )
+        
+        # Step 2: Empty/silence check
+        if not request.transcript.strip() or self._is_silence(request.transcript):
+            return IntentClassificationResult(
+                intent="INVALID",
+                confidence=0.95,
+                contains_solution_attempt=False,
+                semantic_depth="none",
+                low_asr_confidence_warning=False
+            )
+        
+        # Step 3: Solution detection (conservative → default to ANSWER if ambiguous)
+        has_solution_keywords = self._has_solution_keywords(request.transcript)
+        if has_solution_keywords:
+            return IntentClassificationResult(
+                intent="ANSWER",
+                confidence=0.90,
+                contains_solution_attempt=True,
+                semantic_depth="deep",
+                low_asr_confidence_warning=False
+            )
+        
+        # Step 4: Clarification detection
+        has_clarification_keywords = self._has_clarification_keywords(request.transcript)
+        if has_clarification_keywords:
+            return IntentClassificationResult(
+                intent="CLARIFICATION",
+                confidence=0.85,
+                contains_solution_attempt=False,
+                semantic_depth="surface",
+                low_asr_confidence_warning=False
+            )
+        
+        # Step 5: Repeat detection
+        if self._is_repeat_request(request.transcript):
+            return IntentClassificationResult(
+                intent="REPEAT",
+                confidence=0.88,
+                contains_solution_attempt=False,
+                semantic_depth="none",
+                low_asr_confidence_warning=False
+            )
+        
+        # Step 6: Ambiguous → classify conservatively
+        return IntentClassificationResult(
+            intent="UNKNOWN",
+            confidence=0.60,
+            contains_solution_attempt=False,
+            semantic_depth="surface",
+            low_asr_confidence_warning=False
+        )
+    
+    def _has_solution_keywords(self, transcript: str) -> bool:
+        """Check if transcript contains solution keywords."""
+        tokens = transcript.lower().split()
+        return any(kw in tokens for kw in self.SOLUTION_KEYWORDS)
+    
+    def _has_clarification_keywords(self, transcript: str) -> bool:
+        """Check if transcript contains clarification keywords."""
+        tokens = transcript.lower().split()
+        return any(kw in tokens for kw in self.CLARIFICATION_KEYWORDS)
+    
+    def _is_repeat_request(self, transcript: str) -> bool:
+        """Check if candidate asking for repeat."""
+        repeat_phrases = ["again", "repeat", "say that", "one more time"]
+        return any(phrase in transcript.lower() for phrase in repeat_phrases)
+    
+    def _is_silence(self, transcript: str) -> bool:
+        """Check if transcript is silence/noise only."""
+        # ASR represents silence as: [silence], [noise], etc.
+        if "[silence]" in transcript.lower() or "[noise]" in transcript.lower():
+            return True
+        # Or just filler sounds: um, uh, hmm (nothing else)
+        cleaned = transcript.lower().strip()
+        filler_only = {"um", "uh", "umm", "uhh", "hmm", "hhh", ""}
+        return cleaned in filler_only
+```
+
+### Integration Point: Audio Module
+
+The parent `audio.ingestion` module must call intent classification **immediately after transcription**:
+
+```python
+# In audio.ingestion.py
+async def process_audio_chunk(audio_bytes: bytes):
+    # Step 1: Transcribe
+    transcript_result = await transcription_service.transcribe(audio_bytes)
+    
+    # Step 2: ⭐ CLASSIFY INTENT (FIRST BUSINESS LOGIC STEP)
+    intent_result = await intent_classifier.classify(IntentClassificationRequest(
+        transcript=transcript_result.transcript,
+        confidence_score=transcript_result.confidence_score,
+        question_context=current_question.text
+    ))
+    
+    # Step 3: Log immutably
+    log_intent_classification(intent_result)
+    
+    # Step 4: Only then pass to state machine orchestration
+    await orchestration_service.handle_candidate_input(intent_result)
+```
+
+---
+
+## 6. Invariants & Constraints
+
+### Must Hold
+
+1. **Intent Classification Runs First:** Before any other audio analysis or business logic
+2. **Completeness Classification is Rule-Based:** No LLM calls (too slow, non-deterministic)
+3. **Intent Classification is Deterministic:** temperature=0 (or near 0), no randomness
+4. **Speech Rate Excludes Pauses:** WPM calculated on actual speech time, not total time
+5. **Sentiment Score Normalized -1.0 to +1.0:** Consistent across sentiment engines
+6. **Filler Rate Between 0.0 and 1.0:** Cannot exceed 100% of words
+7. **Immutable Intent Log:** Every classification persisted to audit trail
+
+### Forbidden
+
+- MUST NOT run business logic before intent classification
+- MUST NOT call LLMs for analysis (use rule-based NLP only, except intent classification which may use temperature=0 LLM)
+- MUST NOT modify transcript (analysis is read-only)
+- MUST NOT make subjective judgments (e.g., "candidate is lying" based on hesitation)
+- MUST NOT block on external services (all analysis is local/synchronous except intent classification)
+- MUST NOT create exchange until intent = ANSWER confirmed
+
+---
+
+## 7. Completeness Classifier Algorithm
 
 ### Functional Requirements
 

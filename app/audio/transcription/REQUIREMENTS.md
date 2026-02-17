@@ -1,5 +1,7 @@
 # Audio Transcription Module
 
+**See Also:** [Clarifications Architecture](../../docs/CLARIFICATIONS-ARCHITECTURE.md) - High-level overview of intent classification and how ASR confidence impacts it.
+
 ## 1. Purpose
 
 **Why this submodule exists:**

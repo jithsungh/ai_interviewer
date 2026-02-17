@@ -1,5 +1,7 @@
 # Interview Persistence - Repositories & Database Operations
 
+**See Also:** [Clarifications Architecture](../../docs/CLARIFICATIONS-ARCHITECTURE.md) - High-level overview of clarification fairness tracking and audit logging.
+
 ## 1. Purpose
 
 The **Persistence** layer is responsible for:
@@ -37,6 +39,90 @@ The **Persistence** layer is responsible for:
 5. **Transaction management:** Atomic operations with commit/rollback
 
 ---
+
+## 2a. Clarification Tracking in Submissions
+
+### Purpose
+
+Track clarification usage per submission for fairness auditing.
+
+### interview_submissions Schema (Extended)
+
+```sql
+CREATE TABLE interview_submissions (
+    id SERIAL PRIMARY KEY,
+    interview_id INTEGER NOT NULL REFERENCES interviews(id) ON DELETE CASCADE,
+    candidate_id INTEGER NOT NULL REFERENCES users(id),
+    template_id INTEGER NOT NULL,  -- FROZEN at creation, never re-resolved
+
+    -- State machine
+    submission_status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (
+        submission_status IN ('pending', 'in_progress', 'completed', 'cancelled', 'expired')
+    ),
+
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT NOW(),
+    started_at TIMESTAMP,
+    submitted_at TIMESTAMP,
+    expires_at TIMESTAMP,
+
+    -- Progress tracking
+    current_exchange_sequence INTEGER DEFAULT 0,
+    total_questions INTEGER NOT NULL,
+
+    -- Template snapshot (FROZEN)
+    template_structure_snapshot JSONB NOT NULL,
+
+    -- ⭐ CLARIFICATION FAIRNESS TRACKING
+    total_clarifications_requested INTEGER NOT NULL DEFAULT 0,
+    total_clarifications_granted INTEGER NOT NULL DEFAULT 0,
+    total_auto_skips_due_to_clarification INTEGER NOT NULL DEFAULT 0,
+    clarification_audit_log JSONB NOT NULL DEFAULT '[]'::JSONB,  -- Array of clarification events
+    
+    -- Metadata
+    time_zone VARCHAR(50),
+    user_agent TEXT,
+
+    UNIQUE(interview_id)
+);
+
+CREATE INDEX idx_submissions_candidate ON interview_submissions(candidate_id);
+CREATE INDEX idx_submissions_status ON interview_submissions(submission_status);
+CREATE INDEX idx_submissions_expires ON interview_submissions(expires_at) WHERE submission_status = 'in_progress';
+CREATE INDEX idx_submissions_clarifications ON interview_submissions(total_clarifications_requested);
+```
+
+### Clarification Audit Log Entry
+
+```python
+@dataclass
+class ClarificationAuditEntry:
+    """Single clarification event in submission audit log."""
+    exchange_sequence: int           # Which question (1-indexed)
+    question_id: int
+    clarification_number: int        # 1st, 2nd, or 3rd clarification
+    candidate_request: str           # What they asked
+    llm_response: str                # What was provided
+    timestamp: datetime
+    intent_classification: UtteranceIntentClassification
+    auto_limit_exceeded: bool        # True if this caused auto-skip
+    
+def audit_entry_to_dict(entry: ClarificationAuditEntry) -> dict:
+    return {
+        "exchange_sequence": entry.exchange_sequence,
+        "question_id": entry.question_id,
+        "clarification_number": entry.clarification_number,
+        "candidate_request": entry.candidate_request,
+        "llm_response": entry.llm_response,
+        "timestamp": entry.timestamp.isoformat(),
+        "intent_classification": asdict(entry.intent_classification),
+        "auto_limit_exceeded": entry.auto_limit_exceeded,
+    }
+```
+
+---
+
+## 2b. Repository Pattern Continued
 
 ### Base Repository
 

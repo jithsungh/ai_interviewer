@@ -1,5 +1,7 @@
 # Interview Orchestration - Runtime Coordination Layer
 
+**See Also:** [Clarifications Architecture](../../docs/CLARIFICATIONS-ARCHITECTURE.md) - High-level overview of intent classification, clarification coordination, and state machine flow.
+
 ## 1. Purpose
 
 The **Orchestration** layer is the **runtime brain** of the interview module. It:
@@ -192,6 +194,342 @@ async def fetch_question_content(question_id: int) -> QuestionDTO:
         expected_answer=question.expected_answer,
         time_limit_seconds=question.time_limit_seconds
     )
+```
+
+---
+
+## 3a. Clarification Coordination (Strict Bounds)
+
+### Purpose
+
+Orchestrate clarification requests with hard limits and immutable logging.
+
+### Clarification State Machine
+
+```
+WAITING_INPUT (clarification_count = 0)
+    ↓
+Candidate says: "What do you mean by X?"
+    ↓ [Intent Classification = CLARIFICATION]
+    ↓
+LLM provides clarification (<120 words)
+    ↓
+Update: clarification_count = 1
+    ↓
+Replay question to candidate
+    ↓
+Go back to WAITING_INPUT
+    ↓
+[If clarification_count >= 3]:
+    ├─ Lock clarifications
+    ├─ Auto transition to ANSWER_SUBMITTED
+    ├─ Log reason: CLARIFICATION_LIMIT_EXCEEDED
+    └─ System response: "Answer has been recorded."
+```
+
+### Clarification Request Handler
+
+```python
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class ClarificationRequest:
+    submission_id: int
+    exchange_sequence: int
+    question_id: int
+    question_text: str
+    candidate_request: str         # What they asked
+    current_clarification_count: int
+
+async def handle_clarification_request(
+    db: Session,
+    redis: Redis,
+    request: ClarificationRequest
+) -> dict:
+    """
+    Process clarification request with strict bounds.
+    
+    Steps:
+    1. Check if clarification_count < 3
+    2. If >= 3: auto-skip, log reason, return skip message
+    3. If < 3: call LLM with strict constraints
+    4. Log clarification attempt immutably
+    5. Increment clarification_count
+    6. Return clarification response + replay instruction
+    
+    Returns:
+        {
+            "action": "provide_clarification" | "auto_skip",
+            "clarification_text": str | None,
+            "new_clarification_count": int,
+            "message": str,
+            "replay_question": bool
+        }
+    """
+    
+    # Step 1: Check limit
+    if request.current_clarification_count >= 3:
+        # Auto-skip
+        log_clarification_event(
+            submission_id=request.submission_id,
+            exchange_sequence=request.exchange_sequence,
+            event_type="CLARIFICATION_LIMIT_EXCEEDED",
+            reason="max_clarifications_reached"
+        )
+        
+        return {
+            "action": "auto_skip",
+            "clarification_text": None,
+            "new_clarification_count": request.current_clarification_count,
+            "message": "Answer has been recorded. Moving to next question.",
+            "replay_question": False
+        }
+    
+    # Step 2: Call LLM for clarification (with strict constraints)
+    clarification_response = await call_clarification_llm(
+        original_question=request.question_text,
+        candidate_request=request.candidate_request,
+        constraints={
+            "MAX_WORDS": 120,
+            "ALLOW_ANALOGY": True,
+            "ANALOGY_COUNT": 1,
+            "ALLOW_HINT": False,
+            "PROHIBITIONS": [
+                "algorithm_suggestions",
+                "data_structure_suggestions",
+                "step_sequencing",
+                "partial_validation",
+                "encouraging_phrases",
+                "answer_description",
+                "solution_examples"
+            ]
+        }
+    )
+    
+    # Step 3: Validate LLM response
+    if clarification_response['violates_policy']:
+        # Log violation for audit
+        log_policy_violation(
+            submission_id=request.submission_id,
+            clarification_text=clarification_response['text'],
+            violation_reason=clarification_response['violation_reason']
+        )
+        
+        # Fall back to neutral response
+        safe_response = "I can't provide that clarification. Please rephrase your question."
+    else:
+        safe_response = clarification_response['text']
+    
+    # Step 4: Increment counter in submission
+    submission = db.query(InterviewSubmission).filter(
+        InterviewSubmission.id == request.submission_id
+    ).first()
+    
+    new_count = request.current_clarification_count + 1
+    submission.total_clarifications_granted += 1
+    
+    # Log to audit trail
+    audit_entry = {
+        "exchange_sequence": request.exchange_sequence,
+        "question_id": request.question_id,
+        "clarification_number": new_count,
+        "candidate_request": request.candidate_request,
+        "llm_response": safe_response,
+        "timestamp": datetime.utcnow().isoformat(),
+        "violates_policy": clarification_response.get('violates_policy', False)
+    }
+    
+    submission.clarification_audit_log = submission.clarification_audit_log or []
+    submission.clarification_audit_log.append(audit_entry)
+    db.commit()
+    
+    # Step 5: Return response
+    return {
+        "action": "provide_clarification",
+        "clarification_text": safe_response,
+        "new_clarification_count": new_count,
+        "message": safe_response,
+        "replay_question": True
+    }
+```
+
+### Clarification LLM Call (Strict Temperature=0)
+
+```python
+async def call_clarification_llm(
+    original_question: str,
+    candidate_request: str,
+    constraints: dict
+) -> dict:
+    """
+    Call LLM for clarification with STRICT constraints.
+    
+    Returns:
+        {
+            "text": str,
+            "contains_hint": bool,
+            "contains_analogy": bool,
+            "violates_policy": bool,
+            "violation_reason": Optional[str]
+        }
+    
+    Critical:
+    - Temperature must be 0 (deterministic)
+    - Response must be <120 words
+    - No algorithm suggestions
+    - No "you're on the right track" 
+    - No examples with solution code
+    """
+    
+    system_prompt = f"""
+You are a clarification assistant for coding interviews.
+
+ORIGINAL QUESTION:
+{original_question}
+
+CANDIDATE CLARIFICATION REQUEST:
+{candidate_request}
+
+CONSTRAINTS:
+- Maximum response length: {constraints['MAX_WORDS']} words
+- You MAY define ambiguous terms
+- You MAY rephrase the question
+- You MAY provide at most 1 abstract analogy per question
+- You MUST NOT suggest algorithms (e.g., "use DFS")
+- You MUST NOT suggest data structures (e.g., "use a hash table")
+- You MUST NOT give hints about the approach
+- You MUST NOT validate the candidate's attempt
+- You MUST NOT use encouraging phrases ("you're on the right track")
+- You MUST NOT describe the answer
+- Response must be NATURAL LANGUAGE ONLY (no JSON, no scoring)
+
+Provide a brief, helpful clarification if possible. Otherwise, ask candidate to rephrase.
+"""
+    
+    response = await llm_provider.call(
+        model="gpt-4",  # or similar
+        messages=[{"role": "system", "content": system_prompt}],
+        temperature=0.0,  # ⭐ DETERMINISTIC
+        max_tokens=150,
+        timeout=5  # Fast timeout
+    )
+    
+    clarification_text = response.choices[0].message.content.strip()
+    
+    # Post-processing: validate against policy
+    violations = validate_clarification_policy(clarification_text, constraints)
+    
+    return {
+        "text": clarification_text,
+        "contains_hint": "hint" in clarification_text.lower(),
+        "contains_analogy": "like" in clarification_text.lower() or "similar to" in clarification_text.lower(),
+        "violates_policy": len(violations) > 0,
+        "violation_reason": violations[0] if violations else None,
+        "word_count": len(clarification_text.split())
+    }
+
+def validate_clarification_policy(text: str, constraints: dict) -> List[str]:
+    """Check if clarification violates policy."""
+    violations = []
+    text_lower = text.lower()
+    
+    # Check word count
+    word_count = len(text.split())
+    if word_count > constraints['MAX_WORDS']:
+        violations.append(f"Exceeds max words ({word_count} > {constraints['MAX_WORDS']})")
+    
+    # Check prohibitions
+    prohibited_phrases = {
+        "algorithm": ["use dfs", "use bfs", "use dijkstra", "use dynamic programming"],
+        "data_structure": ["hash table", "linked list", "binary tree", "heap"],
+        "step_sequencing": ["first", "then", "next step"],
+        "partial_validation": ["you're right", "correct", "good approach"],
+        "encouraging": ["you're on the right", "great", "excellent"],
+        "answer_description": ["the answer is", "solution is", "implement"]
+    }
+    
+    for category, phrases in prohibited_phrases.items():
+        if any(phrase in text_lower for phrase in phrases):
+            violations.append(f"Violates: {category}")
+    
+    return violations
+```
+
+---
+
+## 3b. Intent Classification → State Machine
+
+### Integration: Audio Input → Intent → State
+
+```python
+async def handle_candidate_utterance(
+    submission_id: int,
+    transcript: str,
+    asr_confidence: float,
+    question_context: str
+) -> dict:
+    """
+    Main entry point for candidate speech.
+    
+    Flow:
+    1. Classify intent (temperature=0)
+    2. Route based on intent
+    3. Update state machine + audit logs
+    4. Return action to client
+    """
+    
+    # Step 1: Intent classification (FIRST)
+    intent = await intent_classifier.classify(IntentClassificationRequest(
+        transcript=transcript,
+        confidence_score=asr_confidence,
+        question_context=question_context
+    ))
+    
+    # Step 2: Log intent (immutably)
+    log_intent_classification(intent)
+    
+    # Step 3: Route based on intent
+    if intent.intent == "INVALID":
+        return request_repeat(asr_confidence)
+    
+    elif intent.intent == "REPEAT":
+        return replay_question(submission_id)
+    
+    elif intent.intent == "CLARIFICATION":
+        # Get current clarification count from submission
+        submission = db.query(InterviewSubmission).filter(
+            InterviewSubmission.id == submission_id
+        ).first()
+        
+        return await handle_clarification_request(
+            db, redis,
+            ClarificationRequest(
+                submission_id=submission_id,
+                exchange_sequence=submission.current_exchange_sequence,
+                question_id=...,  # from context
+                question_text=question_context,
+                candidate_request=transcript,
+                current_clarification_count=submission.total_clarifications_granted
+            )
+        )
+    
+    elif intent.intent == "INCOMPLETE":
+        return wait_for_more_input(submission_id)
+    
+    elif intent.intent == "ANSWER":
+        # Process answer
+        return process_answer_submission(submission_id, transcript)
+    
+    elif intent.intent == "POST_ANSWER":
+        # Reject modification
+        return {
+            "action": "reject",
+            "message": "Answer has been recorded. Moving to next question."
+        }
+    
+    else:  # UNKNOWN
+        return ask_for_clarification(submission_id)
 ```
 
 ---
