@@ -15,7 +15,7 @@ alembic==1.13.1
 redis[hiredis]==5.0.1
 
 # Vector Database (Qdrant)
-qdrant-client==1.7.3
+qdrant-client==1.12.1
 
 # Configuration & Environment
 pydantic==2.5.3
