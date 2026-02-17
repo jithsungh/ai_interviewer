@@ -113,6 +113,8 @@ class QdrantSettings(BaseSettings):
     qdrant_api_key: Optional[str] = Field(default=None, env="QDRANT_API_KEY")
     qdrant_collection_name: str = Field(default="interview_questions", env="QDRANT_COLLECTION_NAME")
     qdrant_embedding_dim: int = Field(default=768, env="QDRANT_EMBEDDING_DIM")
+    qdrant_search_timeout: int = Field(default=10, env="QDRANT_SEARCH_TIMEOUT")
+    qdrant_prefer_grpc: bool = Field(default=False, env="QDRANT_PREFER_GRPC")
     
     def get_collection_name_with_env(self, app_env: str) -> str:
         """Return collection name with environment suffix"""
