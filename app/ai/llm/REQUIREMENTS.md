@@ -109,7 +109,11 @@ class BaseLLMProvider(ABC):
   - Native JSON mode support via `response_format={"type": "json_object"}`
   - Schema enforcement via prompt engineering
   - Response formatter validates and normalizes output
-- Embeddings: Not supported natively
+- Embeddings:
+  - Uses self-hosted embedding service (see Self-Hosted Embedding Provider section)
+  - Model: `all-mpnet-base-v2` (768 dimensions)
+  - Endpoint from environment: `EMBEDDING_MODEL_URL`
+  - Groq itself does not provide embeddings; embeddings are handled by separate service
 - Audio: Not supported natively
 - Key features:
   - Extremely fast inference (optimized LPU architecture)
@@ -207,11 +211,59 @@ class BaseLLMProvider(ABC):
   - Extended Thinking mode for complex problems
 - Response formatter requirements:
   - Parse content array with text and tool_use blocks
-  - Extract JSON from markdown code blocks (```json ... ```)
+  - Extract JSON from markdown code blocks (`json ... `)
   - Handle stop_reason mapping (end_turn, max_tokens, stop_sequence)
   - Extract usage data (input_tokens, output_tokens)
   - Support Claude-specific thinking blocks
   - Handle multi-turn conversation format
+
+#### Self-Hosted Embedding Provider (Development & Production)
+
+- API endpoint from environment: `EMBEDDING_MODEL_URL`
+- API format: OpenAI-compatible `/v1/embeddings` endpoint
+- Model: `all-mpnet-base-v2` (768 dimensions)
+- Default model ID: `all-mpnet-base-v2`
+- Embeddings:
+  - Self-hosted sentence transformer model
+  - 768-dimensional vectors
+  - Suitable for semantic similarity, question deduplication, resume matching
+- Request format:
+  ```bash
+  curl ${EMBEDDING_MODEL_URL}/v1/embeddings \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{
+      "input": "Explain dependency injection in Python"
+    }'
+  ```
+- Response format (OpenAI-compatible):
+  ```json
+  {
+    "object": "list",
+    "data": [
+      {
+        "object": "embedding",
+        "embedding": [0.0123, -0.0456, ...],
+        "index": 0
+      }
+    ],
+    "model": "all-mpnet-base-v2",
+    "usage": {
+      "prompt_tokens": 8,
+      "total_tokens": 8
+    }
+  }
+  ```
+- Key features:
+  - Locally hosted (no external API costs)
+  - Low latency (same infrastructure)
+  - Privacy-preserving (data never leaves infrastructure)
+  - OpenAI-compatible API for easy integration
+- Response formatter requirements:
+  - Extract embedding vector from `data[0].embedding`
+  - Validate dimensions = 768
+  - Parse token usage for telemetry
+  - Handle connection errors gracefully
 
 #### Local Model Provider (Future)
 
@@ -293,22 +345,22 @@ class ClarificationRequestContract:
     Strict contract for clarification requests.
     All clarifications MUST conform to this contract.
     """
-    
+
     # Identity
     submission_id: int                   # REQUIRED: Audit trail linkage
     exchange_sequence: int               # REQUIRED: Question number
     question_id: int                     # REQUIRED: For traceability
-    
+
     # Question Context
     original_question: str               # REQUIRED: Verbatim question
     candidate_clarification_request: str # REQUIRED: How they asked
-    
+
     # Counter
     clarification_number: int            # REQUIRED: 1, 2, or 3 (0-indexed)
-    
+
     # Policy Constraints
     constraints: ClarificationConstraints
-    
+
     # Metadata
     timestamp: datetime                  # When requested
     asr_confidence: Optional[float] = None  # Transcription confidence
@@ -317,20 +369,20 @@ class ClarificationRequestContract:
 @dataclass
 class ClarificationConstraints:
     """Hard bounds for clarification responses."""
-    
+
     max_words: int = 120
     allow_analogy: bool = True
     max_analogies: int = 1              # Per question
     allow_hint: bool = False             # RECOMMEND: False
     max_hints: int = 0                   # If hints enabled, max per question
-    
+
     # Prohibition list (must not appear in response)
     prohibitions: List[str] = None       # Auto-set from above
-    
+
     def __post_init__(self):
         if self.prohibitions is None:
             self.prohibitions = [
-                "algorithm", "approach", "dynamic programming", "dfs", "bfs", 
+                "algorithm", "approach", "dynamic programming", "dfs", "bfs",
                 "dijkstra", "recursion", "hash table", "queue", "stack", "tree",
                 "linked list", "binary search", "bubble sort", "merge sort",
                 "would", "suggest", "use", "try", "first", "next", "then",
@@ -350,17 +402,17 @@ class ClarificationResponseContract:
     Response from LLM for clarification.
     MUST pass validation before delivering to client.
     """
-    
+
     # Content
     clarification_text: str              # LLM response
     word_count: int                      # Actual word count
-    
+
     # Compliance
     violates_policy: bool                # True if policy violation
     violation_reason: Optional[str] = None  # If violated
     contains_analogy: bool = False       # Did we use analogy?
     contains_hint: bool = False          # Did we give hint?
-    
+
     # Auditing
     model_used: str                      # Which model generated this
     temperature_used: float              # Should be 0.0 or near 0
@@ -374,7 +426,7 @@ class ClarificationResponseContract:
 ```python
 class ClarificationValidator:
     """Validate clarification responses against policy."""
-    
+
     PROHIBITED_PATTERNS = {
         "algorithm": r'\b(algorithm|approach|solution|strategy|method)\b',
         "data_structure": r'\b(tree|list|queue|stack|heap|graph|table|hash)\b',
@@ -382,45 +434,45 @@ class ClarificationValidator:
         "validation": r'\b(right|correct|good|yes|exactly|that[\s\']s|you[\s\']re|on the right)\b',
         "code": r'(\{\{|>>>|code|function|implement|write)',
     }
-    
+
     MAX_WORDS = 120
     MAX_ANALOGIES_PER_QUESTION = 1
-    
+
     def validate(
-        self, 
+        self,
         response: ClarificationResponseContract,
         constraints: ClarificationConstraints
     ) -> Tuple[bool, Optional[str]]:
         """
         Validate response.
-        
+
         Returns:
             (is_valid: bool, violation_reason: Optional[str])
         """
-        
+
         # Check word count
         if response.word_count > constraints.max_words:
             return False, f"Exceeds max words ({response.word_count} > {constraints.max_words})"
-        
+
         # Check prohibited patterns
         text_lower = response.clarification_text.lower()
         for category, pattern in self.PROHIBITED_PATTERNS.items():
             if re.search(pattern, text_lower):
                 return False, f"Contains prohibited pattern: {category}"
-        
+
         # Check for prohibited words in constraints list
         for prohibited in constraints.prohibitions:
             if prohibited in text_lower:
                 return False, f"Contains prohibited word: {prohibited}"
-        
+
         # If hints disabled, check not present
         if not constraints.allow_hint and response.contains_hint:
             return False, "Hints not allowed but hint detected"
-        
+
         # If analogies limited, check count
         if response.contains_analogy and constraints.max_analogies == 0:
             return False, "Analogies not allowed but analogy detected"
-        
+
         return True, None
 ```
 
@@ -435,19 +487,19 @@ async def generate_clarification(
 ) -> ClarificationResponseContract:
     """
     Generate clarification with strict temperature control.
-    
+
     CRITICAL: temperature=0 (or near 0) ensures:
     - Deterministic output (same input → same output)
     - No randomness or creativity
     - Fair treatment across all candidates
     - Reproducible audit trail
     """
-    
+
     system_prompt = CLARIFICATION_SYSTEM_PROMPT_TEMPLATE.format(
         original_question=request.original_question,
         candidate_clarification_request=request.candidate_clarification_request
     )
-    
+
     response = await llm_provider.generate_text(
         prompt="",  # Empty, using system prompt only
         system=system_prompt,
@@ -456,13 +508,13 @@ async def generate_clarification(
         max_tokens=150,
         timeout_seconds=5
     )
-    
+
     if not response.success:
         raise ClarificationGenerationError(f"LLM call failed: {response.error}")
-    
+
     text = response.data.get('content', '').strip()
     word_count = len(text.split())
-    
+
     # Validate immediately
     validation_response = ClarificationResponseContract(
         clarification_text=text,
@@ -472,11 +524,11 @@ async def generate_clarification(
         temperature_used=0.0,
         telemetry=asdict(response.telemetry)
     )
-    
+
     # Run policy validation
     validator = ClarificationValidator()
     is_valid, violation_reason = validator.validate(validation_response, request.constraints)
-    
+
     if not is_valid:
         # Log violation for audit
         log_violation({
@@ -484,7 +536,7 @@ async def generate_clarification(
             "reason": violation_reason,
             "clarification_text": text
         })
-        
+
         # Return safe fallback
         return ClarificationResponseContract(
             clarification_text="I can't provide that clarification. Could you rephrase your question?",
@@ -495,7 +547,7 @@ async def generate_clarification(
             temperature_used=0.0,
             telemetry=asdict(response.telemetry)
         )
-    
+
     return validation_response
 ```
 
@@ -511,7 +563,7 @@ def log_clarification(
     response: ClarificationResponseContract
 ) -> None:
     """Log clarification for audit trail."""
-    
+
     audit_entry = {
         "event_type": "clarification",
         "submission_id": request.submission_id,
@@ -526,7 +578,7 @@ def log_clarification(
         "temperature": response.temperature_used,
         "timestamp": datetime.utcnow().isoformat()
     }
-    
+
     # Write to immutable log (database or append-only file)
     audit_log.append(audit_entry)
 ```
@@ -797,9 +849,13 @@ Latency measured from call start to response/error
 
 ### Embedding Generation
 
+- [ ] Self-hosted embedding service returns vector of 768 dimensions
+- [ ] Self-hosted embedding endpoint uses URL from EMBEDDING_MODEL_URL env var
 - [ ] Gemini embedding returns vector of correct dimensions (768)
 - [ ] OpenAI embedding returns vector of correct dimensions (1536/3072)
 - [ ] Embedding telemetry includes token count
+- [ ] Connection to embedding service has appropriate timeout (30s default)
+- [ ] Embedding service errors wrapped in LLMError with clear messaging
 - [ ] Unsupported provider returns clear error (not implemented)
 
 ### Audio Transcription
@@ -925,15 +981,19 @@ OPENAI_ORG_ID=org-...  # Optional
 # Anthropic (Production Fallback)
 ANTHROPIC_API_KEY=sk-ant-...
 
+# Self-Hosted Embedding Service (Development & Production)
+EMBEDDING_MODEL_URL=http://<VM-IP>:8080  # Self-hosted all-mpnet-base-v2
+
 # Default models (per environment)
 DEFAULT_TEXT_MODEL_DEV=llama-3.3-70b-versatile  # Groq for development
 DEFAULT_TEXT_MODEL_PROD=gpt-4o                  # OpenAI for production
-DEFAULT_EMBEDDING_MODEL=text-embedding-3-small  # OpenAI
+DEFAULT_EMBEDDING_MODEL=all-mpnet-base-v2       # Self-hosted embedding service
 DEFAULT_AUDIO_MODEL=whisper-1                   # OpenAI
 
 # Timeouts
 LLM_DEFAULT_TIMEOUT=60
 LLM_MAX_TIMEOUT=300
+EMBEDDING_DEFAULT_TIMEOUT=30
 ```
 
 ### Model Configuration (Database or Config File)
@@ -947,8 +1007,14 @@ providers:
       - llama-3.1-8b-instant
       - mixtral-8x7b-32768
       - gemma2-9b-it
-    embedding_models: []  # Not supported
-    audio_models: []      # Not supported
+    embedding_models: [] # Uses self-hosted service instead
+    audio_models: [] # Not supported
+
+  self_hosted_embedding:
+    text_models: [] # Not applicable
+    embedding_models:
+      - all-mpnet-base-v2 # 768 dimensions
+    audio_models: [] # Not applicable
 
   gemini:
     text_models:
@@ -959,7 +1025,7 @@ providers:
     embedding_models:
       - text-embedding-004
       - embedding-001
-    audio_models: []      # Not implemented
+    audio_models: [] # Not implemented
 
   openai:
     text_models:
@@ -981,8 +1047,8 @@ providers:
       - claude-3-opus-20240229
       - claude-3-sonnet-20240229
       - claude-3-haiku-20240307
-    embedding_models: []  # Not supported
-    audio_models: []      # Not supported
+    embedding_models: [] # Not supported
+    audio_models: [] # Not supported
 
 model_fallbacks:
   # Development fallbacks

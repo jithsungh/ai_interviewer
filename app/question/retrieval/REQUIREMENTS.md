@@ -88,7 +88,8 @@ filter = Filter(
 
 **Vector configuration:**
 
-- `vector_dimension`: 1536 (OpenAI text-embedding-ada-002)
+- `vector_dimension`: 768 (self-hosted all-mpnet-base-v2, default)
+  - Also supports: 1536 (OpenAI text-embedding-ada-002), 3072 (text-embedding-3-large)
 - `distance`: Cosine
 
 **Payload schema:**

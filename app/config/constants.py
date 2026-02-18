@@ -126,8 +126,9 @@ FACE_DETECTION_INTERVAL_MS: Final[int] = 5000  # 5 seconds
 # ====================
 # Embedding
 # ====================
-DEFAULT_EMBEDDING_DIM: Final[int] = 768  # Open-source transformer models
-OPENAI_EMBEDDING_DIM: Final[int] = 1536  # text-embedding-ada-002
+DEFAULT_EMBEDDING_DIM: Final[int] = 768  # Self-hosted all-mpnet-base-v2 (default)
+OPENAI_EMBEDDING_DIM: Final[int] = 1536  # text-embedding-ada-002 (alternative)
+OPENAI_EMBEDDING_DIM_LARGE: Final[int] = 3072  # text-embedding-3-large (alternative)
 
 # ====================
 # Vector Search

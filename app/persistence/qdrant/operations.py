@@ -67,7 +67,7 @@ def store_embedding(
         organization_id: Tenant ID (REQUIRED for multi-tenant isolation)
         source_type: Source type ("question", "resume", "job_description")
         source_id: Source entity ID
-        model_name: Model name ("text-embedding-ada-002")
+        model_name: Model name ("all-mpnet-base-v2", "text-embedding-ada-002", etc.)
         model_version: Model version ("v2")
         difficulty: Question difficulty (optional)
         topic_id: Question topic ID (optional)

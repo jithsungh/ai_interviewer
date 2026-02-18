@@ -42,7 +42,7 @@ def sample_metadata():
         "organization_id": 1,
         "source_type": "question",
         "source_id": 100,
-        "model_name": "text-embedding-ada-002",
+        "model_name": "all-mpnet-base-v2",
         "model_version": "v2",
         "difficulty": "medium",
         "topic_id": 5,
