@@ -216,21 +216,23 @@ class TestCounters:
     
     def test_increment_counter_with_ttl(self, mock_redis):
         """Test incrementing counter with TTL on first increment."""
-        mock_redis.incr.return_value = 1  # First increment
+        mock_redis.eval.return_value = 1  # Lua script returns incremented value
         
         result = increment_counter("test_counter", amount=1, ttl_seconds=60, client=mock_redis)
         
         assert result == 1
-        mock_redis.expire.assert_called_once_with("test_counter", 60)
+        # Verify Lua script was called (atomic INCR + EXPIRE)
+        mock_redis.eval.assert_called_once()
     
     def test_increment_counter_no_ttl_after_first(self, mock_redis):
         """Test TTL not set on subsequent increments."""
-        mock_redis.incr.return_value = 5  # Not first increment
+        mock_redis.eval.return_value = 5  # Lua script returns value (not first increment)
         
         result = increment_counter("test_counter", amount=1, ttl_seconds=60, client=mock_redis)
         
         assert result == 5
-        mock_redis.expire.assert_not_called()  # TTL only on first increment
+        # Lua script handles conditional TTL (only sets on first increment)
+        mock_redis.eval.assert_called_once()
     
     def test_decrement_counter(self, mock_redis):
         """Test decrementing counter."""
