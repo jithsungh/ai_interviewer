@@ -176,6 +176,11 @@ class LLMSettings(BaseSettings):
     anthropic_api_key: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
     groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
     
+    # Self-hosted Embedding Service
+    embedding_model_url: str = Field(default="http://localhost:8080", env="EMBEDDING_MODEL_URL")
+    default_embedding_model: str = Field(default="all-mpnet-base-v2", env="DEFAULT_EMBEDDING_MODEL")
+    embedding_timeout_seconds: int = Field(default=30, env="EMBEDDING_TIMEOUT_SECONDS")
+    
     # Model routing by use case
     llm_model_question_generation: str = Field(default="gpt-oss-120b", env="LLM_MODEL_QUESTION_GENERATION")
     llm_model_evaluation: str = Field(default="gpt-oss-120b", env="LLM_MODEL_EVALUATION")

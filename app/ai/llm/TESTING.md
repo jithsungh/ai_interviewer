@@ -399,8 +399,26 @@ def test_real_openai_structured_output(openai_provider):
     assert response.data['count'] == 5
 
 @pytest.mark.integration
-def test_real_embedding_generation(openai_provider):
-    """Generate real embedding"""
+def test_real_embedding_generation_self_hosted():
+    """Generate real embedding from self-hosted service"""
+    from app.ai.llm.embedding_provider import SelfHostedEmbeddingProvider
+
+    provider = SelfHostedEmbeddingProvider(
+        api_url=os.getenv("EMBEDDING_MODEL_URL")
+    )
+    response = provider.generate_embedding(
+        text="Test embedding: Explain dependency injection in Python",
+        model="all-mpnet-base-v2"
+    )
+
+    assert response.success is True
+    assert len(response.embedding) == 768  # all-mpnet-base-v2 dimensions
+    assert response.model_id == "all-mpnet-base-v2"
+    assert response.telemetry.prompt_tokens > 0
+
+@pytest.mark.integration
+def test_real_embedding_generation_openai(openai_provider):
+    """Generate real embedding from OpenAI (alternative)"""
     response = openai_provider.generate_embedding(
         text="Test embedding",
         model="text-embedding-ada-002"

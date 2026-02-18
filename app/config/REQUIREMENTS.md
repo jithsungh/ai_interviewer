@@ -174,8 +174,11 @@ class RedisSettings(BaseSettings):
 QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=your-api-key
 QDRANT_COLLECTION_NAME=interview_questions
-QDRANT_EMBEDDING_DIM=1536  # OpenAI text-embedding-ada-002
+QDRANT_EMBEDDING_DIM=768  # Self-hosted all-mpnet-base-v2 (default)
 ```
+
+**Note:** Embedding dimension must match the model specified in `DEFAULT_EMBEDDING_MODEL`.
+Supported dimensions: 768 (all-mpnet-base-v2), 1536 (OpenAI ada-002), 3072 (OpenAI large).
 
 **Environment Separation:**
 

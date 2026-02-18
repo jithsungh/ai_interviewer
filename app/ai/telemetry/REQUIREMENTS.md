@@ -319,7 +319,7 @@ ai_errors_total{error_type="timeout", model="gpt-4"} 5
 ### Cost Estimation
 
 - [ ] Known models have accurate pricing (OpenAI GPT-4, GPT-3.5, etc.)
-- [ ] Cost calculated correctly: (prompt_tokens _ rate) + (completion_tokens _ rate)
+- [ ] Cost calculated correctly: (prompt*tokens * rate) + (completion*tokens * rate)
 - [ ] Unknown models return None for cost (no estimation fallback)
 - [ ] Cost rounded to 4 decimal places (USD cents precision)
 
@@ -475,6 +475,12 @@ MODEL_PRICING = {
     },
     "text-embedding-004": {
         "prompt": 0.00001,
+        "completion": 0.0
+    },
+
+    # Self-Hosted Embedding (Development & Production)
+    "all-mpnet-base-v2": {
+        "prompt": 0.0,  # Self-hosted, no API cost
         "completion": 0.0
     },
 

@@ -200,6 +200,27 @@ class TestLLMSettings:
         }, clear=True):
             settings = LLMSettings()
             assert settings.llm_model_evaluation == "custom-model"
+    
+    def test_embedding_service_defaults(self):
+        """Test embedding service configuration defaults"""
+        with patch.dict(os.environ, {
+            "GROQ_API_KEY": "test-key"
+        }, clear=True):
+            settings = LLMSettings()
+            assert settings.embedding_model_url == "http://localhost:8080"
+            assert settings.default_embedding_model == "all-mpnet-base-v2"
+            assert settings.embedding_timeout_seconds == 30
+    
+    def test_embedding_service_custom_url(self):
+        """Test embedding service with custom URL"""
+        with patch.dict(os.environ, {
+            "GROQ_API_KEY": "test-key",
+            "EMBEDDING_MODEL_URL": "http://embedding-service:9000",
+            "DEFAULT_EMBEDDING_MODEL": "custom-model"
+        }, clear=True):
+            settings = LLMSettings()
+            assert settings.embedding_model_url == "http://embedding-service:9000"
+            assert settings.default_embedding_model == "custom-model"
 
 
 class TestSandboxSettings:

@@ -80,7 +80,8 @@ def create_qdrant_client(config: QdrantConfig) -> QdrantClient:
 **Schema:**
 
 - **Collection name:** Configurable per environment (dev/staging/prod)
-- **Vector dimension:** Must match embedding model (e.g., 1536 for OpenAI text-embedding-ada-002)
+- **Vector dimension:** Must match embedding model (default: 768 for self-hosted all-mpnet-base-v2)
+  - Supported: 768 (all-mpnet-base-v2), 1536 (OpenAI ada-002), 3072 (OpenAI large)
 - **Distance metric:** Cosine similarity (default) or Euclidean/Dot product
 - **Payload schema:** Metadata fields (organization_id, source_type, difficulty, topic)
 
@@ -191,7 +192,7 @@ class EmbeddingMetadata(BaseModel):
     source_id: int  # question_id, resume_id, etc.
 
     # Model provenance
-    model_id: str  # "text-embedding-ada-002"
+    model_id: str  # "all-mpnet-base-v2" (default), "text-embedding-ada-002", etc.
     model_version: str  # "v2"
 
     # Content metadata (question-specific)

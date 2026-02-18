@@ -322,7 +322,7 @@ THEN temperature=0, top_p=1, seed=fixed (if supported)
 - **Gemini API** - Google's LLM provider (primary for development)
 - **OpenAI API** - Primary LLM provider (production)
 - **Anthropic API** - Alternative/fallback LLM provider (production)
-- **Embedding Service** - Vector embedding generation (Qdrant or provider-specific)
+- **Self-Hosted Embedding Service** - all-mpnet-base-v2 model (768-dim vectors) via OpenAI-compatible API
 - **Speech-to-Text API** - Audio transcription (if audio interviews enabled)
 - **Secrets Manager** - API credential storage (Vault, AWS Secrets Manager)
 

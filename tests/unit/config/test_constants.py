@@ -234,6 +234,10 @@ class TestEmbeddingConstants:
     def test_openai_embedding_dim(self):
         """Test OpenAI embedding dimension constant"""
         assert constants.OPENAI_EMBEDDING_DIM == 1536
+    
+    def test_openai_embedding_dim_large(self):
+        """Test OpenAI large embedding dimension constant"""
+        assert constants.OPENAI_EMBEDDING_DIM_LARGE == 3072
 
 
 class TestVectorSearchConstants:
