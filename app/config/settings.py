@@ -90,10 +90,41 @@ class RedisSettings(BaseSettings):
         extra="ignore"
     )
     
+    # Connection
     redis_url: str = Field(..., env="REDIS_URL")
     redis_db: int = Field(default=0, env="REDIS_DB")
-    redis_session_ttl: int = Field(default=3600, env="REDIS_SESSION_TTL")
     redis_password: Optional[str] = Field(default=None, env="REDIS_PASSWORD")
+    
+    # Pool settings
+    redis_max_connections: int = Field(default=50, env="REDIS_MAX_CONNECTIONS")
+    redis_connection_timeout: int = Field(default=10, env="REDIS_CONNECTION_TIMEOUT")
+    redis_socket_timeout: int = Field(default=5, env="REDIS_SOCKET_TIMEOUT")
+    
+    # Retry settings
+    redis_retry_on_timeout: bool = Field(default=True, env="REDIS_RETRY_ON_TIMEOUT")
+    redis_max_retries: int = Field(default=3, env="REDIS_MAX_RETRIES")
+    
+    # Features
+    redis_decode_responses: bool = Field(default=True, env="REDIS_DECODE_RESPONSES")
+    
+    # TTL defaults
+    redis_session_ttl: int = Field(default=3600, env="REDIS_SESSION_TTL")
+    redis_lock_timeout: int = Field(default=10, env="REDIS_LOCK_TIMEOUT")
+    
+    # Health check
+    redis_health_check_interval: int = Field(default=60, env="REDIS_HEALTH_CHECK_INTERVAL")
+    
+    @model_validator(mode='after')
+    def validate_pool_settings(self):
+        if self.redis_max_connections <= 0:
+            raise ValueError("REDIS_MAX_CONNECTIONS must be > 0")
+        if self.redis_connection_timeout <= 0:
+            raise ValueError("REDIS_CONNECTION_TIMEOUT must be > 0")
+        if self.redis_socket_timeout <= 0:
+            raise ValueError("REDIS_SOCKET_TIMEOUT must be > 0")
+        if self.redis_max_retries < 1:
+            raise ValueError("REDIS_MAX_RETRIES must be >= 1")
+        return self
 
 
 # ====================
