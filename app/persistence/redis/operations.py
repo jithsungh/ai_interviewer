@@ -525,6 +525,18 @@ def batch_delete(
 # Pipeline (Bulk Operations)
 # ==================
 
+# Allowlist of permitted Redis commands for security in execute_pipeline
+_PIPELINE_ALLOWED_COMMANDS = {
+    'set', 'get', 'del', 'delete', 'exists',
+    'incr', 'incrby', 'decr', 'decrby',
+    'hset', 'hget', 'hgetall', 'hdel',
+    'expire', 'expireat', 'ttl', 'pttl',
+    'setex', 'setnx', 'getset',
+    'lpush', 'rpush', 'lpop', 'rpop', 'lrange',
+    'sadd', 'srem', 'smembers', 'sismember',
+    'zadd', 'zrem', 'zrange', 'zscore',
+}
+
 def execute_pipeline(
     operations: List[tuple],
     client: Optional[Redis] = None
@@ -548,28 +560,16 @@ def execute_pipeline(
         ValueError: If an operation contains a disallowed command
         RedisError: If pipeline execution fails
     """
-    # Allowlist of permitted Redis commands for security
-    ALLOWED_COMMANDS = {
-        'set', 'get', 'del', 'delete', 'exists',
-        'incr', 'incrby', 'decr', 'decrby',
-        'hset', 'hget', 'hgetall', 'hdel',
-        'expire', 'expireat', 'ttl', 'pttl',
-        'setex', 'setnx', 'getset',
-        'lpush', 'rpush', 'lpop', 'rpop', 'lrange',
-        'sadd', 'srem', 'smembers', 'sismember',
-        'zadd', 'zrem', 'zrange', 'zscore',
-    }
-    
     if client is None:
         client = get_redis_client()
     
     # Validate all commands before executing any
     for command, args in operations:
         command_lower = command.lower()
-        if command_lower not in ALLOWED_COMMANDS:
+        if command_lower not in _PIPELINE_ALLOWED_COMMANDS:
             raise ValueError(
                 f"Command '{command}' is not in the allowlist. "
-                f"Allowed commands: {sorted(ALLOWED_COMMANDS)}"
+                f"Allowed commands: {sorted(_PIPELINE_ALLOWED_COMMANDS)}"
             )
     
     try:

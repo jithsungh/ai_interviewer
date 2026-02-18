@@ -324,7 +324,7 @@ class TestPipeline:
     def test_execute_pipeline_case_insensitive_validation(self, mock_redis):
         """Test that command validation is case-insensitive."""
         mock_pipe = MagicMock()
-        mock_pipe.execute.return_value = [True]
+        mock_pipe.execute.return_value = [True, "value2", 2]
         mock_redis.pipeline.return_value = mock_pipe
         
         # Mixed case commands should work
@@ -335,4 +335,5 @@ class TestPipeline:
         ]
         
         results = execute_pipeline(operations, client=mock_redis)
-        assert results == [True]
+        assert results == [True, "value2", 2]
+        assert len(results) == 3
