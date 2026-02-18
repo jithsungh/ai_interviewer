@@ -293,3 +293,47 @@ class TestPipeline:
         assert results == [True, "value1", 1]
         mock_redis.pipeline.assert_called_once()
         mock_pipe.execute.assert_called_once()
+    
+    def test_execute_pipeline_rejects_disallowed_command(self, mock_redis):
+        """Test that pipeline rejects commands not in allowlist."""
+        operations = [
+            ("SET", ("key1", "value1")),
+            ("FLUSHDB", ()),  # Dangerous command not in allowlist
+        ]
+        
+        with pytest.raises(ValueError) as excinfo:
+            execute_pipeline(operations, client=mock_redis)
+        
+        assert "flushdb" in str(excinfo.value).lower()
+        assert "not in the allowlist" in str(excinfo.value)
+        # Ensure pipeline was never created since validation happens first
+        mock_redis.pipeline.assert_not_called()
+    
+    def test_execute_pipeline_rejects_eval_command(self, mock_redis):
+        """Test that pipeline rejects EVAL command (code execution)."""
+        operations = [
+            ("EVAL", ("return redis.call('FLUSHALL')", 0)),
+        ]
+        
+        with pytest.raises(ValueError) as excinfo:
+            execute_pipeline(operations, client=mock_redis)
+        
+        assert "eval" in str(excinfo.value).lower()
+        mock_redis.pipeline.assert_not_called()
+    
+    def test_execute_pipeline_case_insensitive_validation(self, mock_redis):
+        """Test that command validation is case-insensitive."""
+        mock_pipe = MagicMock()
+        mock_pipe.execute.return_value = [True, "value2", 2]
+        mock_redis.pipeline.return_value = mock_pipe
+        
+        # Mixed case commands should work
+        operations = [
+            ("set", ("key1", "value1")),
+            ("GET", ("key2",)),
+            ("InCr", ("counter",)),
+        ]
+        
+        results = execute_pipeline(operations, client=mock_redis)
+        assert results == [True, "value2", 2]
+        assert len(results) == 3
