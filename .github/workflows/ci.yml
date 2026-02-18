@@ -45,4 +45,4 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run unit tests only
-        run: pytest -m tests/unit
+        run: pytest tests/unit
