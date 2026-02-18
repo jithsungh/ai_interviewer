@@ -370,11 +370,25 @@ def increment_counter(
         client = get_redis_client()
     
     try:
-        new_value = client.incr(key, amount)
-        
-        # Set TTL on first increment
-        if new_value == amount and ttl_seconds:
-            client.expire(key, ttl_seconds)
+        # If no TTL is requested, use a simple INCR for efficiency.
+        if not ttl_seconds:
+            new_value = client.incr(key, amount)
+        else:
+            # Use a Lua script to make INCR + conditional EXPIRE atomic.
+            # Logic:
+            #   local v = redis.call('INCRBY', KEYS[1], tonumber(ARGV[1]))
+            #   if v == tonumber(ARGV[1]) and tonumber(ARGV[2]) > 0 then
+            #       redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+            #   end
+            #   return v
+            lua_script = (
+                "local v = redis.call('INCRBY', KEYS[1], tonumber(ARGV[1])) "
+                "if v == tonumber(ARGV[1]) and tonumber(ARGV[2]) > 0 then "
+                "redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2])) "
+                "end "
+                "return v"
+            )
+            new_value = client.eval(lua_script, 1, key, amount, int(ttl_seconds))
         
         logger.debug(f"Redis INCR: {key} → {new_value}")
         return new_value
