@@ -1,188 +1,663 @@
 """
-Custom Exception Types
+Unified Error Semantics
 
-Defines application-specific exceptions for error handling.
-Maps to HTTP status codes for API responses.
+Defines structured error type hierarchy for REST, WebSocket, and WebRTC protocols.
+Provides consistent error handling with request correlation, metadata, and multi-protocol serialization.
+
+Architecture:
+- BaseError: Foundation class with request_id, metadata, http_status_code
+- ApplicationError: Backward-compatible alias for BaseError
+- Client Errors (4xx): Authentication, Authorization, Validation, NotFound, Conflict, RateLimit
+- Server Errors (5xx): Infrastructure, AIProvider, Sandbox, InternalServer
+- Domain Errors: DomainInvariantViolation, ProctoringViolation
 """
 
 from typing import Optional, Dict, Any
+from dataclasses import dataclass, field
 
 
-class ApplicationError(Exception):
-    """Base exception for all application errors"""
+@dataclass
+class BaseError(Exception):
+    """
+    Base exception for all application errors.
+    
+    Provides unified error structure with:
+    - error_code: Machine-readable error identifier
+    - message: Human-readable error description
+    - request_id: Request correlation ID (for tracing)
+    - metadata: Additional contextual information
+    - http_status_code: HTTP status code for REST API responses
+    
+    All application errors should inherit from this class.
+    """
+    
+    error_code: str
+    message: str
+    request_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    http_status_code: int = 500
+    
+    def __post_init__(self):
+        """Initialize Exception base class with message"""
+        super().__init__(self.message)
+        
+        # Ensure metadata is initialized
+        if self.metadata is None:
+            self.metadata = {}
+    
+    # Backward compatibility properties
+    @property
+    def status_code(self) -> int:
+        """Alias for http_status_code (backward compatibility)"""
+        return self.http_status_code
+    
+    @property
+    def details(self) -> Dict[str, Any]:
+        """Alias for metadata (backward compatibility)"""
+        return self.metadata or {}
+
+
+# Backward compatibility alias
+class ApplicationError(BaseError):
+    """
+    Backward-compatible alias for BaseError.
+    
+    Maintains compatibility with existing code that uses ApplicationError.
+    Supports both old-style initialization (status_code, details) and new-style (http_status_code, metadata).
+    """
     
     def __init__(
         self,
         message: str,
-        status_code: int = 500,
+        status_code: Optional[int] = None,
+        http_status_code: Optional[int] = None,
         error_code: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+        **kwargs
     ):
-        self.message = message
-        self.status_code = status_code
-        self.error_code = error_code or self.__class__.__name__
-        self.details = details or {}
-        super().__init__(self.message)
+        # Support both old and new parameter names
+        final_status_code = http_status_code or status_code or 500
+        final_metadata = metadata or details or {}
+        final_error_code = error_code or self.__class__.__name__
+        
+        super().__init__(
+            error_code=final_error_code,
+            message=message,
+            request_id=request_id,
+            metadata=final_metadata,
+            http_status_code=final_status_code
+        )
 
 
-# Authentication & Authorization Errors (4xx)
+# ============================================================================
+# CLIENT ERRORS (4xx)
+# ============================================================================
 
-class AuthenticationError(ApplicationError):
-    """Raised when authentication fails"""
-    def __init__(self, message: str = "Authentication failed", **kwargs):
-        super().__init__(message, status_code=401, **kwargs)
-
-
-class AuthorizationError(ApplicationError):
-    """Raised when user lacks required permissions"""
-    def __init__(self, message: str = "Insufficient permissions", **kwargs):
-        super().__init__(message, status_code=403, **kwargs)
-
-
-class TenantIsolationViolation(ApplicationError):
-    """Critical: Cross-tenant data access attempt (NFR-7.1)"""
-    def __init__(self, message: str = "Tenant isolation violated", **kwargs):
-        super().__init__(message, status_code=403, error_code="TENANT_VIOLATION", **kwargs)
-
-
-# Resource Errors (4xx)
-
-class NotFoundError(ApplicationError):
-    """Raised when requested resource doesn't exist"""
-    def __init__(self, resource: str, identifier: Any, **kwargs):
-        message = f"{resource} with id '{identifier}' not found"
-        super().__init__(message, status_code=404, **kwargs)
-
-
-class ConflictError(ApplicationError):
-    """Raised when operation conflicts with current state"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, status_code=409, **kwargs)
+class AuthenticationError(BaseError):
+    """
+    Raised when authentication fails.
+    
+    Examples:
+    - Invalid token
+    - Expired token
+    - Missing token
+    - Token signature invalid
+    """
+    
+    def __init__(
+        self,
+        message: str = "Authentication failed",
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="AUTHENTICATION_FAILED",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=401
+        )
 
 
-class ValidationError(ApplicationError):
-    """Raised when input validation fails"""
-    def __init__(self, message: str, field: Optional[str] = None, **kwargs):
-        details = {"field": field} if field else {}
-        super().__init__(message, status_code=422, details=details, **kwargs)
+class AuthorizationError(BaseError):
+    """
+    Raised when user lacks permission for resource.
+    
+    Examples:
+    - Admin accessing another org's data
+    - Candidate accessing admin endpoints
+    - Insufficient role privilege
+    """
+    
+    def __init__(
+        self,
+        message: str = "Insufficient permissions",
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="AUTHORIZATION_FAILED",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=403
+        )
 
 
-# Business Logic Errors (4xx)
+class TenantIsolationViolation(BaseError):
+    """
+    Critical: Cross-tenant data access attempt (NFR-7.1).
+    
+    Raised when user attempts to access data from a different organization.
+    This is a security violation and must be logged at CRITICAL level.
+    """
+    
+    def __init__(
+        self,
+        message: str = "Tenant isolation violated",
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="TENANT_VIOLATION",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=403
+        )
 
-class InterviewNotActiveError(ApplicationError):
+
+class NotFoundError(BaseError):
+    """
+    Raised when requested resource doesn't exist.
+    
+    Examples:
+    - Submission not found
+    - Question not found
+    - Exchange not found
+    """
+    
+    def __init__(
+        self,
+        resource_type: Optional[str] = None,
+        resource_id: Optional[Any] = None,
+        request_id: Optional[str] = None,
+        # Backward compatibility parameters
+        resource: Optional[str] = None,
+        identifier: Optional[Any] = None
+    ):
+        # Support old-style parameter names (resource/identifier)
+        # and new-style (resource_type/resource_id)
+        final_resource_type = resource_type or resource or "Resource"
+        final_resource_id = resource_id if resource_id is not None else identifier if identifier is not None else "unknown"
+        
+        super().__init__(
+            error_code="NOT_FOUND",
+            message=f"{final_resource_type} with ID {final_resource_id} not found",
+            request_id=request_id,
+            metadata={
+                "resource_type": final_resource_type,
+                "resource_id": final_resource_id
+            },
+            http_status_code=404
+        )
+
+
+class ConflictError(BaseError):
+    """
+    Raised when operation conflicts with current state.
+    
+    Examples:
+    - Interview already started
+    - Submission already submitted
+    - Duplicate active WebSocket connection
+    """
+    
+    def __init__(
+        self,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="CONFLICT",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=409
+        )
+
+
+class ValidationError(BaseError):
+    """
+    Raised when request payload is invalid.
+    
+    Examples:
+    - Missing required field
+    - Invalid field type
+    - Field value out of range
+    - Malformed JSON
+    """
+    
+    def __init__(
+        self,
+        message: str,
+        field: Optional[str] = None,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        # Merge field into metadata if provided
+        final_metadata = metadata or {}
+        if field:
+            final_metadata["field"] = field
+        
+        super().__init__(
+            error_code="VALIDATION_ERROR",
+            message=message,
+            request_id=request_id,
+            metadata=final_metadata,
+            http_status_code=422
+        )
+
+
+class RateLimitExceeded(BaseError):
+    """
+    Raised when rate limit exceeded.
+    
+    Examples:
+    - Too many API requests
+    - Too many question generations
+    - Too many sandbox executions
+    """
+    
+    def __init__(
+        self,
+        limit: int,
+        window_seconds: int,
+        retry_after_seconds: int,
+        request_id: Optional[str] = None
+    ):
+        super().__init__(
+            error_code="RATE_LIMIT_EXCEEDED",
+            message=f"Rate limit of {limit} requests per {window_seconds}s exceeded",
+            request_id=request_id,
+            metadata={
+                "limit": limit,
+                "window_seconds": window_seconds,
+                "retry_after_seconds": retry_after_seconds
+            },
+            http_status_code=429
+        )
+
+
+# ============================================================================
+# BUSINESS LOGIC ERRORS (4xx)
+# ============================================================================
+
+class InterviewNotActiveError(BaseError):
     """Interview session is not in active state"""
-    def __init__(self, submission_id: int, **kwargs):
+    
+    def __init__(
+        self,
+        submission_id: int,
+        request_id: Optional[str] = None
+    ):
         super().__init__(
-            f"Interview submission {submission_id} is not active",
-            status_code=400,
-            **kwargs
+            error_code="INTERVIEW_NOT_ACTIVE",
+            message=f"Interview submission {submission_id} is not active",
+            request_id=request_id,
+            metadata={"submission_id": submission_id},
+            http_status_code=400
         )
 
 
-class InterviewWindowClosedError(ApplicationError):
+class InterviewWindowClosedError(BaseError):
     """Interview window is not currently open (FR-2.3)"""
-    def __init__(self, window_id: int, **kwargs):
+    
+    def __init__(
+        self,
+        window_id: int,
+        request_id: Optional[str] = None
+    ):
         super().__init__(
-            f"Interview window {window_id} is closed",
-            status_code=400,
-            **kwargs
+            error_code="INTERVIEW_WINDOW_CLOSED",
+            message=f"Interview window {window_id} is closed",
+            request_id=request_id,
+            metadata={"window_id": window_id},
+            http_status_code=400
         )
 
 
-class ConsentNotCapturedError(ApplicationError):
+class ConsentNotCapturedError(BaseError):
     """User consent not captured before interview (NFR-9)"""
-    def __init__(self, **kwargs):
+    
+    def __init__(self, request_id: Optional[str] = None):
         super().__init__(
-            "Explicit user consent required before interview",
-            status_code=400,
             error_code="CONSENT_REQUIRED",
-            **kwargs
+            message="Explicit user consent required before interview",
+            request_id=request_id,
+            http_status_code=400
         )
 
 
-class ExchangeImmutabilityViolation(ApplicationError):
-    """Attempt to modify immutable exchange (Architecture Invariant #1)"""
-    def __init__(self, exchange_id: int, **kwargs):
+# ============================================================================
+# DOMAIN ERRORS
+# ============================================================================
+
+class ExchangeImmutabilityViolation(BaseError):
+    """
+    Attempt to modify immutable exchange (Architecture Invariant #1).
+    
+    Exchanges are immutable after creation - modifications indicate a system bug.
+    """
+    
+    def __init__(
+        self,
+        exchange_id: int,
+        request_id: Optional[str] = None
+    ):
         super().__init__(
-            f"Interview exchange {exchange_id} is immutable after creation",
-            status_code=400,
             error_code="EXCHANGE_IMMUTABLE",
-            **kwargs
+            message=f"Interview exchange {exchange_id} is immutable after creation",
+            request_id=request_id,
+            metadata={"exchange_id": exchange_id},
+            http_status_code=400
         )
 
 
-class TemplateImmutabilityViolation(ApplicationError):
-    """Attempt to modify template in use (Architecture Invariant #3)"""
-    def __init__(self, template_id: int, **kwargs):
+class TemplateImmutabilityViolation(BaseError):
+    """
+    Attempt to modify template in use (Architecture Invariant #3).
+    
+    Templates are immutable after first use - create new version instead.
+    """
+    
+    def __init__(
+        self,
+        template_id: int,
+        request_id: Optional[str] = None
+    ):
         super().__init__(
-            f"Template {template_id} is immutable after use. Create new version.",
-            status_code=400,
             error_code="TEMPLATE_IMMUTABLE",
-            **kwargs
+            message=f"Template {template_id} is immutable after use. Create new version.",
+            request_id=request_id,
+            metadata={"template_id": template_id},
+            http_status_code=400
         )
 
 
-# External Service Errors (5xx)
-
-class AIProviderError(ApplicationError):
-    """AI/LLM provider request failed"""
-    def __init__(self, provider: str, message: str, **kwargs):
+class DomainInvariantViolation(BaseError):
+    """
+    Raised when business invariant is violated.
+    
+    Examples:
+    - Template recalculated at runtime (must be immutable)
+    - Exchange mutated after creation (must be immutable)
+    - Submission state transition invalid
+    
+    NOTE: This is a 500 error (indicates system bug, not user error).
+    Must be logged at CRITICAL level.
+    """
+    
+    def __init__(
+        self,
+        invariant: str,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        final_metadata = metadata or {}
+        final_metadata["invariant"] = invariant
+        
         super().__init__(
-            f"AI Provider '{provider}' error: {message}",
-            status_code=503,
+            error_code="DOMAIN_INVARIANT_VIOLATION",
+            message=f"Invariant '{invariant}' violated: {message}",
+            request_id=request_id,
+            metadata=final_metadata,
+            http_status_code=500
+        )
+
+
+class ProctoringViolation(BaseError):
+    """
+    Raised (or logged) when proctoring event detected.
+    
+    Examples:
+    - Face not visible
+    - Multiple faces detected
+    - Audio silence detected
+    
+    NOTE: This is ADVISORY only, NOT punitive.
+    System must NOT auto-fail interview on this error.
+    
+    Typically logged, not raised (non-blocking).
+    """
+    
+    def __init__(
+        self,
+        event_type: str,
+        message: str,
+        risk_score: float,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        final_metadata = metadata or {}
+        final_metadata.update({
+            "event_type": event_type,
+            "risk_score": risk_score
+        })
+        
+        super().__init__(
+            error_code="PROCTORING_VIOLATION",
+            message=message,
+            request_id=request_id,
+            metadata=final_metadata,
+            http_status_code=200  # Not an error response, just an event
+        )
+
+
+# ============================================================================
+# EXTERNAL SERVICE ERRORS (5xx)
+# ============================================================================
+
+class AIProviderError(BaseError):
+    """
+    AI/LLM provider request failed.
+    
+    Examples:
+    - OpenAI timeout
+    - OpenAI rate limit (429)
+    - Claude unavailable
+    """
+    
+    def __init__(
+        self,
+        provider: str,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        final_metadata = metadata or {}
+        final_metadata["provider"] = provider
+        
+        super().__init__(
             error_code="AI_PROVIDER_ERROR",
-            **kwargs
+            message=f"{provider} error: {message}",
+            request_id=request_id,
+            metadata=final_metadata,
+            http_status_code=502
         )
 
 
-class AIProviderTimeoutError(ApplicationError):
+class AIProviderTimeoutError(BaseError):
     """AI/LLM provider request timeout (FM-1, NFR-2)"""
-    def __init__(self, provider: str, timeout_s: int, **kwargs):
+    
+    def __init__(
+        self,
+        provider: str,
+        timeout_s: int,
+        request_id: Optional[str] = None
+    ):
         super().__init__(
-            f"AI Provider '{provider}' timeout after {timeout_s}s",
-            status_code=504,
             error_code="AI_TIMEOUT",
-            **kwargs
+            message=f"AI Provider '{provider}' timeout after {timeout_s}s",
+            request_id=request_id,
+            metadata={
+                "provider": provider,
+                "timeout_seconds": timeout_s
+            },
+            http_status_code=504
         )
 
 
-class SandboxExecutionError(ApplicationError):
-    """Code sandbox execution failed (FR-7.3)"""
-    def __init__(self, message: str, **kwargs):
+class SandboxExecutionError(BaseError):
+    """
+    Code sandbox execution failed (FR-7.3).
+    
+    Examples:
+    - Execution timeout
+    - Runtime error in candidate code
+    - Memory limit exceeded
+    """
+    
+    def __init__(
+        self,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
         super().__init__(
-            f"Sandbox execution error: {message}",
-            status_code=500,
-            error_code="SANDBOX_ERROR",
-            **kwargs
+            error_code="SANDBOX_EXECUTION_ERROR",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=500
         )
 
 
-class SandboxTimeoutError(ApplicationError):
+class SandboxTimeoutError(BaseError):
     """Code execution timeout (FM-3, NFR-3)"""
-    def __init__(self, timeout_s: int, **kwargs):
+    
+    def __init__(
+        self,
+        timeout_s: int,
+        request_id: Optional[str] = None
+    ):
         super().__init__(
-            f"Code execution timeout after {timeout_s}s",
-            status_code=408,
             error_code="EXECUTION_TIMEOUT",
-            **kwargs
+            message=f"Code execution timeout after {timeout_s}s",
+            request_id=request_id,
+            metadata={"timeout_seconds": timeout_s},
+            http_status_code=408
         )
 
 
-# System Errors (5xx)
+# ============================================================================
+# SYSTEM ERRORS (5xx)
+# ============================================================================
 
-class DatabaseError(ApplicationError):
+class InfrastructureError(BaseError):
+    """
+    Infrastructure component failed.
+    
+    Examples:
+    - Redis connection timeout
+    - Postgres connection failed
+    - Qdrant unavailable
+    """
+    
+    def __init__(
+        self,
+        component: str,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        final_metadata = metadata or {}
+        final_metadata["component"] = component
+        
+        super().__init__(
+            error_code="INFRASTRUCTURE_ERROR",
+            message=f"{component} error: {message}",
+            request_id=request_id,
+            metadata=final_metadata,
+            http_status_code=500
+        )
+
+
+class DatabaseError(BaseError):
     """Database operation failed"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, status_code=500, error_code="DATABASE_ERROR", **kwargs)
+    
+    def __init__(
+        self,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="DATABASE_ERROR",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=500
+        )
 
 
-class CacheError(ApplicationError):
+class CacheError(BaseError):
     """Cache operation failed"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, status_code=500, error_code="CACHE_ERROR", **kwargs)
+    
+    def __init__(
+        self,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="CACHE_ERROR",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=500
+        )
 
 
-class ConfigurationError(ApplicationError):
+class ConfigurationError(BaseError):
     """System misconfiguration detected"""
-    def __init__(self, message: str, **kwargs):
-        super().__init__(message, status_code=500, error_code="CONFIG_ERROR", **kwargs)
+    
+    def __init__(
+        self,
+        message: str,
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="CONFIG_ERROR",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=500
+        )
+
+
+class InternalServerError(BaseError):
+    """
+    Raised for unknown server errors.
+    
+    Catch-all for unexpected exceptions.
+    """
+    
+    def __init__(
+        self,
+        message: str = "Internal server error",
+        request_id: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ):
+        super().__init__(
+            error_code="INTERNAL_SERVER_ERROR",
+            message=message,
+            request_id=request_id,
+            metadata=metadata,
+            http_status_code=500
+        )
