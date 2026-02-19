@@ -137,6 +137,13 @@ def serialize_error_for_logging(
     
     # Include traceback if requested
     if include_traceback:
-        log_dict["traceback"] = traceback.format_exc()
+        if error.__traceback__ is not None:
+            # Format the traceback associated with this specific error
+            log_dict["traceback"] = "".join(
+                traceback.format_exception(type(error), error, error.__traceback__)
+            )
+        else:
+            # Fallback to current exception context if no traceback is attached
+            log_dict["traceback"] = traceback.format_exc()
     
     return log_dict
