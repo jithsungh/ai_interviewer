@@ -1,13 +1,29 @@
 """
 Request-Scoped Authentication Context
 
-Provides identity and tenant resolution for each request.
-Enforces multi-tenant isolation (NFR-7.1).
+⚠️ DEPRECATED: This module is deprecated and will be removed.
+Use models.py (IdentityContext, UserType, AdminRole) instead.
+
+Migration Guide:
+- AuthContext → IdentityContext
+- UserRole → UserType (admin, candidate only)
+- roles: Set[UserRole] → user_type: UserType + admin_role: Optional[AdminRole]
+
+This file is kept for backward compatibility only.
 """
 
+import warnings
 from typing import Optional, Set
 from dataclasses import dataclass
 from enum import Enum
+
+
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "auth_context.context is deprecated. Use auth_context.models (IdentityContext) instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 
 
 class UserRole(str, Enum):
