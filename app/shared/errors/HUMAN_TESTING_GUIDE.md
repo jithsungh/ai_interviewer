@@ -334,28 +334,54 @@ Create test file: `test_error_handler.py`
 ```python
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
-from app.shared.errors import BaseError, serialize_rest_error, get_log_level
+from app.shared.errors import (
+    BaseError,
+    ErrorConfig,
+    serialize_rest_error,
+    get_log_level,
+    should_send_to_client,
+)
 
 app = FastAPI()
 
 @app.exception_handler(BaseError)
 async def base_error_handler(request: Request, exc: BaseError):
-    """Global exception handler for all BaseError subclasses"""
+    """Global exception handler for all BaseError subclasses
+
+    This example shows how to avoid leaking internal error details
+    (for example, rich `metadata`) to clients in production.
+    """
 
     # Add request_id if not present
-    if not exc.request_id:
-        exc.request_id = request.state.get("request_id", "unknown")
+    if not getattr(exc, "request_id", None):
+        exc.request_id = getattr(request.state, "request_id", "unknown")
 
-    # Log error
+    # Log error with full details (server-side only)
     log_level = get_log_level(exc)
-    print(f"[{log_level}] {exc.error_code}: {exc.message}")
+    print(f"[{log_level}] {exc.error_code}: {exc.message} (metadata={getattr(exc, 'metadata', None)})")
 
-    # Serialize response
-    response_body = serialize_rest_error(exc)
+    # Decide how much detail to send to the client
+    # In a real app, ErrorConfig might be loaded from env/config files.
+    config = ErrorConfig()
+    send_full_details = should_send_to_client(exc, config=config)
+
+    if send_full_details:
+        # Safe to send full serialized error (e.g., 4xx / expected errors)
+        response_body = serialize_rest_error(exc)
+        status_code = exc.http_status_code
+    else:
+        # Do NOT leak internal details for 5xx / internal errors.
+        # Return only a generic error payload while logging full context above.
+        response_body = {
+            "error_code": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred.",
+            "request_id": exc.request_id,
+        }
+        status_code = 500
 
     return JSONResponse(
-        status_code=exc.http_status_code,
-        content=response_body
+        status_code=status_code,
+        content=response_body,
     )
 
 @app.get("/test/auth-error")
