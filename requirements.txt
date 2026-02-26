@@ -28,7 +28,8 @@ passlib[bcrypt]==1.7.4
 python-jose[cryptography]==3.3.0
 bcrypt==4.1.2
 
-# LLM Providers
+# LLM Providers (using httpx for direct API calls instead of SDKs for better timeout control)
+# Future: Uncomment when implementing respective providers
 # openai==1.10.0
 # anthropic==0.12.0
 groq==0.4.2
@@ -41,7 +42,7 @@ numpy==1.26.3
 
 # Utilities
 python-dateutil==2.8.2
-httpx==0.26.0
+httpx==0.26.0  # Used for LLM provider API calls with timeout control
 aiofiles==23.2.1
 
 # Logging & Monitoring
@@ -53,7 +54,6 @@ prometheus-client==0.19.0
 pytest==7.4.4
 pytest-asyncio==0.23.3
 pytest-cov==4.1.0
-httpx==0.26.0
 
 # Code Quality
 black==24.1.1
