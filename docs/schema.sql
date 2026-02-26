@@ -2,9 +2,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict 0YzIkOuMGrSOC8VDw4zgEmNNkUJpTBgULZqkEuXLDkovy9OkfkdWPu53MQ9fvaH
+\restrict QrbSl1Elth5MUEOcZgTlHHIDbO7Bt8YHVo4RyH5WmuSFAnhgaRKdfIpmmf8v4yt
 
--- Dumped from database version 16.11 (Ubuntu 16.11-0ubuntu0.24.04.1)
+-- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
 
 SET statement_timeout = 0;
@@ -424,6 +424,58 @@ ALTER SEQUENCE public.audit_logs_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.audit_logs_id_seq OWNED BY public.audit_logs.id;
+
+
+--
+-- Name: auth_audit_log_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.auth_audit_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.auth_audit_log_id_seq OWNER TO jithsungh;
+
+--
+-- Name: auth_audit_log; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.auth_audit_log (
+    id bigint DEFAULT nextval('public.auth_audit_log_id_seq'::regclass) NOT NULL,
+    user_id bigint,
+    event_type character varying(50) NOT NULL,
+    ip_address inet,
+    user_agent text,
+    metadata jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.auth_audit_log OWNER TO jithsungh;
+
+--
+-- Name: TABLE auth_audit_log; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.auth_audit_log IS 'Immutable audit log for all authentication events. INSERT-ONLY table.';
+
+
+--
+-- Name: COLUMN auth_audit_log.event_type; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.auth_audit_log.event_type IS 'Event type: login_success, login_failure, logout, token_refresh, password_change, admin_role_changed, user_status_changed, suspicious_activity';
+
+
+--
+-- Name: COLUMN auth_audit_log.metadata; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.auth_audit_log.metadata IS 'Additional context as JSON: {error_code, email, organization_id, admin_role, etc.}';
 
 
 --
@@ -1472,6 +1524,68 @@ ALTER SEQUENCE public.questions_id_seq OWNED BY public.questions.id;
 
 
 --
+-- Name: refresh_tokens_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.refresh_tokens_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.refresh_tokens_id_seq OWNER TO jithsungh;
+
+--
+-- Name: refresh_tokens; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.refresh_tokens (
+    id bigint DEFAULT nextval('public.refresh_tokens_id_seq'::regclass) NOT NULL,
+    user_id bigint NOT NULL,
+    token_hash text NOT NULL,
+    device_info text,
+    ip_address inet,
+    issued_at timestamp with time zone DEFAULT now() NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    revoked_reason character varying(100),
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.refresh_tokens OWNER TO jithsungh;
+
+--
+-- Name: TABLE refresh_tokens; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.refresh_tokens IS 'Refresh tokens for JWT authentication. Tokens are hashed before storage.';
+
+
+--
+-- Name: COLUMN refresh_tokens.token_hash; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.refresh_tokens.token_hash IS 'SHA-256 hash of the refresh token. Original token never stored.';
+
+
+--
+-- Name: COLUMN refresh_tokens.revoked_at; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.refresh_tokens.revoked_at IS 'Timestamp when token was revoked. NULL means token is still active.';
+
+
+--
+-- Name: COLUMN refresh_tokens.revoked_reason; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.refresh_tokens.revoked_reason IS 'Reason for revocation: logout, password_change, admin_action, suspicious, rotation';
+
+
+--
 -- Name: resumes; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -1793,11 +1907,36 @@ CREATE TABLE public.users (
     password_hash text NOT NULL,
     status public.user_status DEFAULT 'active'::public.user_status NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    user_type character varying(20) NOT NULL,
+    last_login_at timestamp with time zone,
+    token_version integer DEFAULT 1 NOT NULL,
+    CONSTRAINT users_user_type_check CHECK (((user_type)::text = ANY ((ARRAY['admin'::character varying, 'candidate'::character varying])::text[])))
 );
 
 
 ALTER TABLE public.users OWNER TO jithsungh;
+
+--
+-- Name: COLUMN users.user_type; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.users.user_type IS 'User type: admin or candidate. Determines which extended table (admins/candidates) contains additional data.';
+
+
+--
+-- Name: COLUMN users.last_login_at; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.users.last_login_at IS 'Timestamp of last successful login. Updated on each login event.';
+
+
+--
+-- Name: COLUMN users.token_version; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON COLUMN public.users.token_version IS 'Token version for forced logout. Incrementing this invalidates all active JWT tokens.';
+
 
 --
 -- Name: users_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
@@ -2143,6 +2282,14 @@ ALTER TABLE ONLY public.audit_logs
 
 
 --
+-- Name: auth_audit_log auth_audit_log_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.auth_audit_log
+    ADD CONSTRAINT auth_audit_log_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2447,6 +2594,22 @@ ALTER TABLE ONLY public.questions
 
 
 --
+-- Name: refresh_tokens refresh_tokens_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT refresh_tokens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: refresh_tokens refresh_tokens_token_hash_unique; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT refresh_tokens_token_hash_unique UNIQUE (token_hash);
+
+
+--
 -- Name: resumes resumes_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2645,6 +2808,34 @@ CREATE INDEX idx_audit_entity ON public.audit_logs USING btree (entity_type, ent
 --
 
 CREATE INDEX idx_audit_org ON public.audit_logs USING btree (organization_id);
+
+
+--
+-- Name: idx_auth_audit_created; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_auth_audit_created ON public.auth_audit_log USING btree (created_at);
+
+
+--
+-- Name: idx_auth_audit_event; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_auth_audit_event ON public.auth_audit_log USING btree (event_type);
+
+
+--
+-- Name: idx_auth_audit_ip; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_auth_audit_ip ON public.auth_audit_log USING btree (ip_address);
+
+
+--
+-- Name: idx_auth_audit_user; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_auth_audit_user ON public.auth_audit_log USING btree (user_id);
 
 
 --
@@ -2956,6 +3147,27 @@ CREATE INDEX idx_questions_type ON public.questions USING btree (question_type);
 
 
 --
+-- Name: idx_refresh_tokens_expires; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_refresh_tokens_expires ON public.refresh_tokens USING btree (expires_at) WHERE (revoked_at IS NULL);
+
+
+--
+-- Name: idx_refresh_tokens_revoked; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_refresh_tokens_revoked ON public.refresh_tokens USING btree (revoked_at) WHERE (revoked_at IS NOT NULL);
+
+
+--
+-- Name: idx_refresh_tokens_user; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_refresh_tokens_user ON public.refresh_tokens USING btree (user_id);
+
+
+--
 -- Name: idx_resumes_candidate; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3061,6 +3273,20 @@ CREATE INDEX idx_topics_parent ON public.topics USING btree (parent_topic_id);
 
 
 --
+-- Name: idx_users_last_login; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_users_last_login ON public.users USING btree (last_login_at) WHERE (last_login_at IS NOT NULL);
+
+
+--
+-- Name: idx_users_type; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_users_type ON public.users USING btree (user_type);
+
+
+--
 -- Name: idx_window_role_templates_role; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3133,6 +3359,14 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.audit_logs
     ADD CONSTRAINT audit_logs_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE SET NULL;
+
+
+--
+-- Name: auth_audit_log auth_audit_log_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.auth_audit_log
+    ADD CONSTRAINT auth_audit_log_user_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -3504,6 +3738,14 @@ ALTER TABLE ONLY public.questions
 
 
 --
+-- Name: refresh_tokens refresh_tokens_user_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.refresh_tokens
+    ADD CONSTRAINT refresh_tokens_user_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
 -- Name: resumes resumes_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3636,5 +3878,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 0YzIkOuMGrSOC8VDw4zgEmNNkUJpTBgULZqkEuXLDkovy9OkfkdWPu53MQ9fvaH
+\unrestrict QrbSl1Elth5MUEOcZgTlHHIDbO7Bt8YHVo4RyH5WmuSFAnhgaRKdfIpmmf8v4yt
 
