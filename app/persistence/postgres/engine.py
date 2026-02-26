@@ -57,18 +57,9 @@ def create_db_engine(config: DatabaseSettings) -> Engine:
             )
             
             # Build connect_args with query timeout
-            # For asyncpg, use server_settings instead of options
-            if "asyncpg" in config.database_url:
-                connect_args = {
-                    "server_settings": {
-                        "statement_timeout": str(config.db_query_timeout * 1000),  # Convert to ms
-                    }
-                }
-            else:
-                # For psycopg2/psycopg3, use options
-                connect_args = {
-                    "options": f"-c statement_timeout={config.db_query_timeout * 1000}",
-                }
+            connect_args = {
+                "options": f"-c statement_timeout={config.db_query_timeout * 1000}",  # Convert to ms
+            }
             
             engine = create_engine(
                 config.database_url,
