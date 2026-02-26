@@ -14,7 +14,7 @@ Design:
 
 from fastapi import FastAPI
 
-from app.config import settings
+from app.config import settings as global_settings
 from app.shared.observability import get_context_logger
 
 logger = get_context_logger(__name__)
@@ -130,6 +130,13 @@ def register_routers(app: FastAPI) -> None:
     @app.get("/health", tags=["System"])
     async def health_check():
         """Basic health check endpoint"""
+        # Load settings if in testing mode
+        if global_settings is None:
+            from app.config.settings import Settings
+            settings = Settings.load()
+        else:
+            settings = global_settings
+            
         return {
             "status": "healthy",
             "version": settings.app.api_version,

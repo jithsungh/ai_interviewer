@@ -105,6 +105,38 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class ErrorFormattingMiddleware(BaseHTTPMiddleware):
+    """
+    Error Formatting Middleware.
+    
+    Ensures all error responses follow the structured error format.
+    Catches 404 and other error status codes that bypass exception handlers.
+    """
+    
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        from fastapi.responses import JSONResponse
+        
+        response = await call_next(request)
+        
+        # Reformat 404 responses to match structured error format
+        if response.status_code == 404:
+            request_id = getattr(request.state, "request_id", "unknown")
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "error": {
+                        "code": "http_404",
+                        "message": "Not Found",
+                        "request_id": request_id,
+                        "metadata": {}
+                    }
+                },
+                headers=dict(response.headers)
+            )
+        
+        return response
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """
     Rate Limiting Middleware (FIFTH).
@@ -144,7 +176,11 @@ def register_middleware(app: FastAPI) -> None:
     app.add_middleware(LoggingMiddleware)
     logger.debug("✓ LoggingMiddleware registered")
     
-    # 3. CORS (THIRD - must run before auth for OPTIONS requests)
+    # 3. Error Formatting (THIRD - reformats error responses)
+    app.add_middleware(ErrorFormattingMiddleware)
+    logger.debug("✓ ErrorFormattingMiddleware registered")
+    
+    # 4. CORS (FOURTH - must run before auth for OPTIONS requests)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],  # TODO: Configure from settings
@@ -155,15 +191,15 @@ def register_middleware(app: FastAPI) -> None:
     )
     logger.debug("✓ CORSMiddleware registered")
     
-    # 4. GZip Compression (FOURTH - optional performance)
+    # 5. GZip Compression (FIFTH - optional performance)
     app.add_middleware(GZipMiddleware, minimum_size=1000)
     logger.debug("✓ GZipMiddleware registered")
     
-    # 5. Rate Limiting (FIFTH - protects endpoints)
+    # 6. Rate Limiting (SIXTH - protects endpoints)
     app.add_middleware(RateLimitMiddleware)
     logger.debug("✓ RateLimitMiddleware registered (stub)")
     
-    # 6. Identity Injection (LAST - requires all context)
+    # 7. Identity Injection (LAST - requires all context)
     token_validator = get_token_validator()
     app.add_middleware(
         IdentityInjectionMiddleware,
@@ -175,5 +211,5 @@ def register_middleware(app: FastAPI) -> None:
     logger.info(
         "✅ Middleware registration complete",
         event_type="middleware.registration.complete",
-        metadata={"middleware_count": 6}
+        metadata={"middleware_count": 7}
     )

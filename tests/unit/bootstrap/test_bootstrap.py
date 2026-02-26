@@ -139,7 +139,7 @@ class TestLifespanManagement:
     """Test application lifespan (startup/shutdown)"""
     
     @pytest.mark.asyncio
-    @patch('app.bootstrap.lifespan.settings')
+    @patch('app.bootstrap.lifespan.global_settings')
     @patch('app.bootstrap.lifespan.init_engine')
     @patch('app.bootstrap.lifespan.init_session_factory')
     @patch('app.bootstrap.lifespan.check_postgres_connectivity')
@@ -159,7 +159,7 @@ class TestLifespanManagement:
         
         mock_postgres_check.return_value = True
         mock_settings.app.app_env = "test"
-        mock_settings.postgres = Mock()
+        mock_settings.database = Mock()
         mock_settings.redis = Mock()
         mock_settings.qdrant = Mock()
         
@@ -174,7 +174,7 @@ class TestLifespanManagement:
             mock_init_qdrant.assert_called_once()
     
     @pytest.mark.asyncio
-    @patch('app.bootstrap.lifespan.settings')
+    @patch('app.bootstrap.lifespan.global_settings')
     @patch('app.bootstrap.lifespan.cleanup_engine')
     @patch('app.bootstrap.lifespan.cleanup_redis')
     @patch('app.bootstrap.lifespan.cleanup_qdrant')
@@ -200,7 +200,7 @@ class TestLifespanManagement:
         
         mock_postgres_check.return_value = True
         mock_settings.app.app_env = "test"
-        mock_settings.postgres = Mock()
+        mock_settings.database = Mock()
         mock_settings.redis = Mock()
         mock_settings.qdrant = Mock()
         
@@ -230,7 +230,7 @@ class TestAppFactory:
         """Test create_app returns configured FastAPI app"""
         from app.bootstrap.app import create_app
         
-        with patch('app.bootstrap.app.settings') as mock_settings:
+        with patch('app.bootstrap.app.global_settings') as mock_settings:
             mock_settings.app.app_name = "Test App"
             mock_settings.app.api_version = "1.0.0"
             mock_settings.app.debug = True
@@ -258,7 +258,7 @@ class TestAppFactory:
         """Test docs are disabled when debug=False"""
         from app.bootstrap.app import create_app
         
-        with patch('app.bootstrap.app.settings') as mock_settings:
+        with patch('app.bootstrap.app.global_settings') as mock_settings:
             mock_settings.app.app_name = "Test App"
             mock_settings.app.api_version = "1.0.0"
             mock_settings.app.debug = False
@@ -282,7 +282,7 @@ class TestAppFactory:
         """Test docs are enabled when debug=True"""
         from app.bootstrap.app import create_app
         
-        with patch('app.bootstrap.app.settings') as mock_settings:
+        with patch('app.bootstrap.app.global_settings') as mock_settings:
             mock_settings.app.app_name = "Test App"
             mock_settings.app.api_version = "1.0.0"
             mock_settings.app.debug = True

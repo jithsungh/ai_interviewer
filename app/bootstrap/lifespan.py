@@ -8,7 +8,7 @@ Ensures proper initialization order and graceful cleanup.
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
-from app.config import settings
+from app.config import settings as global_settings
 from app.shared.observability import get_context_logger
 from app.persistence.postgres import (
     init_engine,
@@ -45,6 +45,13 @@ async def lifespan(app: FastAPI):
     Cleanup:
         Gracefully closes all connections on shutdown
     """
+    
+    # Load settings if in testing mode (where global_settings is None)
+    if global_settings is None:
+        from app.config.settings import Settings
+        settings = Settings.load()
+    else:
+        settings = global_settings
     
     # ==================
     # STARTUP

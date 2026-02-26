@@ -10,7 +10,7 @@ but contains NO business logic.
 
 from fastapi import FastAPI
 
-from app.config import settings
+from app.config import settings as global_settings
 from app.shared.observability import get_context_logger
 
 from .lifespan import lifespan
@@ -35,6 +35,13 @@ def create_app() -> FastAPI:
     Returns:
         Fully configured FastAPI application
     """
+    
+    # Load settings if in testing mode (where global_settings is None)
+    if global_settings is None:
+        from app.config.settings import Settings
+        settings = Settings.load()
+    else:
+        settings = global_settings
     
     logger.info("Creating FastAPI application...", event_type="app.factory.begin")
     
@@ -101,4 +108,4 @@ def create_app() -> FastAPI:
 # ==========================================
 
 # Only create app instance if not in testing mode
-app = create_app() if settings is not None else None
+app = create_app() if global_settings is not None else None
