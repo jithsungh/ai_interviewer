@@ -139,7 +139,8 @@ class ContextLogger:
         event_type: Optional[str] = None,
         latency_ms: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        exc_info: Optional[Any] = None
+        exc_info: Optional[Any] = None,
+        extra_fields: Optional[Dict[str, Any]] = None
     ):
         """
         Log with automatic context injection.
@@ -151,6 +152,7 @@ class ContextLogger:
             latency_ms: Operation latency in milliseconds
             metadata: Additional metadata dictionary
             exc_info: Exception info (for error logging)
+            extra_fields: Additional fields dict (supports callers using extra=)
         """
         extra: Dict[str, Any] = {}
 
@@ -170,6 +172,15 @@ class ContextLogger:
             extra["latency_ms"] = latency_ms
         if metadata:
             extra["metadata"] = metadata
+        if extra_fields:
+            # Merge caller-provided extra fields; event_type/latency_ms extracted above take precedence
+            for k, v in extra_fields.items():
+                if k == "event_type" and not event_type:
+                    extra["event_type"] = v
+                elif k == "latency_ms" and latency_ms is None:
+                    extra["latency_ms"] = v
+                elif k not in extra:
+                    extra[k] = v
 
         self.logger.log(level, message, extra=extra, exc_info=exc_info)
 
@@ -178,30 +189,33 @@ class ContextLogger:
         message: str,
         event_type: Optional[str] = None,
         latency_ms: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        extra: Optional[Dict[str, Any]] = None
     ):
         """Log debug message with context"""
-        self._log(logging.DEBUG, message, event_type, latency_ms, metadata)
+        self._log(logging.DEBUG, message, event_type, latency_ms, metadata, extra_fields=extra)
 
     def info(
         self,
         message: str,
         event_type: Optional[str] = None,
         latency_ms: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        extra: Optional[Dict[str, Any]] = None
     ):
         """Log info message with context"""
-        self._log(logging.INFO, message, event_type, latency_ms, metadata)
+        self._log(logging.INFO, message, event_type, latency_ms, metadata, extra_fields=extra)
 
     def warning(
         self,
         message: str,
         event_type: Optional[str] = None,
         latency_ms: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        extra: Optional[Dict[str, Any]] = None
     ):
         """Log warning message with context"""
-        self._log(logging.WARNING, message, event_type, latency_ms, metadata)
+        self._log(logging.WARNING, message, event_type, latency_ms, metadata, extra_fields=extra)
 
     def error(
         self,
@@ -209,10 +223,11 @@ class ContextLogger:
         event_type: Optional[str] = None,
         latency_ms: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        exc_info: Optional[Any] = None
+        exc_info: Optional[Any] = None,
+        extra: Optional[Dict[str, Any]] = None
     ):
         """Log error message with context"""
-        self._log(logging.ERROR, message, event_type, latency_ms, metadata, exc_info)
+        self._log(logging.ERROR, message, event_type, latency_ms, metadata, exc_info, extra_fields=extra)
 
     def critical(
         self,
@@ -220,10 +235,11 @@ class ContextLogger:
         event_type: Optional[str] = None,
         latency_ms: Optional[float] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        exc_info: Optional[Any] = None
+        exc_info: Optional[Any] = None,
+        extra: Optional[Dict[str, Any]] = None
     ):
         """Log critical message with context"""
-        self._log(logging.CRITICAL, message, event_type, latency_ms, metadata, exc_info)
+        self._log(logging.CRITICAL, message, event_type, latency_ms, metadata, exc_info, extra_fields=extra)
 
 
 def configure_structured_logging(
