@@ -1,0 +1,168 @@
+"""
+Application Lifespan Management
+
+Handles startup and shutdown events for infrastructure connections.
+Ensures proper initialization order and graceful cleanup.
+"""
+
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+
+from app.config import settings
+from app.shared.observability import get_context_logger
+from app.persistence.postgres import (
+    init_engine,
+    init_session_factory,
+    cleanup_engine,
+    check_postgres_connectivity
+)
+from app.persistence.redis import (
+    init_redis_client,
+    cleanup_redis,
+)
+from app.persistence.qdrant import (
+    init_qdrant_client,
+    cleanup_qdrant,
+)
+
+logger = get_context_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan context manager.
+    
+    Manages startup and shutdown of all infrastructure connections:
+    1. Logging (first, so all subsequent steps can log)
+    2. Database (engine + session factory)
+    3. Redis (sessions, caching, rate limiting)
+    4. Qdrant (vector search for questions)
+    
+    Yields:
+        Control to application (FastAPI runs during yield)
+    
+    Cleanup:
+        Gracefully closes all connections on shutdown
+    """
+    
+    # ==================
+    # STARTUP
+    # ==================
+    
+    logger.info(
+        "🚀 Starting AI Interviewer Backend",
+        event_type="app.startup.begin",
+        metadata={"environment": settings.app.app_env}
+    )
+    
+    try:
+        # 1. Logging already initialized (imported at module level)
+        logger.info("✓ Logging configured", event_type="startup.logging.complete")
+        
+        # 2. Initialize PostgreSQL
+        logger.info("Initializing PostgreSQL...", event_type="startup.postgres.begin")
+        init_engine(settings.database)
+        init_session_factory()
+        
+        # Verify connectivity
+        if check_postgres_connectivity():
+            logger.info("✓ PostgreSQL connected", event_type="startup.postgres.complete")
+        else:
+            logger.warning(
+                "⚠️  PostgreSQL connectivity check failed",
+                event_type="startup.postgres.warning"
+            )
+        
+        # 3. Initialize Redis
+        logger.info("Initializing Redis...", event_type="startup.redis.begin")
+        try:
+            init_redis_client(settings.redis)
+            logger.info("✓ Redis connected", event_type="startup.redis.complete")
+        except Exception as e:
+            logger.warning(
+                f"⚠️  Redis connection failed: {e}",
+                event_type="startup.redis.warning",
+                metadata={"error": str(e)}
+            )
+        
+        # 4. Initialize Qdrant
+        logger.info("Initializing Qdrant...", event_type="startup.qdrant.begin")
+        try:
+            init_qdrant_client(settings.qdrant)
+            logger.info("✓ Qdrant connected", event_type="startup.qdrant.complete")
+        except Exception as e:
+            logger.warning(
+                f"⚠️  Qdrant connection failed: {e}",
+                event_type="startup.qdrant.warning",
+                metadata={"error": str(e)}
+            )
+        
+        logger.info(
+            "✅ Application startup complete",
+            event_type="app.startup.complete",
+            metadata={
+                "environment": settings.app.app_env,
+                "version": settings.app.api_version
+            }
+        )
+        
+    except Exception as e:
+        logger.critical(
+            f"❌ Application startup failed: {e}",
+            event_type="app.startup.failed",
+            exc_info=True
+        )
+        raise
+    
+    # ==================
+    # APPLICATION RUNNING
+    # ==================
+    
+    yield
+    
+    # ==================
+    # SHUTDOWN
+    # ==================
+    
+    logger.info("🛑 Shutting down AI Interviewer Backend", event_type="app.shutdown.begin")
+    
+    try:
+        # 1. Close Qdrant
+        try:
+            cleanup_qdrant()
+            logger.info("✓ Qdrant disconnected", event_type="shutdown.qdrant.complete")
+        except Exception as e:
+            logger.warning(
+                f"⚠️  Qdrant disconnect warning: {e}",
+                event_type="shutdown.qdrant.warning"
+            )
+        
+        # 2. Close Redis
+        try:
+            cleanup_redis()
+            logger.info("✓ Redis disconnected", event_type="shutdown.redis.complete")
+        except Exception as e:
+            logger.warning(
+                f"⚠️  Redis disconnect warning: {e}",
+                event_type="shutdown.redis.warning"
+            )
+        
+        # 3. Close PostgreSQL
+        try:
+            cleanup_engine()
+            logger.info("✓ PostgreSQL disconnected", event_type="shutdown.postgres.complete")
+        except Exception as e:
+            logger.warning(
+                f"⚠️  PostgreSQL cleanup warning: {e}",
+                event_type="shutdown.postgres.warning"
+            )
+        
+        logger.info("✅ Application shutdown complete", event_type="app.shutdown.complete")
+        
+    except Exception as e:
+        logger.error(
+            f"❌ Shutdown encountered errors: {e}",
+            event_type="app.shutdown.error",
+            exc_info=True
+        )
