@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict QrbSl1Elth5MUEOcZgTlHHIDbO7Bt8YHVo4RyH5WmuSFAnhgaRKdfIpmmf8v4yt
+\restrict BrMV8bhJSo3F5ISchWLnwfhYPoOv3A18JEPeCrMMBZq1a8yMYyJamhzUr3V4Wi5
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -598,6 +598,44 @@ ALTER SEQUENCE public.code_submissions_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.code_submissions_id_seq OWNED BY public.code_submissions.id;
+
+
+--
+-- Name: coding_problem_overrides_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.coding_problem_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.coding_problem_overrides_id_seq OWNER TO jithsungh;
+
+--
+-- Name: coding_problem_overrides; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.coding_problem_overrides (
+    id bigint DEFAULT nextval('public.coding_problem_overrides_id_seq'::regclass) NOT NULL,
+    organization_id bigint NOT NULL,
+    base_content_id bigint NOT NULL,
+    override_fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.coding_problem_overrides OWNER TO jithsungh;
+
+--
+-- Name: TABLE coding_problem_overrides; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.coding_problem_overrides IS 'Tenant-specific overrides for super-org coding problems.';
 
 
 --
@@ -1469,6 +1507,44 @@ ALTER SEQUENCE public.prompt_templates_id_seq OWNED BY public.prompt_templates.i
 
 
 --
+-- Name: question_overrides_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.question_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.question_overrides_id_seq OWNER TO jithsungh;
+
+--
+-- Name: question_overrides; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.question_overrides (
+    id bigint DEFAULT nextval('public.question_overrides_id_seq'::regclass) NOT NULL,
+    organization_id bigint NOT NULL,
+    base_content_id bigint NOT NULL,
+    override_fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.question_overrides OWNER TO jithsungh;
+
+--
+-- Name: TABLE question_overrides; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.question_overrides IS 'Tenant-specific overrides for super-org questions.';
+
+
+--
 -- Name: question_topics; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -1636,6 +1712,44 @@ CREATE TABLE public.role_coding_topics (
 ALTER TABLE public.role_coding_topics OWNER TO jithsungh;
 
 --
+-- Name: role_overrides_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.role_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.role_overrides_id_seq OWNER TO jithsungh;
+
+--
+-- Name: role_overrides; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.role_overrides (
+    id bigint DEFAULT nextval('public.role_overrides_id_seq'::regclass) NOT NULL,
+    organization_id bigint NOT NULL,
+    base_content_id bigint NOT NULL,
+    override_fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.role_overrides OWNER TO jithsungh;
+
+--
+-- Name: TABLE role_overrides; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.role_overrides IS 'Tenant-specific overrides for super-org roles.';
+
+
+--
 -- Name: role_topics; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -1723,6 +1837,44 @@ ALTER SEQUENCE public.rubric_dimensions_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.rubric_dimensions_id_seq OWNED BY public.rubric_dimensions.id;
+
+
+--
+-- Name: rubric_overrides_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.rubric_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.rubric_overrides_id_seq OWNER TO jithsungh;
+
+--
+-- Name: rubric_overrides; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.rubric_overrides (
+    id bigint DEFAULT nextval('public.rubric_overrides_id_seq'::regclass) NOT NULL,
+    organization_id bigint NOT NULL,
+    base_content_id bigint NOT NULL,
+    override_fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.rubric_overrides OWNER TO jithsungh;
+
+--
+-- Name: TABLE rubric_overrides; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.rubric_overrides IS 'Tenant-specific overrides for super-org rubrics.';
 
 
 --
@@ -1840,6 +1992,44 @@ ALTER SEQUENCE public.supplementary_reports_id_seq OWNED BY public.supplementary
 
 
 --
+-- Name: template_overrides_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.template_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.template_overrides_id_seq OWNER TO jithsungh;
+
+--
+-- Name: template_overrides; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.template_overrides (
+    id bigint DEFAULT nextval('public.template_overrides_id_seq'::regclass) NOT NULL,
+    organization_id bigint NOT NULL,
+    base_content_id bigint NOT NULL,
+    override_fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.template_overrides OWNER TO jithsungh;
+
+--
+-- Name: TABLE template_overrides; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.template_overrides IS 'Tenant-specific overrides for super-org interview templates.';
+
+
+--
 -- Name: test_table; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -1854,6 +2044,44 @@ ALTER TABLE public.test_table OWNER TO jithsungh;
 --
 
 COMMENT ON TABLE public.test_table IS 'test table for demonstration purpose';
+
+
+--
+-- Name: topic_overrides_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.topic_overrides_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.topic_overrides_id_seq OWNER TO jithsungh;
+
+--
+-- Name: topic_overrides; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.topic_overrides (
+    id bigint DEFAULT nextval('public.topic_overrides_id_seq'::regclass) NOT NULL,
+    organization_id bigint NOT NULL,
+    base_content_id bigint NOT NULL,
+    override_fields jsonb DEFAULT '{}'::jsonb NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.topic_overrides OWNER TO jithsungh;
+
+--
+-- Name: TABLE topic_overrides; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.topic_overrides IS 'Tenant-specific overrides for super-org topics.';
 
 
 --
@@ -2322,6 +2550,22 @@ ALTER TABLE ONLY public.code_submissions
 
 
 --
+-- Name: coding_problem_overrides coding_problem_overrides_org_base_uq; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_overrides
+    ADD CONSTRAINT coding_problem_overrides_org_base_uq UNIQUE (organization_id, base_content_id);
+
+
+--
+-- Name: coding_problem_overrides coding_problem_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_overrides
+    ADD CONSTRAINT coding_problem_overrides_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: coding_problem_topics coding_problem_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2578,6 +2822,22 @@ ALTER TABLE ONLY public.prompt_templates
 
 
 --
+-- Name: question_overrides question_overrides_org_base_uq; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_overrides
+    ADD CONSTRAINT question_overrides_org_base_uq UNIQUE (organization_id, base_content_id);
+
+
+--
+-- Name: question_overrides question_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_overrides
+    ADD CONSTRAINT question_overrides_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: question_topics question_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2626,6 +2886,22 @@ ALTER TABLE ONLY public.role_coding_topics
 
 
 --
+-- Name: role_overrides role_overrides_org_base_uq; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_overrides
+    ADD CONSTRAINT role_overrides_org_base_uq UNIQUE (organization_id, base_content_id);
+
+
+--
+-- Name: role_overrides role_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_overrides
+    ADD CONSTRAINT role_overrides_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: role_topics role_topics_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2655,6 +2931,22 @@ ALTER TABLE ONLY public.roles
 
 ALTER TABLE ONLY public.rubric_dimensions
     ADD CONSTRAINT rubric_dimensions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rubric_overrides rubric_overrides_org_base_uq; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_overrides
+    ADD CONSTRAINT rubric_overrides_org_base_uq UNIQUE (organization_id, base_content_id);
+
+
+--
+-- Name: rubric_overrides rubric_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_overrides
+    ADD CONSTRAINT rubric_overrides_pkey PRIMARY KEY (id);
 
 
 --
@@ -2695,6 +2987,38 @@ ALTER TABLE ONLY public.source_topics
 
 ALTER TABLE ONLY public.supplementary_reports
     ADD CONSTRAINT supplementary_reports_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: template_overrides template_overrides_org_base_uq; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.template_overrides
+    ADD CONSTRAINT template_overrides_org_base_uq UNIQUE (organization_id, base_content_id);
+
+
+--
+-- Name: template_overrides template_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.template_overrides
+    ADD CONSTRAINT template_overrides_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: topic_overrides topic_overrides_org_base_uq; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topic_overrides
+    ADD CONSTRAINT topic_overrides_org_base_uq UNIQUE (organization_id, base_content_id);
+
+
+--
+-- Name: topic_overrides topic_overrides_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topic_overrides
+    ADD CONSTRAINT topic_overrides_pkey PRIMARY KEY (id);
 
 
 --
@@ -2857,6 +3181,27 @@ CREATE INDEX idx_code_execution_results_submission ON public.code_execution_resu
 --
 
 CREATE INDEX idx_code_submissions_exchange ON public.code_submissions USING btree (interview_exchange_id);
+
+
+--
+-- Name: idx_coding_problem_overrides_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problem_overrides_active ON public.coding_problem_overrides USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_coding_problem_overrides_base; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problem_overrides_base ON public.coding_problem_overrides USING btree (base_content_id);
+
+
+--
+-- Name: idx_coding_problem_overrides_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_coding_problem_overrides_org ON public.coding_problem_overrides USING btree (organization_id);
 
 
 --
@@ -3112,6 +3457,27 @@ CREATE INDEX idx_prompt_templates_type ON public.prompt_templates USING btree (p
 
 
 --
+-- Name: idx_question_overrides_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_question_overrides_active ON public.question_overrides USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_question_overrides_base; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_question_overrides_base ON public.question_overrides USING btree (base_content_id);
+
+
+--
+-- Name: idx_question_overrides_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_question_overrides_org ON public.question_overrides USING btree (organization_id);
+
+
+--
 -- Name: idx_questions_active; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3175,6 +3541,27 @@ CREATE INDEX idx_resumes_candidate ON public.resumes USING btree (candidate_id);
 
 
 --
+-- Name: idx_role_overrides_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_role_overrides_active ON public.role_overrides USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_role_overrides_base; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_role_overrides_base ON public.role_overrides USING btree (base_content_id);
+
+
+--
+-- Name: idx_role_overrides_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_role_overrides_org ON public.role_overrides USING btree (organization_id);
+
+
+--
 -- Name: idx_roles_org; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3186,6 +3573,27 @@ CREATE INDEX idx_roles_org ON public.roles USING btree (organization_id);
 --
 
 CREATE INDEX idx_rubric_dimensions_rubric ON public.rubric_dimensions USING btree (rubric_id);
+
+
+--
+-- Name: idx_rubric_overrides_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_rubric_overrides_active ON public.rubric_overrides USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_rubric_overrides_base; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_rubric_overrides_base ON public.rubric_overrides USING btree (base_content_id);
+
+
+--
+-- Name: idx_rubric_overrides_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_rubric_overrides_org ON public.rubric_overrides USING btree (organization_id);
 
 
 --
@@ -3245,6 +3653,27 @@ CREATE INDEX idx_supplementary_reports_type ON public.supplementary_reports USIN
 
 
 --
+-- Name: idx_template_overrides_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_template_overrides_active ON public.template_overrides USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_template_overrides_base; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_template_overrides_base ON public.template_overrides USING btree (base_content_id);
+
+
+--
+-- Name: idx_template_overrides_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_template_overrides_org ON public.template_overrides USING btree (organization_id);
+
+
+--
 -- Name: idx_templates_active; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3256,6 +3685,27 @@ CREATE INDEX idx_templates_active ON public.interview_templates USING btree (is_
 --
 
 CREATE INDEX idx_templates_org ON public.interview_templates USING btree (organization_id);
+
+
+--
+-- Name: idx_topic_overrides_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_topic_overrides_active ON public.topic_overrides USING btree (is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_topic_overrides_base; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_topic_overrides_base ON public.topic_overrides USING btree (base_content_id);
+
+
+--
+-- Name: idx_topic_overrides_org; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_topic_overrides_org ON public.topic_overrides USING btree (organization_id);
 
 
 --
@@ -3407,6 +3857,22 @@ ALTER TABLE ONLY public.code_submissions
 
 ALTER TABLE ONLY public.code_submissions
     ADD CONSTRAINT code_submissions_interview_exchange_id_fkey FOREIGN KEY (interview_exchange_id) REFERENCES public.interview_exchanges(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_problem_overrides coding_problem_overrides_base_content_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_overrides
+    ADD CONSTRAINT coding_problem_overrides_base_content_id_fkey FOREIGN KEY (base_content_id) REFERENCES public.coding_problems(id) ON DELETE CASCADE;
+
+
+--
+-- Name: coding_problem_overrides coding_problem_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.coding_problem_overrides
+    ADD CONSTRAINT coding_problem_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -3714,6 +4180,22 @@ ALTER TABLE ONLY public.prompt_templates
 
 
 --
+-- Name: question_overrides question_overrides_base_content_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_overrides
+    ADD CONSTRAINT question_overrides_base_content_id_fkey FOREIGN KEY (base_content_id) REFERENCES public.questions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: question_overrides question_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.question_overrides
+    ADD CONSTRAINT question_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: question_topics question_topics_question_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3770,6 +4252,22 @@ ALTER TABLE ONLY public.role_coding_topics
 
 
 --
+-- Name: role_overrides role_overrides_base_content_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_overrides
+    ADD CONSTRAINT role_overrides_base_content_id_fkey FOREIGN KEY (base_content_id) REFERENCES public.roles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: role_overrides role_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.role_overrides
+    ADD CONSTRAINT role_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: role_topics role_topics_role_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3802,6 +4300,22 @@ ALTER TABLE ONLY public.rubric_dimensions
 
 
 --
+-- Name: rubric_overrides rubric_overrides_base_content_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_overrides
+    ADD CONSTRAINT rubric_overrides_base_content_id_fkey FOREIGN KEY (base_content_id) REFERENCES public.rubrics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: rubric_overrides rubric_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.rubric_overrides
+    ADD CONSTRAINT rubric_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
 -- Name: rubrics rubrics_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3823,6 +4337,38 @@ ALTER TABLE ONLY public.supplementary_reports
 
 ALTER TABLE ONLY public.supplementary_reports
     ADD CONSTRAINT supplementary_reports_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE SET NULL;
+
+
+--
+-- Name: template_overrides template_overrides_base_content_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.template_overrides
+    ADD CONSTRAINT template_overrides_base_content_id_fkey FOREIGN KEY (base_content_id) REFERENCES public.interview_templates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: template_overrides template_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.template_overrides
+    ADD CONSTRAINT template_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
+
+
+--
+-- Name: topic_overrides topic_overrides_base_content_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topic_overrides
+    ADD CONSTRAINT topic_overrides_base_content_id_fkey FOREIGN KEY (base_content_id) REFERENCES public.topics(id) ON DELETE CASCADE;
+
+
+--
+-- Name: topic_overrides topic_overrides_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.topic_overrides
+    ADD CONSTRAINT topic_overrides_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id) ON DELETE CASCADE;
 
 
 --
@@ -3878,5 +4424,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict QrbSl1Elth5MUEOcZgTlHHIDbO7Bt8YHVo4RyH5WmuSFAnhgaRKdfIpmmf8v4yt
+\unrestrict BrMV8bhJSo3F5ISchWLnwfhYPoOv3A18JEPeCrMMBZq1a8yMYyJamhzUr3V4Wi5
 
