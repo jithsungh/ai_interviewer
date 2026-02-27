@@ -161,7 +161,9 @@ class AuthAuditLog(Base):
     event_type = Column(String(50), nullable=False)
     ip_address = Column(INET, nullable=True)
     user_agent = Column(Text, nullable=True)
-    event_metadata = Column(JSONB, nullable=True)
+    # Column named 'metadata' in DB, mapped as 'event_metadata' to avoid
+    # shadowing Python built-in; uses explicit column name mapping.
+    event_metadata = Column('metadata', JSONB, nullable=True)
     created_at = Column(
         TIMESTAMP(timezone=True),
         nullable=False,
