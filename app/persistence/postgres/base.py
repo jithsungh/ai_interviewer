@@ -30,6 +30,7 @@ def import_all_models():
     """
     # Import models to register them with Base.metadata
     import app.admin.persistence.models  # noqa: F401
+    import app.ai.prompts.models  # noqa: F401
 
     # TODO: Import remaining models as they are implemented
     # from app.interview.models import InterviewSubmission, InterviewExchange
