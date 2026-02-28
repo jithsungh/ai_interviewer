@@ -73,10 +73,13 @@ class TestMiddlewareStack:
         app = create_app()
         client = TestClient(app)
         
-        # Preflight request
+        # Preflight request — origin must match allow_origins in middleware
         response = client.options(
             "/health",
-            headers={"Origin": "http://localhost:3000"}
+            headers={
+                "Origin": "http://localhost:8080",
+                "Access-Control-Request-Method": "GET",
+            },
         )
         
         # CORS headers should be present

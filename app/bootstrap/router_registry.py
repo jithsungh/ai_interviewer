@@ -121,6 +121,15 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Audio ingestion router registered")
     
+    # Audio Transcription Module
+    from app.audio.transcription.api.routes import router as audio_transcription_router
+    app.include_router(
+        audio_transcription_router,
+        prefix=f"{api_prefix}/audio/transcription",
+        tags=["Audio Transcription"]
+    )
+    logger.debug("✓ Audio transcription router registered")
+    
     # ==========================================
     # Health Check Endpoints
     # ==========================================
