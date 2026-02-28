@@ -191,7 +191,7 @@ def register_middleware(app: FastAPI) -> None:
     # 4. CORS (FOURTH - must run before auth for OPTIONS requests)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # TODO: Configure from settings
+        allow_origins=["http://localhost:8080"],
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
