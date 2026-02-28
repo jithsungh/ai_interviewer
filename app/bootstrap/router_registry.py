@@ -49,14 +49,14 @@ def register_routers(app: FastAPI) -> None:
     # ROUTERS (Uncomment as implemented)
     # ==========================================
     
-    # # Auth Module
-    # from app.auth.api.routes import router as auth_router
-    # app.include_router(
-    #     auth_router,
-    #     prefix=f"{api_prefix}/auth",
-    #     tags=["Authentication"]
-    # )
-    # logger.debug("✓ Auth router registered")
+    # Auth Module
+    from app.auth.api.routes import router as auth_router
+    app.include_router(
+        auth_router,
+        prefix=f"{api_prefix}/auth",
+        tags=["Authentication"]
+    )
+    logger.debug("✓ Auth router registered")
     
     # # Admin Module
     # from app.admin.api.routes import router as admin_router
@@ -154,7 +154,7 @@ def register_routers(app: FastAPI) -> None:
     # Summary
     # ==========================================
     
-    registered_count = 0  # Will increase as routers are uncommented
+    registered_count = 1  # Auth router registered
     
     logger.info(
         "✅ Router registration complete",
