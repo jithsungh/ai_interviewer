@@ -877,6 +877,52 @@ class AuthService:
             )
     
     # ============================================================================
+    # CURRENT USER
+    # ============================================================================
+
+    def get_current_user(self, user_id: int) -> UserProfile:
+        """
+        Fetch full user profile by user_id.
+
+        Used by the /me endpoint after JWT is validated by middleware.
+
+        Args:
+            user_id: Authenticated user's ID (from IdentityContext)
+
+        Returns:
+            UserProfile with all role-specific fields
+
+        Raises:
+            NotFoundError: If user not found or inactive
+        """
+        from app.auth.persistence import User, Admin, Candidate
+
+        user = self.session.query(User).filter_by(id=user_id).first()
+
+        if not user:
+            raise NotFoundError(
+                resource_type="User",
+                resource_id=user_id,
+            )
+
+        if user.user_type == "admin":
+            admin = self.session.query(Admin).filter_by(user_id=user.id).first()
+            if not admin:
+                raise InfrastructureError(
+                    message="Admin record not found for admin user",
+                    metadata={"user_id": user.id},
+                )
+            return self._build_admin_profile(user, admin)
+        else:
+            candidate = self.session.query(Candidate).filter_by(user_id=user.id).first()
+            if not candidate:
+                raise InfrastructureError(
+                    message="Candidate record not found for candidate user",
+                    metadata={"user_id": user.id},
+                )
+            return self._build_candidate_profile(user, candidate)
+
+    # ============================================================================
     # HELPER METHODS
     # ============================================================================
     
