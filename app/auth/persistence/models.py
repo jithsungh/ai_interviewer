@@ -58,6 +58,39 @@ class User(Base):
     audit_logs = relationship("AuthAuditLog", back_populates="user")
 
 
+class Organization(Base):
+    """
+    Organization table — minimal model so SQLAlchemy can resolve
+    the ForeignKey('organizations.id') declared on Admin.
+
+    Maps to: public.organizations
+    """
+    __tablename__ = 'organizations'
+
+    id = Column(BigInteger, primary_key=True)
+    name = Column(Text, nullable=False)
+    organization_type = Column(String(20), nullable=False)
+    plan = Column(String(20), nullable=False, default='free')
+    domain = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default='active')
+    policy_config = Column(JSONB, nullable=True)
+    metadata_ = Column('metadata', JSONB, nullable=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()')
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+        onupdate=datetime.now(timezone.utc)
+    )
+
+    # Relationships
+    admins = relationship("Admin", back_populates="organization")
+
+
 class Admin(Base):
     """
     Admin table - extended data for admin users.
@@ -85,6 +118,7 @@ class Admin(Base):
     
     # Relationships
     user = relationship("User", back_populates="admins")
+    organization = relationship("Organization", back_populates="admins")
 
 
 class Candidate(Base):

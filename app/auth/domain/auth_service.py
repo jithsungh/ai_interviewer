@@ -14,7 +14,7 @@ Dependencies (repositories, JWT service, password hasher) are injected.
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import exists, func
+from sqlalchemy import exists, func, text
 
 from app.shared.errors import (
     AuthenticationError,
@@ -136,7 +136,7 @@ class AuthService:
         
         # 3. Validate organization (temporary direct query until admin module implemented)
         org = self.session.execute(
-            "SELECT id, status FROM organizations WHERE id = :id",
+            text("SELECT id, status FROM organizations WHERE id = :id"),
             {"id": command.organization_id}
         ).first()
         
@@ -418,7 +418,7 @@ class AuthService:
             
             # Check organization status
             org = self.session.execute(
-                "SELECT status FROM organizations WHERE id = :id",
+                text("SELECT status FROM organizations WHERE id = :id"),
                 {"id": admin.organization_id}
             ).first()
             
@@ -835,7 +835,7 @@ class AuthService:
                 org_id = claims.get('organization_id')
                 if org_id:
                     org = self.session.execute(
-                        "SELECT status FROM organizations WHERE id = :id",
+                        text("SELECT status FROM organizations WHERE id = :id"),
                         {"id": org_id}
                     ).first()
                     
