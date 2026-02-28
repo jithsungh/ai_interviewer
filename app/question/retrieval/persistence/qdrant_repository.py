@@ -349,9 +349,23 @@ class QdrantQuestionRepository:
                 )
             )
 
+        # When include_public=False, only one should condition exists (org_id).
+        # Qdrant treats a single-element should as optional, which would drop
+        # the tenant filter entirely.  Promote it to must instead.
+        if len(should_conditions) == 1:
+            must_conditions.append(
+                FieldCondition(
+                    key="organization_id",
+                    match=MatchValue(value=organization_id),
+                )
+            )
+            effective_should = None
+        else:
+            effective_should = should_conditions
+
         return Filter(
             must=must_conditions,
-            should=should_conditions if len(should_conditions) > 1 else None,
+            should=effective_should,
             must_not=must_not_conditions or None,
         )
 
