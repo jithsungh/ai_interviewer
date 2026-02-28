@@ -2,11 +2,7 @@
 -- PostgreSQL database dump
 --
 
-<<<<<<< Updated upstream
-\restrict OvEjgj8SqZgogQ6TW3wHDliLz2RpkGfGTjDBIq8jPoLq0hlD32LBEKQkRFtduSY
-=======
-\restrict PcnnPJTLEGzAQRyhZvJez5QmBzsKzsomBhTZNfs4r8ee0YujLQ2EPC3HhFvXy0P
->>>>>>> Stashed changes
+\restrict LLnmQas9s8yhHZbFqkRnx5O3PdYeXLkWBtva65BHfHpf76FYId1FFNK4zDTi3RM
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -4447,9 +4443,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-<<<<<<< Updated upstream
-\unrestrict OvEjgj8SqZgogQ6TW3wHDliLz2RpkGfGTjDBIq8jPoLq0hlD32LBEKQkRFtduSY
-=======
-\unrestrict PcnnPJTLEGzAQRyhZvJez5QmBzsKzsomBhTZNfs4r8ee0YujLQ2EPC3HhFvXy0P
->>>>>>> Stashed changes
+\unrestrict LLnmQas9s8yhHZbFqkRnx5O3PdYeXLkWBtva65BHfHpf76FYId1FFNK4zDTi3RM
 

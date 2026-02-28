@@ -299,9 +299,17 @@ class AudioSettings(BaseSettings):
     silence_confidence_threshold: float = Field(default=0.8, env="SILENCE_CONFIDENCE_THRESHOLD")
     
     # Transcription
-    audio_transcription_provider: Literal["whisper", "google", "azure"] = Field(default="whisper", env="AUDIO_TRANSCRIPTION_PROVIDER")
+    audio_transcription_provider: Literal["whisper", "google", "azure", "local"] = Field(default="whisper", env="AUDIO_TRANSCRIPTION_PROVIDER")
     audio_confidence_threshold: float = Field(default=0.7, env="AUDIO_CONFIDENCE_THRESHOLD")
     max_transcript_length: int = Field(default=10000, env="MAX_TRANSCRIPT_LENGTH")
+
+    # Transcription retry / timeout
+    transcription_max_retries: int = Field(default=3, env="TRANSCRIPTION_MAX_RETRIES")
+    transcription_retry_delay_s: float = Field(default=2.0, env="TRANSCRIPTION_RETRY_DELAY_S")
+    transcription_timeout_s: float = Field(default=10.0, env="TRANSCRIPTION_TIMEOUT_S")
+
+    # Local Whisper model
+    whisper_model: str = Field(default="base.en", env="WHISPER_MODEL")
     
     # Analysis
     enable_audio_analysis: bool = Field(default=True, env="ENABLE_AUDIO_ANALYSIS")
