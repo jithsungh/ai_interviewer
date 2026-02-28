@@ -58,14 +58,14 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Auth router registered")
     
-    # # Admin Module
-    # from app.admin.api.routes import router as admin_router
-    # app.include_router(
-    #     admin_router,
-    #     prefix=f"{api_prefix}/admin",
-    #     tags=["Admin"]
-    # )
-    # logger.debug("✓ Admin router registered")
+    # Admin Module
+    from app.admin.api.routes import router as admin_router
+    app.include_router(
+        admin_router,
+        prefix=f"{api_prefix}/admin",
+        tags=["Admin"]
+    )
+    logger.debug("✓ Admin router registered")
     
     # # Interview Module
     # from app.interview.api.routes import router as interview_router
