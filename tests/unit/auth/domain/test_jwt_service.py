@@ -175,28 +175,27 @@ class TestJWTService:
     
     def test_verify_expired_token(self):
         """Test verifying an expired token"""
-        # Create service with very short TTL
-        short_ttl_service = JWTService(
-            private_key=TEST_PRIVATE_KEY,
-            public_key=TEST_PUBLIC_KEY,
-            algorithm="RS256",
-            access_token_ttl_minutes=0,  # Expires immediately
-            refresh_token_ttl_days=30
-        )
-        
-        token = short_ttl_service.generate_access_token(
-            user_id=1,
-            user_type='candidate',
-            token_version=1,
-            candidate_id=20
-        )
-        
-        # Wait a moment to ensure expiration
-        time.sleep(1)
-        
+        # Manually craft an already-expired token using PyJWT directly
+        # to avoid timing issues with zero-TTL generation
+        from datetime import timedelta
+        now = datetime.now(timezone.utc)
+        past_iat = now - timedelta(hours=1)
+        past_exp = now - timedelta(minutes=30)
+
+        payload = {
+            "sub": 1,
+            "type": "candidate",
+            "token_version": 1,
+            "candidate_id": 20,
+            "iat": int(past_iat.timestamp()),
+            "exp": int(past_exp.timestamp()),
+            "jti": "test-expired-jti",
+        }
+        expired_token = jwt.encode(payload, TEST_PRIVATE_KEY, algorithm="RS256")
+
         with pytest.raises(AuthenticationError) as exc_info:
-            short_ttl_service.verify_access_token(token)
-        
+            self.jwt_service.verify_access_token(expired_token)
+
         assert "expired" in str(exc_info.value).lower()
     
     def test_verify_tampered_token(self):
