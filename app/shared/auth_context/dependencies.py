@@ -174,32 +174,63 @@ def require_superadmin(identity: IdentityContext = Depends(require_admin)) -> Id
 def get_token_validator() -> Callable:
     """
     Get token validator dependency (for DI).
-    
-    Returns function that validates JWT and returns claims.
-    This is a placeholder for auth module integration.
-    
-    In production, this will be replaced by:
-        from app.auth.domain import validate_access_token
-        return validate_access_token
-    
-    For testing, can be mocked to return synthetic claims.
-    
+
+    Returns function that validates JWT and returns claims dict.
+    The claims are normalized so that IdentityBuilder can consume them:
+    - 'type'  → 'user_type'
+    - 'role'  → 'admin_role'
+
+    In test mode (settings=None), returns a mock that raises NotImplementedError.
+
     Returns:
-        Callable[[str], dict] - Function that validates token and returns claims
+        Callable[[str], dict] - Async function: token → claims dict
     """
-    # Placeholder for auth module
-    # Real implementation will come from auth module
-    async def mock_validator(token: str) -> dict:
-        """
-        Mock validator for testing.
-        
-        In production, replace with:
-            from app.auth.domain import AuthService
-            return await AuthService.validate_access_token(token)
-        """
-        raise NotImplementedError(
-            "Token validator not implemented. "
-            "This will be provided by auth module (app.auth.domain.validate_access_token)"
-        )
-    
-    return mock_validator
+    from app.config import settings
+
+    if settings is None:
+        # Testing mode — no real validator available
+        async def mock_validator(token: str) -> dict:
+            raise NotImplementedError(
+                "Token validator not available in test mode. "
+                "Override get_token_validator in tests."
+            )
+        return mock_validator
+
+    # --- Real validator ---
+    # Lazy import to avoid circular dependency (shared → auth)
+    from app.auth.domain.jwt_service import JWTService
+
+    sec = settings.security
+
+    # Resolve keys based on algorithm
+    if sec.jwt_algorithm == "RS256":
+        with open(sec.jwt_private_key_path, "r") as f:
+            private_key = f.read()
+        with open(sec.jwt_public_key_path, "r") as f:
+            public_key = f.read()
+    else:
+        # HS256: symmetric secret used as both keys
+        private_key = sec.jwt_secret_key
+        public_key = sec.jwt_secret_key
+
+    jwt_service = JWTService(
+        private_key=private_key,
+        public_key=public_key,
+        algorithm=sec.jwt_algorithm,
+        access_token_ttl_minutes=sec.access_token_expire_minutes,
+        refresh_token_ttl_days=sec.refresh_token_expire_days,
+    )
+
+    async def validate_token(token: str) -> dict:
+        """Verify JWT and normalize claims for IdentityBuilder."""
+        claims = jwt_service.verify_access_token(token)
+
+        # Normalize JWT claim keys → IdentityBuilder expected keys
+        if "type" in claims and "user_type" not in claims:
+            claims["user_type"] = claims["type"]
+        if "role" in claims and "admin_role" not in claims:
+            claims["admin_role"] = claims["role"]
+
+        return claims
+
+    return validate_token
