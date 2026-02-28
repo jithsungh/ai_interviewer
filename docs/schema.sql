@@ -2,7 +2,11 @@
 -- PostgreSQL database dump
 --
 
+<<<<<<< Updated upstream
 \restrict OvEjgj8SqZgogQ6TW3wHDliLz2RpkGfGTjDBIq8jPoLq0hlD32LBEKQkRFtduSY
+=======
+\restrict PcnnPJTLEGzAQRyhZvJez5QmBzsKzsomBhTZNfs4r8ee0YujLQ2EPC3HhFvXy0P
+>>>>>>> Stashed changes
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -68,7 +72,8 @@ CREATE TYPE public.code_execution_status AS ENUM (
     'passed',
     'failed',
     'error',
-    'timeout'
+    'timeout',
+    'memory_exceeded'
 );
 
 
@@ -531,7 +536,8 @@ CREATE TABLE public.code_execution_results (
     compiler_output text,
     runtime_output text,
     feedback text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    exit_code integer
 );
 
 
@@ -573,7 +579,8 @@ CREATE TABLE public.code_submissions (
     execution_time_ms integer,
     memory_kb integer,
     submitted_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    executed_at timestamp with time zone
 );
 
 
@@ -2542,6 +2549,14 @@ ALTER TABLE ONLY public.code_execution_results
 
 
 --
+-- Name: code_submissions code_submissions_interview_exchange_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_submissions
+    ADD CONSTRAINT code_submissions_interview_exchange_id_key UNIQUE (interview_exchange_id);
+
+
+--
 -- Name: code_submissions code_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3054,6 +3069,14 @@ ALTER TABLE ONLY public.coding_problems
 
 
 --
+-- Name: code_execution_results uq_submission_test_case; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.code_execution_results
+    ADD CONSTRAINT uq_submission_test_case UNIQUE (code_submission_id, test_case_id);
+
+
+--
 -- Name: users users_email_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3177,10 +3200,10 @@ CREATE INDEX idx_code_execution_results_submission ON public.code_execution_resu
 
 
 --
--- Name: idx_code_submissions_exchange; Type: INDEX; Schema: public; Owner: jithsungh
+-- Name: idx_code_submissions_status; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
-CREATE INDEX idx_code_submissions_exchange ON public.code_submissions USING btree (interview_exchange_id);
+CREATE INDEX idx_code_submissions_status ON public.code_submissions USING btree (execution_status);
 
 
 --
@@ -4424,5 +4447,9 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
+<<<<<<< Updated upstream
 \unrestrict OvEjgj8SqZgogQ6TW3wHDliLz2RpkGfGTjDBIq8jPoLq0hlD32LBEKQkRFtduSY
+=======
+\unrestrict PcnnPJTLEGzAQRyhZvJez5QmBzsKzsomBhTZNfs4r8ee0YujLQ2EPC3HhFvXy0P
+>>>>>>> Stashed changes
 
