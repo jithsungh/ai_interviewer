@@ -224,7 +224,7 @@ class SandboxSettings(BaseSettings):
     # Resource limits
     sandbox_time_limit_ms: int = Field(default=2000, env="SANDBOX_TIME_LIMIT_MS")
     sandbox_memory_limit_kb: int = Field(default=262144, env="SANDBOX_MEMORY_LIMIT_KB")  # 256MB
-    sandbox_process_limit: int = Field(default=1, env="SANDBOX_PROCESS_LIMIT")
+    sandbox_process_limit: int = Field(default=64, env="SANDBOX_PROCESS_LIMIT")
     sandbox_max_output_size: int = Field(default=1048576, env="SANDBOX_MAX_OUTPUT_SIZE")  # 1MB
     
     # Security
