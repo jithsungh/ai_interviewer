@@ -43,6 +43,9 @@ class TestSilenceTimerLifecycle:
         second_timer = detector.timer
 
         assert first_timer is not second_timer
+        # cancel() sets the Timer's internal event but the thread may not
+        # have exited yet — join to avoid a scheduling-dependent flake.
+        first_timer.join(timeout=1.0)
         assert not first_timer.is_alive()
         assert second_timer.is_alive()
 
