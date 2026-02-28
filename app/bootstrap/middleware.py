@@ -121,6 +121,14 @@ class ErrorFormattingMiddleware(BaseHTTPMiddleware):
         # Reformat 404 responses to match structured error format
         if response.status_code == 404:
             request_id = getattr(request.state, "request_id", "unknown")
+            # Copy headers but drop Content-Length — JSONResponse will
+            # set the correct value for the new body.  Carrying over the
+            # original Content-Length causes uvicorn to raise
+            # "Response content longer than Content-Length".
+            forwarded_headers = {
+                k: v for k, v in response.headers.items()
+                if k.lower() != "content-length"
+            }
             return JSONResponse(
                 status_code=404,
                 content={
@@ -131,7 +139,7 @@ class ErrorFormattingMiddleware(BaseHTTPMiddleware):
                         "metadata": {}
                     }
                 },
-                headers=dict(response.headers)
+                headers=forwarded_headers,
             )
         
         return response
