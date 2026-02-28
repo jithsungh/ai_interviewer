@@ -112,14 +112,14 @@ def register_routers(app: FastAPI) -> None:
     # )
     # logger.debug("✓ Proctoring router registered")
     
-    # # Audio Module
-    # from app.audio.api.routes import router as audio_router
-    # app.include_router(
-    #     audio_router,
-    #     prefix=f"{api_prefix}/audio",
-    #     tags=["Audio"]
-    # )
-    # logger.debug("✓ Audio router registered")
+    # Audio Ingestion Module
+    from app.audio.ingestion.api.routes import router as audio_ingestion_router
+    app.include_router(
+        audio_ingestion_router,
+        prefix=f"{api_prefix}/audio/ingestion",
+        tags=["Audio Ingestion"]
+    )
+    logger.debug("✓ Audio ingestion router registered")
     
     # ==========================================
     # Health Check Endpoints
