@@ -67,7 +67,7 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Admin router registered")
     
-    # # Interview Module
+    # # Interview Module (parent — uncomment when interview.api.routes exists)
     # from app.interview.api.routes import router as interview_router
     # app.include_router(
     #     interview_router,
@@ -75,6 +75,15 @@ def register_routers(app: FastAPI) -> None:
     #     tags=["Interviews"]
     # )
     # logger.debug("✓ Interview router registered")
+
+    # Interview Session Sub-Module
+    from app.interview.session.api.routes import router as session_router
+    app.include_router(
+        session_router,
+        prefix=f"{api_prefix}/interviews/sessions",
+        tags=["Interview Sessions"]
+    )
+    logger.debug("✓ Interview session router registered")
     
     # # Question Module (parent — uncomment when question.api.routes exists)
     # from app.question.api.routes import router as question_router
