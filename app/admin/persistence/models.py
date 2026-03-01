@@ -517,25 +517,10 @@ class WindowRoleTemplateModel(Base):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# interview_submissions  (read-only reference for immutability checks)
+# interview_submissions  (canonical model lives in session module)
 # ═══════════════════════════════════════════════════════════════════════════
-
-class InterviewSubmissionModel(Base):
-    """
-    Maps to: public.interview_submissions (READ-ONLY for admin module).
-
-    Used only for existence checks (template_is_in_use, etc.).
-    """
-
-    __tablename__ = "interview_submissions"
-
-    id = Column(BigInteger, primary_key=True)
-    candidate_id = Column(BigInteger, nullable=False)
-    window_id = Column(BigInteger, nullable=False)
-    role_id = Column(BigInteger, nullable=False)
-    template_id = Column(BigInteger, nullable=False)
-    status = Column(String(20), nullable=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
+# Re-exported so admin code can keep importing from this file.
+from app.interview.session.persistence.models import InterviewSubmissionModel  # noqa: F401
 
 
 # ═══════════════════════════════════════════════════════════════════════════
