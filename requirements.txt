@@ -40,6 +40,10 @@ pydub==0.25.1
 scipy==1.12.0
 numpy==1.26.3
 
+# NLP / Audio Analysis
+spacy==3.7.4
+vaderSentiment==3.3.2
+
 # Utilities
 python-dateutil==2.8.2
 httpx==0.26.0  # Used for LLM provider API calls with timeout control

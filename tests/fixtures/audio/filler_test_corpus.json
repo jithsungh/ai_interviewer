@@ -1,0 +1,52 @@
+[
+  {
+    "transcript": "Um, I think, uh, the answer is, like, dynamic programming.",
+    "expected_fillers": ["um", "uh", "like", "i think"],
+    "expected_min_count": 3
+  },
+  {
+    "transcript": "I like Python programming.",
+    "expected_fillers": [],
+    "expected_min_count": 0
+  },
+  {
+    "transcript": "The answer is, like, dynamic programming.",
+    "expected_fillers": ["like"],
+    "expected_min_count": 1
+  },
+  {
+    "transcript": "Um uh like so basically",
+    "expected_fillers": ["um", "uh", "like", "so", "basically"],
+    "expected_min_count": 5
+  },
+  {
+    "transcript": "The algorithm uses dynamic programming.",
+    "expected_fillers": [],
+    "expected_min_count": 0
+  },
+  {
+    "transcript": "So basically, um, I would use a hash map.",
+    "expected_fillers": ["so", "basically", "um"],
+    "expected_min_count": 2
+  },
+  {
+    "transcript": "Actually, I think, you know, the answer is obvious.",
+    "expected_fillers": ["actually", "i think", "you know"],
+    "expected_min_count": 2
+  },
+  {
+    "transcript": "I mean, like, the time complexity is O(n).",
+    "expected_fillers": ["like", "i mean"],
+    "expected_min_count": 1
+  },
+  {
+    "transcript": "First we sort the array then we iterate.",
+    "expected_fillers": [],
+    "expected_min_count": 0
+  },
+  {
+    "transcript": "Uh, so, um, basically, like, the thing is, um, well.",
+    "expected_fillers": ["uh", "so", "um", "basically", "like"],
+    "expected_min_count": 5
+  }
+]
