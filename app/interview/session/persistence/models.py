@@ -49,6 +49,10 @@ class InterviewSubmissionModel(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
+    # Orchestration columns (DEV-43)
+    current_exchange_sequence = Column(Integer, nullable=False, server_default=text("0"))
+    template_structure_snapshot = Column(JSONB, nullable=True)
+
     # Relationships
     exchanges = relationship(
         "InterviewExchangeModel",
