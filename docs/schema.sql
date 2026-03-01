@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict DlwPL9O01K5LtW45OmkpVlmYqjMBheh1shsMUfY0HE6eb3s4YNmggYXrhVAVium
+\restrict aREIUSVHXfgLf0xylDQuUegdgZmcZgYwDm2dc6k3SeME0ZFK10LCM7ELKO1SOgn
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -905,6 +905,58 @@ ALTER SEQUENCE public.evaluations_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.evaluations_id_seq OWNED BY public.evaluations.id;
+
+
+--
+-- Name: generic_fallback_questions; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.generic_fallback_questions (
+    id bigint NOT NULL,
+    question_type character varying(50) NOT NULL,
+    difficulty character varying(20) NOT NULL,
+    topic character varying(100) NOT NULL,
+    question_text text NOT NULL,
+    expected_answer text NOT NULL,
+    estimated_time_seconds integer DEFAULT 120 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    usage_count integer DEFAULT 0 NOT NULL,
+    metadata jsonb,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT generic_fallback_difficulty_check CHECK (((difficulty)::text = ANY ((ARRAY['easy'::character varying, 'medium'::character varying, 'hard'::character varying])::text[]))),
+    CONSTRAINT generic_fallback_estimated_time_check CHECK ((estimated_time_seconds > 0)),
+    CONSTRAINT generic_fallback_question_type_check CHECK (((question_type)::text = ANY ((ARRAY['behavioral'::character varying, 'technical'::character varying, 'situational'::character varying, 'coding'::character varying])::text[])))
+);
+
+
+ALTER TABLE public.generic_fallback_questions OWNER TO jithsungh;
+
+--
+-- Name: TABLE generic_fallback_questions; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.generic_fallback_questions IS 'Pre-seeded generic questions used as last-resort fallback when LLM generation fails.';
+
+
+--
+-- Name: generic_fallback_questions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.generic_fallback_questions_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.generic_fallback_questions_id_seq OWNER TO jithsungh;
+
+--
+-- Name: generic_fallback_questions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.generic_fallback_questions_id_seq OWNED BY public.generic_fallback_questions.id;
 
 
 --
@@ -2312,6 +2364,13 @@ ALTER TABLE ONLY public.evaluations ALTER COLUMN id SET DEFAULT nextval('public.
 
 
 --
+-- Name: generic_fallback_questions id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.generic_fallback_questions ALTER COLUMN id SET DEFAULT nextval('public.generic_fallback_questions_id_seq'::regclass);
+
+
+--
 -- Name: interview_exchanges id; Type: DEFAULT; Schema: public; Owner: jithsungh
 --
 
@@ -2638,6 +2697,14 @@ ALTER TABLE ONLY public.evaluations
 
 ALTER TABLE ONLY public.evaluations
     ADD CONSTRAINT evaluations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: generic_fallback_questions generic_fallback_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.generic_fallback_questions
+    ADD CONSTRAINT generic_fallback_questions_pkey PRIMARY KEY (id);
 
 
 --
@@ -3361,6 +3428,20 @@ CREATE INDEX idx_exchanges_sequence ON public.interview_exchanges USING btree (i
 --
 
 CREATE INDEX idx_exchanges_submission ON public.interview_exchanges USING btree (interview_submission_id);
+
+
+--
+-- Name: idx_generic_fallback_diff_topic_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_generic_fallback_diff_topic_active ON public.generic_fallback_questions USING btree (difficulty, topic, is_active) WHERE (is_active = true);
+
+
+--
+-- Name: idx_generic_fallback_difficulty_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_generic_fallback_difficulty_active ON public.generic_fallback_questions USING btree (difficulty, usage_count) WHERE (is_active = true);
 
 
 --
@@ -4443,5 +4524,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict DlwPL9O01K5LtW45OmkpVlmYqjMBheh1shsMUfY0HE6eb3s4YNmggYXrhVAVium
+\unrestrict aREIUSVHXfgLf0xylDQuUegdgZmcZgYwDm2dc6k3SeME0ZFK10LCM7ELKO1SOgn
 
