@@ -76,7 +76,7 @@ def register_routers(app: FastAPI) -> None:
     # )
     # logger.debug("✓ Interview router registered")
     
-    # # Question Module
+    # # Question Module (parent — uncomment when question.api.routes exists)
     # from app.question.api.routes import router as question_router
     # app.include_router(
     #     question_router,
@@ -84,6 +84,15 @@ def register_routers(app: FastAPI) -> None:
     #     tags=["Questions"]
     # )
     # logger.debug("✓ Question router registered")
+
+    # Question Selection Sub-Module (admin diagnostics)
+    from app.question.selection.api import router as selection_router
+    app.include_router(
+        selection_router,
+        prefix=f"{api_prefix}/questions/selection",
+        tags=["Question Selection"],
+    )
+    logger.debug("✓ Question selection router registered")
     
     # # Evaluation Module
     # from app.evaluation.api.routes import router as evaluation_router
