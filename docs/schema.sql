@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict aREIUSVHXfgLf0xylDQuUegdgZmcZgYwDm2dc6k3SeME0ZFK10LCM7ELKO1SOgn
+\restrict 2ZbuUwTNbt25JjIvdJIRaoNJXdROTdr5mO2XSrOafusyqD9rLlLJo1owtCeJaW8
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -791,6 +791,60 @@ ALTER SEQUENCE public.coding_topics_id_seq OWNED BY public.coding_topics.id;
 
 
 --
+-- Name: difficulty_adaptation_log; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.difficulty_adaptation_log (
+    id bigint NOT NULL,
+    submission_id bigint NOT NULL,
+    exchange_sequence_order integer NOT NULL,
+    previous_difficulty character varying(20),
+    previous_score numeric(5,2),
+    previous_question_id bigint,
+    adaptation_rule character varying(50) NOT NULL,
+    threshold_up numeric(5,2),
+    threshold_down numeric(5,2),
+    max_difficulty_jump integer DEFAULT 1 NOT NULL,
+    next_difficulty character varying(20) NOT NULL,
+    adaptation_reason text NOT NULL,
+    difficulty_changed boolean DEFAULT false NOT NULL,
+    decided_at timestamp with time zone NOT NULL,
+    rule_version character varying(20) NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.difficulty_adaptation_log OWNER TO jithsungh;
+
+--
+-- Name: TABLE difficulty_adaptation_log; Type: COMMENT; Schema: public; Owner: jithsungh
+--
+
+COMMENT ON TABLE public.difficulty_adaptation_log IS 'Immutable audit log for difficulty adaptation decisions (FR-4.4). INSERT-ONLY.';
+
+
+--
+-- Name: difficulty_adaptation_log_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.difficulty_adaptation_log_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.difficulty_adaptation_log_id_seq OWNER TO jithsungh;
+
+--
+-- Name: difficulty_adaptation_log_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.difficulty_adaptation_log_id_seq OWNED BY public.difficulty_adaptation_log.id;
+
+
+--
 -- Name: embeddings; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -905,58 +959,6 @@ ALTER SEQUENCE public.evaluations_id_seq OWNER TO jithsungh;
 --
 
 ALTER SEQUENCE public.evaluations_id_seq OWNED BY public.evaluations.id;
-
-
---
--- Name: generic_fallback_questions; Type: TABLE; Schema: public; Owner: jithsungh
---
-
-CREATE TABLE public.generic_fallback_questions (
-    id bigint NOT NULL,
-    question_type character varying(50) NOT NULL,
-    difficulty character varying(20) NOT NULL,
-    topic character varying(100) NOT NULL,
-    question_text text NOT NULL,
-    expected_answer text NOT NULL,
-    estimated_time_seconds integer DEFAULT 120 NOT NULL,
-    is_active boolean DEFAULT true NOT NULL,
-    usage_count integer DEFAULT 0 NOT NULL,
-    metadata jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT generic_fallback_difficulty_check CHECK (((difficulty)::text = ANY ((ARRAY['easy'::character varying, 'medium'::character varying, 'hard'::character varying])::text[]))),
-    CONSTRAINT generic_fallback_estimated_time_check CHECK ((estimated_time_seconds > 0)),
-    CONSTRAINT generic_fallback_question_type_check CHECK (((question_type)::text = ANY ((ARRAY['behavioral'::character varying, 'technical'::character varying, 'situational'::character varying, 'coding'::character varying])::text[])))
-);
-
-
-ALTER TABLE public.generic_fallback_questions OWNER TO jithsungh;
-
---
--- Name: TABLE generic_fallback_questions; Type: COMMENT; Schema: public; Owner: jithsungh
---
-
-COMMENT ON TABLE public.generic_fallback_questions IS 'Pre-seeded generic questions used as last-resort fallback when LLM generation fails.';
-
-
---
--- Name: generic_fallback_questions_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
---
-
-CREATE SEQUENCE public.generic_fallback_questions_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
-ALTER SEQUENCE public.generic_fallback_questions_id_seq OWNER TO jithsungh;
-
---
--- Name: generic_fallback_questions_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
---
-
-ALTER SEQUENCE public.generic_fallback_questions_id_seq OWNED BY public.generic_fallback_questions.id;
 
 
 --
@@ -2395,6 +2397,13 @@ ALTER TABLE ONLY public.coding_topics ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: difficulty_adaptation_log id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.difficulty_adaptation_log ALTER COLUMN id SET DEFAULT nextval('public.difficulty_adaptation_log_id_seq'::regclass);
+
+
+--
 -- Name: embeddings id; Type: DEFAULT; Schema: public; Owner: jithsungh
 --
 
@@ -2413,13 +2422,6 @@ ALTER TABLE ONLY public.evaluation_dimension_scores ALTER COLUMN id SET DEFAULT 
 --
 
 ALTER TABLE ONLY public.evaluations ALTER COLUMN id SET DEFAULT nextval('public.evaluations_id_seq'::regclass);
-
-
---
--- Name: generic_fallback_questions id; Type: DEFAULT; Schema: public; Owner: jithsungh
---
-
-ALTER TABLE ONLY public.generic_fallback_questions ALTER COLUMN id SET DEFAULT nextval('public.generic_fallback_questions_id_seq'::regclass);
 
 
 --
@@ -2727,6 +2729,14 @@ ALTER TABLE ONLY public.coding_topics
 
 
 --
+-- Name: difficulty_adaptation_log difficulty_adaptation_log_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.difficulty_adaptation_log
+    ADD CONSTRAINT difficulty_adaptation_log_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: embeddings embeddings_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2756,14 +2766,6 @@ ALTER TABLE ONLY public.evaluations
 
 ALTER TABLE ONLY public.evaluations
     ADD CONSTRAINT evaluations_pkey PRIMARY KEY (id);
-
-
---
--- Name: generic_fallback_questions generic_fallback_questions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
---
-
-ALTER TABLE ONLY public.generic_fallback_questions
-    ADD CONSTRAINT generic_fallback_questions_pkey PRIMARY KEY (id);
 
 
 --
@@ -3239,6 +3241,20 @@ ALTER TABLE ONLY public.window_role_templates
 
 
 --
+-- Name: idx_adaptation_log_created_at; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_adaptation_log_created_at ON public.difficulty_adaptation_log USING btree (created_at);
+
+
+--
+-- Name: idx_adaptation_log_submission; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_adaptation_log_submission ON public.difficulty_adaptation_log USING btree (submission_id);
+
+
+--
 -- Name: idx_admins_org; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3495,20 +3511,6 @@ CREATE INDEX idx_exchanges_sequence ON public.interview_exchanges USING btree (i
 --
 
 CREATE INDEX idx_exchanges_submission ON public.interview_exchanges USING btree (interview_submission_id);
-
-
---
--- Name: idx_generic_fallback_diff_topic_active; Type: INDEX; Schema: public; Owner: jithsungh
---
-
-CREATE INDEX idx_generic_fallback_diff_topic_active ON public.generic_fallback_questions USING btree (difficulty, topic, is_active) WHERE (is_active = true);
-
-
---
--- Name: idx_generic_fallback_difficulty_active; Type: INDEX; Schema: public; Owner: jithsungh
---
-
-CREATE INDEX idx_generic_fallback_difficulty_active ON public.generic_fallback_questions USING btree (difficulty, usage_count) WHERE (is_active = true);
 
 
 --
@@ -4605,5 +4607,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict aREIUSVHXfgLf0xylDQuUegdgZmcZgYwDm2dc6k3SeME0ZFK10LCM7ELKO1SOgn
+\unrestrict 2ZbuUwTNbt25JjIvdJIRaoNJXdROTdr5mO2XSrOafusyqD9rLlLJo1owtCeJaW8
 
