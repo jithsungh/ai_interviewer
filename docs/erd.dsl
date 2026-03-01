@@ -35,16 +35,18 @@
 // organization_plan: free, pro, enterprise
 // organization_status: active, inactive, suspended
 // admin_role: superadmin, admin, read_only
-// admin_status: active, inactive
-// candidate_plan: free, pro, premium
-// template_scope: global, organization
+// admin_status: active, inactive, suspended
+// candidate_plan: free, pro, prime
+// template_scope: public, organization, private
 // interview_scope: global, local, only_invited
 // interview_mode: async, live, hybrid
 // submission_status: pending, in_progress, completed, reviewed
 // difficulty_level: easy, medium, hard
 // question_type: behavioral, technical, situational, coding
-// coding_topic_type: data_structure, algorithm, pattern, system_design, language_specific
-// code_execution_status: pending, running, passed, failed, error, timeout
+// coding_topic_type: data_structure, algorithm, pattern, system_design, language_specific, traversal
+// code_execution_status: pending, running, passed, failed, error, timeout, memory_exceeded
+// problem_pipeline_status: pending, solution_fetched, tests_validated, templates_validated, imported
+// problem_source: leetcode
 // proctoring_severity: low, medium, high, critical
 // report_type: candidate_summary, technical_breakdown, behavioral_analysis, proctoring_risk
 // evaluator_type: ai, human, hybrid
@@ -62,6 +64,9 @@ users [icon: user, color: blue] {
   status user_status
   created_at timestamptz
   updated_at timestamptz
+  user_type varchar(20) // admin or candidate
+  last_login_at timestamptz
+  token_version int // forced logout via increment
 }
 
 organizations [icon: building, color: purple] {
@@ -472,6 +477,7 @@ code_submissions [icon: terminal, color: red] {
   memory_kb int
   submitted_at timestamptz
   created_at timestamptz
+  executed_at timestamptz
 }
 
 code_execution_results [icon: activity, color: red] {
@@ -486,6 +492,7 @@ code_execution_results [icon: activity, color: red] {
   runtime_output text
   feedback text
   created_at timestamptz
+  exit_code int
 }
 
 // =============================================
@@ -648,6 +655,99 @@ audit_logs [icon: lock, color: gray] {
 }
 
 // =============================================
+// === AUTH AUDIT LOG & REFRESH TOKENS ===
+// =============================================
+
+auth_audit_log [icon: lock, color: gray] {
+  id bigserial pk
+  user_id bigint
+  event_type varchar(50) // login_success, login_failure, logout, token_refresh, password_change, etc.
+  ip_address inet
+  user_agent text
+  metadata jsonb // {error_code, email, organization_id, admin_role, etc.}
+  created_at timestamptz
+}
+
+refresh_tokens [icon: key, color: gray] {
+  id bigserial pk
+  user_id bigint
+  token_hash text unique // SHA-256 hash, original never stored
+  device_info text
+  ip_address inet
+  issued_at timestamptz
+  expires_at timestamptz
+  revoked_at timestamptz
+  revoked_reason varchar(100) // logout, password_change, admin_action, suspicious, rotation
+  created_at timestamptz
+}
+
+// =============================================
+// === TENANT OVERRIDE TABLES ===
+// =============================================
+// Tenant-specific overrides for super-org content.
+// Each follows the same pattern: org + base_content_id + override_fields jsonb.
+
+coding_problem_overrides [icon: layers, color: gray] {
+  id bigserial pk
+  organization_id bigint
+  base_content_id bigint // -> coding_problems.id
+  override_fields jsonb
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+question_overrides [icon: layers, color: gray] {
+  id bigserial pk
+  organization_id bigint
+  base_content_id bigint // -> questions.id
+  override_fields jsonb
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+role_overrides [icon: layers, color: gray] {
+  id bigserial pk
+  organization_id bigint
+  base_content_id bigint // -> roles.id
+  override_fields jsonb
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+rubric_overrides [icon: layers, color: gray] {
+  id bigserial pk
+  organization_id bigint
+  base_content_id bigint // -> rubrics.id
+  override_fields jsonb
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+template_overrides [icon: layers, color: gray] {
+  id bigserial pk
+  organization_id bigint
+  base_content_id bigint // -> interview_templates.id
+  override_fields jsonb
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+topic_overrides [icon: layers, color: gray] {
+  id bigserial pk
+  organization_id bigint
+  base_content_id bigint // -> topics.id
+  override_fields jsonb
+  is_active boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+// =============================================
 // === RELATIONSHIPS ===
 // =============================================
 
@@ -758,3 +858,21 @@ prompt_templates.model_id > models.id
 // --- Auditing ---
 audit_logs.organization_id > organizations.id
 audit_logs.actor_user_id > users.id
+
+// --- Auth Audit Log & Refresh Tokens ---
+auth_audit_log.user_id > users.id
+refresh_tokens.user_id > users.id
+
+// --- Tenant Override Tables ---
+coding_problem_overrides.organization_id > organizations.id
+coding_problem_overrides.base_content_id > coding_problems.id
+question_overrides.organization_id > organizations.id
+question_overrides.base_content_id > questions.id
+role_overrides.organization_id > organizations.id
+role_overrides.base_content_id > roles.id
+rubric_overrides.organization_id > organizations.id
+rubric_overrides.base_content_id > rubrics.id
+template_overrides.organization_id > organizations.id
+template_overrides.base_content_id > interview_templates.id
+topic_overrides.organization_id > organizations.id
+topic_overrides.base_content_id > topics.id
