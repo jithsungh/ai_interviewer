@@ -62,7 +62,7 @@ ALGORITHM = "HS256"
 
 def generate_token(user_id: int, user_type: str, organization_id: int = None, admin_role: str = None):
     """Generate JWT token for testing"""
-    now = int(time.time())
+    now = int(time.perf_counter())
     payload = {
         "user_id": user_id,
         "user_type": user_type,
@@ -500,7 +500,7 @@ curl -X GET "http://localhost:8000/api/health" \
 
 ```python
 # Generate token with past expiration
-expired_token = generate_token(100, "candidate", exp=int(time.time()) - 3600)
+expired_token = generate_token(100, "candidate", exp=int(time.perf_counter()) - 3600)
 
 # Should fail validation
 curl -X GET "http://localhost:8000/api/health" \

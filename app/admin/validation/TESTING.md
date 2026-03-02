@@ -83,9 +83,9 @@ def test_dimension_weight_sum_tolerance(weight1):
 def test_validate_template_with_many_rubrics():
     """Validation of template referencing 50 rubrics completes quickly"""
     template = {"rubric_ids": list(range(1, 51))}
-    start = time.time()
+    start = time.perf_counter()
     result = validator.validate(template)
-    duration = time.time() - start
+    duration = time.perf_counter() - start
     assert duration < 0.5  # Should complete in <500ms
 ```
 

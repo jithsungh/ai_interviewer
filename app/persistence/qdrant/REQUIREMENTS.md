@@ -544,12 +544,12 @@ def check_qdrant_health() -> Dict[str, Any]:
         }
     """
     try:
-        start = time.time()
+        start = time.perf_counter()
 
         # List collections
         collections = client.get_collections()
 
-        latency_ms = (time.time() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
 
         # Get collection info
         collection_info = client.get_collection(config.collection_name)

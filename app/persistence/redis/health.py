@@ -65,9 +65,9 @@ def check_redis_health(client: Redis = None) -> Dict[str, Any]:
     
     try:
         # Test Redis connectivity with latency measurement
-        start = time.time()
+        start = time.perf_counter()
         client.ping()
-        latency_ms = round((time.time() - start) * 1000, 2)
+        latency_ms = round((time.perf_counter() - start) * 1000, 2)
         
         # Check latency thresholds
         if latency_ms > 1000:  # > 1 second

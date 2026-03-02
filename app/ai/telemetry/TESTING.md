@@ -431,13 +431,13 @@ def test_concurrent_telemetry_no_contention():
             span.set_output(completion_tokens=5, success=True)
         return span.finalize()
 
-    start = time.time()
+    start = time.perf_counter()
 
     with ThreadPoolExecutor(max_workers=100) as executor:
         futures = [executor.submit(record_telemetry) for _ in range(1000)]
         results = [f.result() for f in futures]
 
-    duration = time.time() - start
+    duration = time.perf_counter() - start
 
     assert len(results) == 1000
     assert duration < 5  # Should complete in <5s even with 1000 concurrent ops

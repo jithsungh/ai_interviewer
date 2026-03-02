@@ -125,7 +125,7 @@ class IdentityContext:
 
     def is_expired(self) -> bool:
         import time
-        return time.time() > self.expires_at
+        return time.perf_counter() > self.expires_at
 
     def belongs_to_organization(self, org_id: int) -> bool:
         """Check if identity belongs to organization."""
@@ -427,7 +427,7 @@ class ConnectionRegistry:
                 "websocket": websocket,
                 "identity": identity,
                 "submission_id": submission_id,
-                "connected_at": time.time()
+                "connected_at": time.perf_counter()
             }
 
             logger.info(

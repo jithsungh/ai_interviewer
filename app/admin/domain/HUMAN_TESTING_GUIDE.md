@@ -52,7 +52,7 @@ from app.admin.domain.entities import *
 from app.admin.domain.services import *
 
 # Create identities
-now = int(time.time())
+now = int(time.perf_counter())
 superadmin = IdentityContext(
     user_id=1, user_type=UserType.ADMIN, organization_id=1,
     admin_role=AdminRole.SUPERADMIN, token_version=1,

@@ -185,11 +185,11 @@ def acquire_lock(lock_key: str, timeout_seconds: int = 10, retry_interval: float
     """
     lock_value = str(uuid.uuid4())  # Unique identifier for this lock holder
     acquired = False
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     try:
         # Try to acquire lock
-        while time.time() - start_time < timeout_seconds:
+        while time.perf_counter() - start_time < timeout_seconds:
             # SET NX (set if not exists) with expiration
             acquired = redis_client.set(
                 lock_key,
@@ -402,12 +402,12 @@ def check_redis_health() -> Dict[str, Any]:
         }
     """
     try:
-        start = time.time()
+        start = time.perf_counter()
 
         # Ping test
         redis_client.ping()
 
-        latency_ms = (time.time() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
 
         # Get info
         info = redis_client.info()

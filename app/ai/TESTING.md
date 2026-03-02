@@ -465,13 +465,13 @@ def test_evaluation_latency_within_sla(mock_llm):
 
     latencies = []
     for _ in range(100):
-        start = time.time()
+        start = time.perf_counter()
         response = evaluate_response(
             question="Test question",
             candidate_response="Test response",
             rubric_dimensions=[{"name": "Test", "criteria": "Test", "max_score": 10}]
         )
-        latencies.append(time.time() - start)
+        latencies.append(time.perf_counter() - start)
 
     p95 = sorted(latencies)[94]
     assert p95 < 10.0, f"P95 latency {p95}s exceeds 10s SLA"
@@ -539,7 +539,7 @@ def test_rate_limit_with_backoff():
     call_times = []
 
     def rate_limited_call():
-        call_times.append(time.time())
+        call_times.append(time.perf_counter())
         if len(call_times) < 3:
             raise RateLimitError("Rate limited")
         return "success"

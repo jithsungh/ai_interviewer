@@ -364,12 +364,12 @@ class TestPerformance:
         ]
         
         import time
-        start_time = time.time()
+        start_time = time.perf_counter()
         
         # Store batch (should be < 5 seconds)
         point_ids = store_embeddings_batch(embeddings, batch_size=50)
         
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         
         # Verify all stored
         assert len(point_ids) == 100
@@ -382,7 +382,7 @@ class TestPerformance:
         query_vector = generate_random_vector()
         
         import time
-        start_time = time.time()
+        start_time = time.perf_counter()
         
         # Search (should be < 1 second)
         results = search_embeddings(
@@ -392,7 +392,7 @@ class TestPerformance:
             score_threshold=0.0,
         )
         
-        elapsed = time.time() - start_time
+        elapsed = time.perf_counter() - start_time
         
         # Verify reasonable performance (< 1s)
         assert elapsed < 1.0, f"Search took {elapsed:.2f}s (expected < 1s)"

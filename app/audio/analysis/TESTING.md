@@ -528,9 +528,9 @@ def test_analysis_latency_under_500ms():
     transcript = "The answer is dynamic programming and it solves the problem efficiently."
     segments = generate_mock_segments(transcript)
 
-    start = time.time()
+    start = time.perf_counter()
     result = analyze_transcript(transcript, segments)
-    latency = time.time() - start
+    latency = time.perf_counter() - start
 
     assert latency < 0.5, f"Analysis took {latency}s, exceeds 500ms SLA"
 ```

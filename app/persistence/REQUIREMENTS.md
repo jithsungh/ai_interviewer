@@ -432,10 +432,10 @@ def check_postgres_health() -> HealthStatus:
         HealthStatus with status (healthy/unhealthy) and latency
     """
     try:
-        start = time.time()
+        start = time.perf_counter()
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
-        latency_ms = (time.time() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
 
         return HealthStatus(
             service="postgres",
@@ -464,9 +464,9 @@ def check_redis_health() -> HealthStatus:
         HealthStatus with status and latency
     """
     try:
-        start = time.time()
+        start = time.perf_counter()
         redis_client.ping()
-        latency_ms = (time.time() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
 
         return HealthStatus(
             service="redis",
@@ -495,9 +495,9 @@ def check_qdrant_health() -> HealthStatus:
         HealthStatus with status and collection info
     """
     try:
-        start = time.time()
+        start = time.perf_counter()
         collections = qdrant_client.get_collections()
-        latency_ms = (time.time() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
 
         return HealthStatus(
             service="qdrant",

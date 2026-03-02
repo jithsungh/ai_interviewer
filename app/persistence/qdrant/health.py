@@ -34,9 +34,9 @@ def check_qdrant_connectivity() -> Dict[str, Any]:
     try:
         client = get_qdrant_client()
         
-        start_time = time.time()
+        start_time = time.perf_counter()
         collections = client.get_collections()
-        latency_ms = (time.time() - start_time) * 1000
+        latency_ms = (time.perf_counter() - start_time) * 1000
         
         return {
             "status": HealthStatus.HEALTHY,

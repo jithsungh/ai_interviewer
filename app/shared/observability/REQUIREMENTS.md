@@ -309,12 +309,12 @@ async def create_exchange(
         organization_id=identity.organization_id
     )
 
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     # Create exchange
     exchange = exchange_service.create(...)
 
-    latency_ms = (time.time() - start_time) * 1000
+    latency_ms = (time.perf_counter() - start_time) * 1000
 
     # Log with context (automatically includes request_id, user_id, etc.)
     logger.info(

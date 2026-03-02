@@ -594,10 +594,10 @@ errors = [
 ]
 
 # Measure serialization time
-start = time.time()
+start = time.perf_counter()
 for error in errors:
     serialize_rest_error(error)
-end = time.time()
+end = time.perf_counter()
 
 elapsed = end - start
 print(f"Serialized 10,000 errors in {elapsed:.3f}s")

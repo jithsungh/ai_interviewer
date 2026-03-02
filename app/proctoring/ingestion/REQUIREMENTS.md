@@ -442,7 +442,7 @@ def check_rate_limit_sliding(submission_id: int, limit: int = 100) -> bool:
     """
     Sliding window rate limit (last 60 seconds).
     """
-    now = time.time()
+    now = time.perf_counter()
     window_start = now - 60
 
     key = f"rate_limit:proctoring:{submission_id}"

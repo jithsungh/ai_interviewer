@@ -73,11 +73,11 @@ def acquire_lock(
     # Unique identifier for this lock holder
     lock_value = str(uuid.uuid4())
     acquired = False
-    start_time = time.time()
+    start_time = time.perf_counter()
     
     try:
         # Try to acquire lock with retry
-        while time.time() - start_time < timeout_seconds:
+        while time.perf_counter() - start_time < timeout_seconds:
             # SET NX (set if not exists) with expiration
             acquired = client.set(
                 lock_key,
@@ -94,7 +94,7 @@ def acquire_lock(
             time.sleep(retry_interval)
         
         if not acquired:
-            elapsed = time.time() - start_time
+            elapsed = time.perf_counter() - start_time
             logger.warning(f"Lock acquisition timeout: {lock_key} ({elapsed:.2f}s)")
             raise LockAcquisitionError(lock_key, timeout_seconds)
         

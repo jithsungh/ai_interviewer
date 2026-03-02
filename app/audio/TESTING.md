@@ -618,9 +618,9 @@ def test_transcription_latency_sla():
 
     audio_data = generate_test_audio(duration_seconds=5)
 
-    start = time.time()
+    start = time.perf_counter()
     result = transcriber.transcribe(audio_data)
-    latency = time.time() - start
+    latency = time.perf_counter() - start
 
     assert latency < 2.0, f"Transcription took {latency}s, exceeds 2s SLA"
     assert result.transcript is not None
@@ -635,9 +635,9 @@ def test_analysis_latency_sla():
 
     transcript = "This is a test transcript with some filler words like um and uh."
 
-    start = time.time()
+    start = time.perf_counter()
     result = analyzer.analyze(transcript)
-    latency = time.time() - start
+    latency = time.perf_counter() - start
 
     assert latency < 0.5, f"Analysis took {latency}s, exceeds 500ms SLA"
 
@@ -647,12 +647,12 @@ def test_end_to_end_audio_latency():
     latencies = []
 
     for _ in range(100):
-        start = time.time()
+        start = time.perf_counter()
 
         # Process audio
         signal = process_audio_stream(...)
 
-        latencies.append(time.time() - start)
+        latencies.append(time.perf_counter() - start)
 
     p95_latency = sorted(latencies)[94]
     assert p95_latency < 3.0, f"P95 latency {p95_latency}s exceeds 3s SLA"

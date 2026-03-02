@@ -76,8 +76,8 @@ class TestHealthCheckStatus:
         mock_get_engine.return_value = mock_engine
         
         # Mock time to simulate high latency
-        with patch('app.persistence.postgres.health.time.time') as mock_time:
-            mock_time.side_effect = [0, 1.5, 1.5]  # 1.5 second latency (3rd call for timestamp)
+        with patch('app.persistence.postgres.health.time.perf_counter') as mock_perf:
+            mock_perf.side_effect = [0, 1.5]  # 1.5 second latency
             health = check_postgres_health()
         
         assert health["status"] == HealthStatus.DEGRADED.value

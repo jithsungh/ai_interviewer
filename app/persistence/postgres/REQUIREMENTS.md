@@ -230,14 +230,14 @@ def check_postgres_health() -> Dict[str, Any]:
         }
     """
     try:
-        start = time.time()
+        start = time.perf_counter()
 
         # Test query
         with engine.connect() as conn:
             result = conn.execute(text("SELECT 1"))
             result.fetchone()
 
-        latency_ms = (time.time() - start) * 1000
+        latency_ms = (time.perf_counter() - start) * 1000
 
         # Pool metrics
         pool = engine.pool
