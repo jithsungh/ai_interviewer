@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Kh53lNIwFqMvb8u0sDMe1tgojk9Q6NxhKYQLIo60kgmeIPKhZfqCupORQLqTxTw
+\restrict pKNLGSgmiFOOaWMfH7AggThzbxlyWq4Ryuk4Fp5k85Zb6CMhdtYGKcjYto2t127
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -4609,5 +4609,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Kh53lNIwFqMvb8u0sDMe1tgojk9Q6NxhKYQLIo60kgmeIPKhZfqCupORQLqTxTw
+\unrestrict pKNLGSgmiFOOaWMfH7AggThzbxlyWq4Ryuk4Fp5k85Zb6CMhdtYGKcjYto2t127
 
