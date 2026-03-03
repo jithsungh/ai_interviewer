@@ -121,14 +121,23 @@ def register_routers(app: FastAPI) -> None:
     # )
     # logger.debug("✓ Coding router registered")
     
-    # # Proctoring Module
-    # from app.proctoring.api.routes import router as proctoring_router
-    # app.include_router(
-    #     proctoring_router,
-    #     prefix=f"{api_prefix}/proctoring",
-    #     tags=["Proctoring"]
-    # )
-    # logger.debug("✓ Proctoring router registered")
+    # Proctoring Ingestion Sub-Module
+    from app.proctoring.ingestion.api.routes import router as proctoring_ingestion_router
+    app.include_router(
+        proctoring_ingestion_router,
+        prefix=f"{api_prefix}/proctoring",
+        tags=["Proctoring"],
+    )
+    logger.debug("✓ Proctoring ingestion router registered")
+
+    # Proctoring Risk Model Sub-Module
+    from app.proctoring.risk_model.api.routes import router as proctoring_risk_router
+    app.include_router(
+        proctoring_risk_router,
+        prefix=f"{api_prefix}/proctoring",
+        tags=["Proctoring"],
+    )
+    logger.debug("✓ Proctoring risk model router registered")
     
     # Audio Ingestion Module
     from app.audio.ingestion.api.routes import router as audio_ingestion_router

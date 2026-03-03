@@ -35,6 +35,7 @@ def import_all_models():
     import app.question.generation.persistence.models  # noqa: F401
     import app.question.selection.persistence.models  # noqa: F401
     import app.interview.session.persistence.models  # noqa: F401
+    import app.proctoring.persistence.models  # noqa: F401
 
     # TODO: Import remaining models as they are implemented
     # from app.interview.models import InterviewSubmission, InterviewExchange

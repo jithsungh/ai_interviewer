@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict pKNLGSgmiFOOaWMfH7AggThzbxlyWq4Ryuk4Fp5k85Zb6CMhdtYGKcjYto2t127
+\restrict cafCC4MCARRsQyM3agmejy53DCirOe8kXxo7oIFP1JdWFgevJrrvj1RnQ8sngiE
 
 -- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -1174,7 +1174,11 @@ CREATE TABLE public.interview_submissions (
     started_at timestamp with time zone,
     submitted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    proctoring_risk_score numeric(6,2) DEFAULT 0.0,
+    proctoring_risk_classification character varying(20),
+    proctoring_flagged boolean DEFAULT false,
+    proctoring_reviewed boolean DEFAULT false
 );
 
 
@@ -3600,6 +3604,20 @@ CREATE INDEX idx_plt_problem ON public.problem_language_templates USING btree (p
 
 
 --
+-- Name: idx_proctoring_events_occurred; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_proctoring_events_occurred ON public.proctoring_events USING btree (occurred_at);
+
+
+--
+-- Name: idx_proctoring_events_submission_occurred; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_proctoring_events_submission_occurred ON public.proctoring_events USING btree (interview_submission_id, occurred_at);
+
+
+--
 -- Name: idx_proctoring_severity; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3800,6 +3818,13 @@ CREATE INDEX idx_submissions_candidate ON public.interview_submissions USING btr
 --
 
 CREATE INDEX idx_submissions_created ON public.interview_submissions USING btree (created_at);
+
+
+--
+-- Name: idx_submissions_proctoring_flagged; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_submissions_proctoring_flagged ON public.interview_submissions USING btree (proctoring_flagged) WHERE (proctoring_flagged = true);
 
 
 --
@@ -4609,5 +4634,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict pKNLGSgmiFOOaWMfH7AggThzbxlyWq4Ryuk4Fp5k85Zb6CMhdtYGKcjYto2t127
+\unrestrict cafCC4MCARRsQyM3agmejy53DCirOe8kXxo7oIFP1JdWFgevJrrvj1RnQ8sngiE
 
