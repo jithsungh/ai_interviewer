@@ -148,6 +148,14 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Audio transcription router registered")
     
+    # Interview Realtime Module (WebSocket)
+    from app.interview.realtime.api.routes import router as realtime_router
+    app.include_router(
+        realtime_router,
+        tags=["Interview Realtime"]
+    )
+    logger.debug("✓ Interview realtime router registered")
+    
     # ==========================================
     # Health Check Endpoints
     # ==========================================
