@@ -2,9 +2,9 @@
 -- PostgreSQL database dump
 --
 
-\restrict cafCC4MCARRsQyM3agmejy53DCirOe8kXxo7oIFP1JdWFgevJrrvj1RnQ8sngiE
+\restrict nmFcup1ng0kVaCldtL7JzpVt2xdKwYdL8J16RVmt0WQKwUnD9WDpREjLpbqlljM
 
--- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
+-- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
 
 SET statement_timeout = 0;
@@ -895,7 +895,8 @@ CREATE TABLE public.evaluation_dimension_scores (
     rubric_dimension_id bigint NOT NULL,
     score numeric NOT NULL,
     justification text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    max_score numeric
 );
 
 
@@ -936,7 +937,9 @@ CREATE TABLE public.evaluations (
     explanation jsonb,
     is_final boolean DEFAULT false NOT NULL,
     evaluated_at timestamp with time zone,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    evaluated_by bigint,
+    scoring_version text
 );
 
 
@@ -979,9 +982,9 @@ CREATE TABLE public.generic_fallback_questions (
     usage_count integer DEFAULT 0 NOT NULL,
     metadata jsonb,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT generic_fallback_difficulty_check CHECK (((difficulty)::text = ANY ((ARRAY['easy'::character varying, 'medium'::character varying, 'hard'::character varying])::text[]))),
+    CONSTRAINT generic_fallback_difficulty_check CHECK (((difficulty)::text = ANY (ARRAY[('easy'::character varying)::text, ('medium'::character varying)::text, ('hard'::character varying)::text]))),
     CONSTRAINT generic_fallback_estimated_time_check CHECK ((estimated_time_seconds > 0)),
-    CONSTRAINT generic_fallback_question_type_check CHECK (((question_type)::text = ANY ((ARRAY['behavioral'::character varying, 'technical'::character varying, 'situational'::character varying, 'coding'::character varying])::text[])))
+    CONSTRAINT generic_fallback_question_type_check CHECK (((question_type)::text = ANY (ARRAY[('behavioral'::character varying)::text, ('technical'::character varying)::text, ('situational'::character varying)::text, ('coding'::character varying)::text])))
 );
 
 
@@ -1175,10 +1178,13 @@ CREATE TABLE public.interview_submissions (
     submitted_at timestamp with time zone,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    current_exchange_sequence integer DEFAULT 0 NOT NULL,
+    template_structure_snapshot jsonb,
     proctoring_risk_score numeric(6,2) DEFAULT 0.0,
     proctoring_risk_classification character varying(20),
     proctoring_flagged boolean DEFAULT false,
-    proctoring_reviewed boolean DEFAULT false
+    proctoring_reviewed boolean DEFAULT false,
+    CONSTRAINT ck_submissions_exchange_sequence_non_negative CHECK ((current_exchange_sequence >= 0))
 );
 
 
@@ -2759,14 +2765,6 @@ ALTER TABLE ONLY public.evaluation_dimension_scores
 
 
 --
--- Name: evaluations evaluations_interview_exchange_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
---
-
-ALTER TABLE ONLY public.evaluations
-    ADD CONSTRAINT evaluations_interview_exchange_id_key UNIQUE (interview_exchange_id);
-
-
---
 -- Name: evaluations evaluations_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -3471,6 +3469,13 @@ CREATE INDEX idx_eval_dim_scores_evaluation ON public.evaluation_dimension_score
 
 
 --
+-- Name: idx_evaluations_evaluated_by; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_evaluations_evaluated_by ON public.evaluations USING btree (evaluated_by) WHERE (evaluated_by IS NOT NULL);
+
+
+--
 -- Name: idx_evaluations_exchange; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3489,6 +3494,13 @@ CREATE INDEX idx_evaluations_final ON public.evaluations USING btree (is_final) 
 --
 
 CREATE INDEX idx_evaluations_rubric ON public.evaluations USING btree (rubric_id);
+
+
+--
+-- Name: idx_evaluations_scoring_version; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_evaluations_scoring_version ON public.evaluations USING btree (scoring_version) WHERE (scoring_version IS NOT NULL);
 
 
 --
@@ -3982,6 +3994,20 @@ CREATE INDEX idx_windows_time ON public.interview_submission_windows USING btree
 
 
 --
+-- Name: uq_evaluations_exchange_final; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE UNIQUE INDEX uq_evaluations_exchange_final ON public.evaluations USING btree (interview_exchange_id) WHERE (is_final = true);
+
+
+--
+-- Name: uq_interview_results_submission_current; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE UNIQUE INDEX uq_interview_results_submission_current ON public.interview_results USING btree (interview_submission_id) WHERE (is_current = true);
+
+
+--
 -- Name: admins admins_organization_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -4163,6 +4189,14 @@ ALTER TABLE ONLY public.evaluation_dimension_scores
 
 ALTER TABLE ONLY public.evaluation_dimension_scores
     ADD CONSTRAINT evaluation_dimension_scores_rubric_dimension_id_fkey FOREIGN KEY (rubric_dimension_id) REFERENCES public.rubric_dimensions(id) ON DELETE CASCADE;
+
+
+--
+-- Name: evaluations evaluations_evaluated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.evaluations
+    ADD CONSTRAINT evaluations_evaluated_by_fkey FOREIGN KEY (evaluated_by) REFERENCES public.users(id) ON DELETE SET NULL;
 
 
 --
@@ -4634,5 +4668,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict cafCC4MCARRsQyM3agmejy53DCirOe8kXxo7oIFP1JdWFgevJrrvj1RnQ8sngiE
+\unrestrict nmFcup1ng0kVaCldtL7JzpVt2xdKwYdL8J16RVmt0WQKwUnD9WDpREjLpbqlljM
 

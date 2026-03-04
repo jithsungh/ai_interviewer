@@ -33,6 +33,7 @@ def import_all_models():
     import app.ai.prompts.models  # noqa: F401
     import app.coding.persistence.models  # noqa: F401
     import app.question.generation.persistence.models  # noqa: F401
+    import app.question.persistence.models  # noqa: F401
     import app.question.selection.persistence.models  # noqa: F401
     import app.interview.session.persistence.models  # noqa: F401
     import app.proctoring.persistence.models  # noqa: F401
