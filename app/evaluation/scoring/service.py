@@ -23,21 +23,14 @@ from decimal import Decimal
 from enum import Enum
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    and_,
-    select,
-)
+from sqlalchemy import and_, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session, relationship
+from sqlalchemy.orm import Session
 
+from app.evaluation.persistence.models import (
+    EvaluationModel as Evaluation,
+    EvaluationDimensionScoreModel as EvaluationDimensionScore,
+)
 from app.evaluation.scoring.ai_scorer import AIScorer
 from app.evaluation.scoring.config import ScoringConfig, get_scoring_config
 from app.evaluation.scoring.contracts import (
@@ -60,7 +53,6 @@ from app.evaluation.scoring.human_scorer import (
 )
 from app.evaluation.scoring.rubric_resolver import RubricResolver
 from app.evaluation.scoring.score_calculator import ScoreCalculator
-from app.persistence.postgres.base import Base
 from app.shared.observability import get_context_logger
 
 if TYPE_CHECKING:
@@ -80,59 +72,9 @@ class EvaluatorType(str, Enum):
 # SQLAlchemy ORM Models (for persistence)
 #
 # These models map to existing database tables per schema.sql.
-# They are defined here for scoring module use; when the evaluation
-# persistence module is implemented, these should migrate there.
+# Inline models migrated to app.evaluation.persistence.models (DEV-49).
+# Imported above as Evaluation / EvaluationDimensionScore for compatibility.
 # -----------------------------------------------------------------------------
-
-class Evaluation(Base):
-    """ORM model for evaluations table."""
-    __tablename__ = "evaluations"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    interview_exchange_id = Column(
-        Integer, 
-        ForeignKey("interview_exchanges.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    rubric_id = Column(Integer, ForeignKey("rubrics.id"))
-    evaluator_type = Column(String(20), nullable=False)
-    total_score = Column(Numeric(5, 2), nullable=False)
-    explanation = Column(Text)
-    is_final = Column(Boolean, default=True)
-    evaluated_at = Column(DateTime, default=datetime.utcnow)
-    evaluated_by = Column(Integer, ForeignKey("users.id"))
-    model_id = Column(String(100))
-    scoring_version = Column(String(20))
-    
-    # Relationships
-    dimension_scores = relationship(
-        "EvaluationDimensionScore",
-        back_populates="evaluation",
-        cascade="all, delete-orphan"
-    )
-
-
-class EvaluationDimensionScore(Base):
-    """ORM model for evaluation_dimension_scores table."""
-    __tablename__ = "evaluation_dimension_scores"
-    
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    evaluation_id = Column(
-        Integer,
-        ForeignKey("evaluations.id", ondelete="CASCADE"),
-        nullable=False
-    )
-    rubric_dimension_id = Column(
-        Integer,
-        ForeignKey("rubric_dimensions.id"),
-        nullable=False
-    )
-    score = Column(Numeric(4, 2), nullable=False)
-    max_score = Column(Numeric(4, 2), nullable=False)
-    justification = Column(Text)
-    
-    # Relationships
-    evaluation = relationship("Evaluation", back_populates="dimension_scores")
 
 
 # -----------------------------------------------------------------------------

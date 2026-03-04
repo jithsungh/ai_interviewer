@@ -103,14 +103,14 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Question selection router registered")
     
-    # # Evaluation Module
-    # from app.evaluation.api.routes import router as evaluation_router
-    # app.include_router(
-    #     evaluation_router,
-    #     prefix=f"{api_prefix}/evaluations",
-    #     tags=["Evaluations"]
-    # )
-    # logger.debug("✓ Evaluation router registered")
+    # Evaluation Module
+    from app.evaluation.api.routes import router as evaluation_router
+    app.include_router(
+        evaluation_router,
+        prefix=f"{api_prefix}/evaluations",
+        tags=["Evaluations"]
+    )
+    logger.debug("✓ Evaluation router registered")
     
     # # Coding Module
     # from app.coding.api.routes import router as coding_router

@@ -27,18 +27,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from sqlalchemy import (
-    BigInteger,
-    Boolean,
-    Column,
-    DateTime,
-    Numeric,
-    String,
-    Text,
-    and_,
-    text,
-)
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import and_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -64,7 +53,10 @@ from app.evaluation.aggregation.schemas import (
 )
 from app.evaluation.aggregation.section_aggregator import SectionAggregator
 from app.evaluation.aggregation.summary_generator import SummaryGenerator
-from app.persistence.postgres.base import Base
+from app.evaluation.persistence.models import (
+    InterviewResultModel as InterviewResult,
+    SupplementaryReportModel as SupplementaryReport,
+)
 from app.shared.observability import get_context_logger
 
 if TYPE_CHECKING:
@@ -76,56 +68,9 @@ logger = get_context_logger(__name__)
 # -----------------------------------------------------------------------------
 # SQLAlchemy ORM Models
 #
-# These models map to existing database tables per schema.sql.
-# When evaluation/persistence module is implemented, migrate them there.
+# Inline models migrated to app.evaluation.persistence.models (DEV-49).
+# Imported above as InterviewResult / SupplementaryReport for compatibility.
 # -----------------------------------------------------------------------------
-
-
-class InterviewResult(Base):
-    """ORM model for interview_results table."""
-
-    __tablename__ = "interview_results"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    interview_submission_id = Column(BigInteger, nullable=False)
-    final_score = Column(Numeric)
-    normalized_score = Column(Numeric)
-    result_status = Column(Text)
-    recommendation = Column(Text)
-    scoring_version = Column(Text, nullable=False)
-    rubric_snapshot = Column(JSONB)
-    template_weight_snapshot = Column(JSONB)
-    section_scores = Column(JSONB)
-    strengths = Column(Text)
-    weaknesses = Column(Text)
-    summary_notes = Column(Text)
-    generated_by = Column(Text, nullable=False)
-    model_id = Column(BigInteger)
-    is_current = Column(Boolean, default=True, nullable=False)
-    computed_at = Column(DateTime(timezone=True), nullable=False)
-    created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
-
-
-class SupplementaryReport(Base):
-    """ORM model for supplementary_reports table."""
-
-    __tablename__ = "supplementary_reports"
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    interview_submission_id = Column(BigInteger, nullable=False)
-    report_type = Column(Text, nullable=False)
-    content = Column(JSONB, nullable=False)
-    generated_by = Column(Text, nullable=False)
-    model_id = Column(BigInteger)
-    created_at = Column(
-        DateTime(timezone=True),
-        default=lambda: datetime.now(timezone.utc),
-        nullable=False,
-    )
 
 
 # -----------------------------------------------------------------------------
