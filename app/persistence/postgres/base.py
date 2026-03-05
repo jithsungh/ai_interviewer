@@ -38,9 +38,7 @@ def import_all_models():
     import app.interview.session.persistence.models  # noqa: F401
     import app.proctoring.persistence.models  # noqa: F401
     import app.evaluation.persistence.models  # noqa: F401
-
-    # TODO: Import remaining models as they are implemented
-    # from app.audio.models import AudioRecording
+    import app.audio.persistence.models  # noqa: F401
     pass
 
 

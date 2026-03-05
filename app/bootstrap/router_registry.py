@@ -112,14 +112,14 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Evaluation router registered")
     
-    # # Coding Module
-    # from app.coding.api.routes import router as coding_router
-    # app.include_router(
-    #     coding_router,
-    #     prefix=f"{api_prefix}/coding",
-    #     tags=["Coding"]
-    # )
-    # logger.debug("✓ Coding router registered")
+    # Coding Module
+    from app.coding.api.routes import router as coding_router
+    app.include_router(
+        coding_router,
+        prefix=f"{api_prefix}/coding",
+        tags=["Coding"]
+    )
+    logger.debug("✓ Coding router registered")
     
     # Proctoring Ingestion Sub-Module
     from app.proctoring.ingestion.api.routes import router as proctoring_ingestion_router
