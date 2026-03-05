@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict nmFcup1ng0kVaCldtL7JzpVt2xdKwYdL8J16RVmt0WQKwUnD9WDpREjLpbqlljM
+\restrict olj4iwhlltbbazVPlwLGwROz3mPQ7DXT2bPPbITgBM2odkGKsRIjSgYcdB7uUIg
 
 -- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -360,7 +360,22 @@ CREATE TABLE public.audio_analytics (
     filler_word_count integer,
     sentiment_score numeric,
     analysis_metadata jsonb,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    transcript_finalized boolean DEFAULT false NOT NULL,
+    language_detected character varying(10),
+    speech_state character varying(20) DEFAULT 'complete'::character varying NOT NULL,
+    pause_duration_ms integer,
+    long_pause_count integer DEFAULT 0 NOT NULL,
+    filler_rate numeric DEFAULT 0.0 NOT NULL,
+    hesitation_detected boolean DEFAULT false NOT NULL,
+    frustration_detected boolean DEFAULT false NOT NULL,
+    audio_quality_score numeric,
+    background_noise_detected boolean DEFAULT false NOT NULL,
+    updated_at timestamp with time zone DEFAULT now(),
+    finalized_at timestamp with time zone,
+    CONSTRAINT audio_analytics_confidence_range CHECK (((confidence_score IS NULL) OR ((confidence_score >= 0.0) AND (confidence_score <= 1.0)))),
+    CONSTRAINT audio_analytics_sentiment_range CHECK (((sentiment_score IS NULL) OR ((sentiment_score >= '-1.0'::numeric) AND (sentiment_score <= 1.0)))),
+    CONSTRAINT audio_analytics_speech_state_check CHECK (((speech_state)::text = ANY ((ARRAY['complete'::character varying, 'incomplete'::character varying, 'continuing'::character varying])::text[])))
 );
 
 
@@ -3280,6 +3295,13 @@ CREATE INDEX idx_audio_analytics_exchange ON public.audio_analytics USING btree 
 
 
 --
+-- Name: idx_audio_analytics_finalized; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_audio_analytics_finalized ON public.audio_analytics USING btree (transcript_finalized);
+
+
+--
 -- Name: idx_audit_actor; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -4668,5 +4690,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict nmFcup1ng0kVaCldtL7JzpVt2xdKwYdL8J16RVmt0WQKwUnD9WDpREjLpbqlljM
+\unrestrict olj4iwhlltbbazVPlwLGwROz3mPQ7DXT2bPPbITgBM2odkGKsRIjSgYcdB7uUIg
 
