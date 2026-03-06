@@ -24,6 +24,11 @@
 --
 
 -- ============================================================================
+-- CLEANUP: Remove existing questions from partial runs (idempotent)
+-- ============================================================================
+DELETE FROM public.questions WHERE id BETWEEN 1 AND 515;
+
+-- ============================================================================
 -- PART 1: Populate questions for Core CS Fundamentals (Topics 1-6)
 -- ============================================================================
 
@@ -206,8 +211,8 @@ VALUES
     (54, 'Explain the Java Executor framework and different thread pool types. How would you choose the right one?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (55, 'Design a thread-safe singleton pattern in Java. Compare different implementation approaches and discuss double-checked locking.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 20, true),
+    (55, 'Your Java application has a configuration manager that must be instantiated exactly once and accessed from multiple threads simultaneously. The initialization is expensive (reads from database and external config files). Discuss the trade-offs between different singleton implementation approaches: eager initialization, synchronized getInstance(), double-checked locking, and enum-based singletons. What are the memory visibility concerns and how does the Java Memory Model affect your choice?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 12: Go (5 questions)
     (56, 'Explain goroutines and how they differ from traditional threads.',
@@ -222,8 +227,8 @@ VALUES
     (59, 'Explain Go interfaces and the concept of implicit implementation. How do empty interfaces work?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 12, true),
     
-    (60, 'Design a worker pool pattern in Go to process jobs concurrently with proper error handling and graceful shutdown.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (60, 'Your image processing service needs to handle 10,000 images per minute with varying processing times (1-30 seconds each). You need to process them concurrently while preventing resource exhaustion, handling failures gracefully, and shutting down cleanly on SIGTERM. Discuss your approach to implementing a worker pool in Go: how would you size the pool, handle job timeouts, implement graceful shutdown with in-flight job completion, and report errors without losing work?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 13: SQL Databases (5 questions)
     (61, 'Explain the difference between INNER JOIN, LEFT JOIN, RIGHT JOIN, and FULL OUTER JOIN.',
@@ -238,8 +243,8 @@ VALUES
     (64, 'Explain database indexing strategies: B-tree, Hash, GiST, GIN. When would you use each?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (65, 'Design a database schema and indexing strategy for a time-series data system handling millions of records per day.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (65, 'Your IoT platform ingests sensor readings from 100,000 devices every 10 seconds, storing timestamps, device IDs, and multiple metric values. Queries need to efficiently retrieve data for specific devices over time ranges, aggregate across all devices for dashboards, and purge data older than 90 days. Discuss your approach to schema design, partitioning strategy, index selection, and data lifecycle management. What are the trade-offs between time-based partitioning vs device-based partitioning?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 14: NoSQL Databases (5 questions)
     (66, 'Compare SQL and NoSQL databases. When would you choose each?',
@@ -254,8 +259,8 @@ VALUES
     (69, 'How would you design a data model in Cassandra for a messaging application? Explain partition keys and clustering columns.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 20, true),
     
-    (70, 'Design a caching strategy using Redis for a high-traffic e-commerce site. Include cache invalidation, eviction policies, and data structures.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (70, 'Your e-commerce site handles 50,000 requests per second during flash sales. The product catalog (10,000 products) changes infrequently but inventory levels change constantly. Product pages are slow (500ms) due to database load, and you''re seeing stale inventory causing overselling. Discuss your Redis caching strategy: what data structures would you use for different data types, how would you handle cache invalidation for inventory vs product details, what eviction policy fits this workload, and how would you prevent cache stampedes during sales?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 15: Microservices Architecture (5 questions)
     (71, 'What are microservices? How do they differ from monolithic architecture?',
@@ -270,8 +275,8 @@ VALUES
     (74, 'Explain the API Gateway pattern. What problems does it solve and what are potential drawbacks?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (75, 'Design a microservices architecture for an e-commerce platform. Include inter-service communication, data consistency, and failure handling.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (75, 'Your company is breaking a monolithic e-commerce application into microservices. The monolith currently handles user accounts, product catalog, shopping cart, orders, payments, and inventory in a single database with ACID transactions. Discuss how you would decompose this into services, handle data that spans multiple services (e.g., order creation needs inventory check and payment), choose between synchronous and asynchronous communication for different interactions, and ensure the system remains consistent when services fail.',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 16: Message Queues (5 questions)
     (76, 'Explain the difference between message queues and publish-subscribe patterns.',
@@ -286,8 +291,8 @@ VALUES
     (79, 'How would you handle message ordering in a distributed message queue system?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (80, 'Design a resilient async task processing system using message queues. Include retry logic, dead letter queues, and monitoring.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (80, 'Your application needs to send emails, generate PDF reports, and resize images - all triggered by user actions but too slow for synchronous processing. Some tasks are critical (order confirmations) while others are best-effort (analytics). Tasks occasionally fail due to external service issues. Discuss your approach to building async task processing: how would you prioritize tasks, implement retries with exponential backoff, handle poison messages, ensure critical tasks aren''t lost during deployments, and monitor task health?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 17: Caching Strategies (5 questions)
     (81, 'Explain different caching strategies: cache-aside, read-through, write-through, write-behind.',
@@ -302,8 +307,8 @@ VALUES
     (84, 'How would you implement a distributed cache? Discuss consistency, partitioning, and failure handling.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 20, true),
     
-    (85, 'Design a multi-level caching strategy for a content delivery platform. Include browser, CDN, application, and database layers.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (85, 'Your video streaming platform serves content globally with varying popularity - some videos get millions of views, most get hundreds. Users expect instant playback start and smooth streaming. Your origin servers are in one region but users are worldwide. Discuss your caching strategy across browser, CDN edge, application tier, and database layers. How would you handle cache warming for predicted viral content, invalidation when videos are updated or removed, and cost optimization for the long tail of less popular content?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 18: API Security (5 questions)
     (86, 'Explain the OAuth 2.0 authorization flow. What are the different grant types?',
@@ -318,8 +323,8 @@ VALUES
     (89, 'How would you implement API key management and rotation for a public API with thousands of clients?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 20, true),
     
-    (90, 'Design a comprehensive security strategy for securing microservices communication. Include authentication, authorization, encryption, and monitoring.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (90, 'Your company has 30 microservices communicating over internal networks. A security audit revealed services accept requests from any internal caller, secrets are passed in plain text, and there''s no logging of service-to-service calls. Discuss your approach to securing this architecture: how would you implement mutual authentication between services, authorize which services can call which endpoints, encrypt traffic, manage and rotate credentials, and maintain audit logs for compliance without impacting latency?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 19: Server-Side Performance (5 questions)
     (91, 'What is the difference between vertical and horizontal scaling? When would you use each?',
@@ -334,8 +339,8 @@ VALUES
     (94, 'Explain different types of load balancing algorithms and when to use each.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (95, 'Design a high-performance backend system to handle 100,000 requests per second. Include architecture, database, caching, and scaling strategies.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (95, 'Your startup''s API currently handles 1,000 requests per second but you''re planning a product launch expected to drive 100x traffic. Current architecture is a single application server with PostgreSQL. Response times must stay under 200ms at p99. Discuss your scaling strategy: what components would you scale first, how would you identify bottlenecks before they occur, what database scaling approach would you take, where would caching help most, and how would you ensure the system degrades gracefully if traffic exceeds projections?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 20: Backend Testing (5 questions)
     (96, 'Explain the testing pyramid. What are unit, integration, and end-to-end tests?',
@@ -350,8 +355,8 @@ VALUES
     (99, 'How would you test database-dependent code? Discuss different approaches and trade-offs.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (100, 'Design a testing strategy for a microservices-based e-commerce system. Include contract testing, chaos engineering, and test environments.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (100, 'Your team maintains 15 microservices with frequent deployments. Recent production incidents were caused by: API contract changes breaking consumers, a service that passed all tests but failed under load, and cascading failures when a downstream service was slow. Test coverage is high but confidence in deployments is low. Discuss your testing strategy: how would you implement contract testing to catch integration issues early, introduce chaos engineering to find resilience gaps, and structure test environments to catch issues that unit tests miss?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- ============================================================================
     -- PART 3: Frontend Engineering Topics (Topics 21-35)
@@ -370,8 +375,8 @@ VALUES
     (104, 'Explain prototypal inheritance in JavaScript. How does it differ from classical inheritance?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 12, true),
     
-    (105, 'Design a custom Promise implementation from scratch. Explain state management, chaining, and error handling.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (105, 'You''re building a utility library and need to understand Promises deeply for async error handling and resource cleanup. Explain the internal mechanics of how a Promise transitions between pending, fulfilled, and rejected states. How does the microtask queue ensure proper chaining order? What happens when you return a Promise from a .then() handler versus returning a plain value? How would error propagation work through a chain of .then() and .catch() calls?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 22: TypeScript (5 questions)
     (106, 'What are the main benefits of using TypeScript over JavaScript?',
@@ -386,8 +391,8 @@ VALUES
     (109, 'Explain the difference between interface and type in TypeScript. When should you use each?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 12, true),
     
-    (110, 'Design a type-safe event emitter system in TypeScript using advanced types. Support multiple event types with strict typing.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (110, 'Your application has a complex event system where different modules emit and listen to various events (user:login, cart:updated, order:placed, etc.). You want TypeScript to catch errors at compile time when: a listener subscribes to a non-existent event, a listener''s callback has wrong parameter types for that event, or an emitter passes wrong data for an event. Discuss how you would structure the type system using mapped types, conditional types, and generics to achieve full type safety across event names and their payloads.',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
 
     -- Topic 23: React (5 questions continuing frontend)
@@ -403,8 +408,8 @@ VALUES
     (114, 'What are React render props and higher-order components (HOCs)? Compare them with hooks.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 15, true),
     
-    (115, 'Design a custom React hook for managing complex form state with validation, field-level errors, and submission handling.',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 25, true),
+    (115, 'Your team is building multiple forms across the application with requirements including: async validation against APIs, field dependencies (field B options depend on field A value), multi-step wizards with per-step validation, autosave drafts, and showing validation errors only after field blur or form submission. Existing form libraries feel too heavy or don''t fit your needs. Discuss your approach to creating a reusable form state hook: what state would it manage, how would you handle the validation lifecycle, and how would you make it composable for different form patterns?',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 24: Vue.js (5 questions)
     (116, 'What is the Composition API in Vue 3 and how does it differ from Options API? When would you use each?',
@@ -419,7 +424,7 @@ VALUES
     (119, 'Compare Pinia and Vuex. What are the architectural differences and migration considerations?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (120, 'Design a Vue 3 plugin for multi-tenant applications with runtime theme switching, i18n integration, and tenant-specific feature flags.',
+    (120, 'Your company provides a white-label SaaS platform where each tenant has their own branding (colors, logos, fonts), language preferences, and enabled feature sets. The Vue 3 application needs to load tenant configuration at runtime, switch themes without reload, handle tenant-specific routes, and disable UI elements for features the tenant hasn''t purchased. Discuss your approach to architecting this as a Vue plugin: how would you structure the plugin API, manage reactive tenant state, integrate with Vue Router for tenant-specific routes, and handle the initial loading state?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 25: Angular (5 questions)
@@ -435,7 +440,7 @@ VALUES
     (124, 'Explain Angular Signals (v16+). How do they improve upon RxJS for state management?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (125, 'Design an Angular micro-frontend architecture using Module Federation. Include shared dependencies, routing, and state management.',
+    (125, 'Your organization has 5 teams working on different parts of a large Angular application. Deployments are slow because everyone must coordinate, and a bug in one team''s code blocks others from releasing. You''re evaluating micro-frontends using Module Federation. Discuss the architectural considerations: how would you handle shared dependencies (Angular itself, UI component library) to avoid version conflicts, implement cross-app routing and deep linking, share authentication state and user context between apps, and manage the complexity this approach introduces?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 26: HTML/CSS (5 questions)
@@ -451,7 +456,7 @@ VALUES
     (129, 'What are CSS containment and content-visibility? How do they improve rendering performance?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (130, 'Design a responsive CSS architecture using BEM methodology, CSS Modules, and CSS custom properties for a large-scale application.',
+    (130, 'Your team of 10 frontend developers works on a large React application with 500+ components. CSS has become unmaintainable: styles leak between components, specificity wars require !important, and developers are afraid to modify existing styles. The team wants to adopt a scalable CSS architecture. Discuss your approach to organizing CSS using BEM methodology for naming, CSS Modules for scoping, and CSS custom properties for theming. How would you migrate existing styles incrementally and establish conventions that scale?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 27: State Management (5 questions)
@@ -467,7 +472,7 @@ VALUES
     (134, 'Compare Zustand, Jotai, and Recoil. What are architectural differences and when to use each?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (135, 'Design an offline-first state management architecture with sync queue, conflict resolution, and optimistic UI updates.',
+    (135, 'Your field service application must work in areas with unreliable connectivity - technicians fill out inspection forms, take photos, and submit reports while potentially offline for hours. Data must not be lost, and when connectivity returns, changes should sync automatically. Conflicts may occur if the same record was modified on the server. Discuss your state management approach: how would you queue offline mutations, handle sync when connectivity returns, resolve conflicts between local and server changes, and provide users visibility into sync status?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 28: Web Performance Optimization (5 questions)
@@ -483,7 +488,7 @@ VALUES
     (139, 'What are render-blocking resources? How do you eliminate them using async, defer, and resource hints?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (140, 'Design a performance optimization strategy for a complex React dashboard with real-time data, charts, and large tables.',
+    (140, 'Your React analytics dashboard displays 50+ charts and tables with data refreshing every 30 seconds. Users report the page freezes during updates, scrolling is choppy, and initial load takes 8 seconds. Lighthouse shows poor LCP and TBT scores. The dashboard aggregates data from multiple APIs and renders complex visualizations. Discuss your performance optimization strategy: how would you diagnose the specific bottlenecks, implement virtualization for large data sets, optimize re-renders during data updates, and improve perceived performance during initial load?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 29: Browser APIs (5 questions)
@@ -532,7 +537,7 @@ VALUES
     (154, 'What are source maps? Explain different source map types and their trade-offs.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (155, 'Design a production-ready Webpack/Vite configuration with optimization, caching, code splitting, and monitoring.',
+    (155, 'Your team''s Webpack build takes 8 minutes locally and 15 minutes in CI, causing developer frustration and slow deployments. The bundle size has grown to 4MB and initial page load is suffering. Discuss your approach to diagnosing build performance bottlenecks, choosing between Webpack optimizations vs migrating to Vite, implementing effective code splitting, and setting up build caching. What trade-offs would you consider between build time and bundle optimization?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 32: Frontend Testing (5 questions)
@@ -548,7 +553,7 @@ VALUES
     (159, 'How do you write E2E tests with Playwright? Explain page objects, fixtures, and parallelization.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (160, 'Design a comprehensive testing strategy for a complex React application with auth, real-time features, and third-party integrations.',
+    (160, 'Your React application has grown to 100+ components with OAuth authentication, WebSocket real-time updates, Stripe payment integration, and Google Maps embedding. Test coverage is 20% and bugs frequently reach production. The team wants to improve quality but is unsure where to focus testing effort. Discuss your testing strategy: how would you prioritize what to test first, structure tests for components that depend on auth state, mock real-time connections and third-party services, and set up CI to catch regressions without tests being flaky?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 33: CSS Frameworks (5 questions)
@@ -564,7 +569,7 @@ VALUES
     (164, 'How do you implement a design system with Tailwind CSS? Customize theme and create reusable components.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (165, 'Design a theming system supporting light/dark modes, multiple color schemes, and user preferences with Tailwind and CSS variables.',
+    (165, 'Your company is rebranding and needs to support multiple themes (light/dark modes, plus 3 brand color variations) across 200+ React components using Tailwind CSS. Users should be able to toggle themes instantly, and their preference should persist. Discuss your strategy for organizing CSS variables with Tailwind, handling theme switching without page reload, managing component variants, and ensuring accessibility contrast ratios are maintained across all themes. What are the performance implications?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
 
@@ -581,7 +586,7 @@ VALUES
     (169, 'How do you ensure proper color contrast and support for color blindness? Explain testing tools and techniques.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (170, 'Design an accessible data table with sorting, filtering, and pagination. Ensure screen reader support and keyboard navigation.',
+    (170, 'Your team has built a complex data table component with sorting, filtering, inline editing, and pagination, but accessibility audits show it fails WCAG 2.1 AA compliance. Screen reader users cannot navigate the table effectively, and keyboard-only users struggle with the interactive features. Discuss your approach to retrofitting accessibility: how would you implement proper ARIA roles and live regions, handle focus management during sorting/filtering operations, announce dynamic content changes, and ensure keyboard navigation works for all interactive elements?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 35: UI/UX Principles (5 questions)
@@ -597,7 +602,7 @@ VALUES
     (174, 'How do you design and implement effective error states and recovery mechanisms?',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (175, 'Design a comprehensive form with complex validation, multi-step flow, autosave, and excellent UX including error handling and accessibility.',
+    (175, 'Your insurance application has a 15-field quote form that users frequently abandon. Requirements include: conditional fields based on previous answers, real-time premium calculation, address autocomplete, file uploads for documents, saving partial progress, and accessibility compliance for screen readers. Discuss your approach to implementing this form: how would you structure the multi-step flow, handle validation timing (on blur vs on submit vs real-time), implement autosave without overwhelming the server, and ensure the form is accessible and provides clear error recovery guidance?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 36: Linux/Unix (5 questions)
@@ -613,7 +618,7 @@ VALUES
     (179, 'How do you debug networking issues in Linux? Explain netstat, ss, tcpdump, curl, dig.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (180, 'Design a bash script for automated deployment that handles rollback, health checks, and notifications.',
+    (180, 'Your team''s deployment process currently involves SSHing into servers and running manual commands, leading to inconsistent deployments and occasional downtime. You need to implement automated deployment with bash scripting. Discuss your strategy for implementing atomic deployments with instant rollback capability, health check integration to prevent bad deployments from completing, handling database migrations safely, and notification/alerting on deployment status. What failure scenarios should the script handle?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
 
@@ -630,7 +635,7 @@ VALUES
     (184, 'Explain process substitution, command substitution, and here documents in bash. Provide practical examples.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (185, 'Create a bash script for log analysis that finds errors, generates statistics, and sends alerts based on thresholds.',
+    (185, 'Your production servers generate 50GB of logs daily across multiple applications. The team needs automated log analysis to detect error spikes, identify recurring patterns, and alert on-call engineers when error rates exceed thresholds. Discuss your strategy using bash tools (grep, awk, sed) for parsing logs efficiently, calculating error statistics without loading entire files into memory, implementing threshold-based alerting, and handling log rotation. What are the limitations of bash for this task vs dedicated log aggregation tools?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 38: Docker Fundamentals (5 questions)
@@ -646,7 +651,7 @@ VALUES
     (189, 'How do you manage data persistence with Docker volumes, bind mounts, and tmpfs? Compare their use cases.',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (190, 'Design a Docker Compose setup for a microservices app with database, caching, load balancer, and proper networking.',
+    (190, 'Your team is containerizing an existing monolith being split into microservices (API gateway, 3 backend services, PostgreSQL, Redis). The local development environment should mirror production, but developers complain about slow startup times and port conflicts. Discuss your Docker Compose architecture strategy: how would you structure networking between services, handle database initialization and migrations, manage secrets for local development, configure health checks for proper startup ordering, and optimize for fast iteration cycles?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 39: Container Orchestration (5 questions)
@@ -843,7 +848,7 @@ VALUES
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
     (250, 'Your company needs to achieve SOC2 Type 2 compliance within 6 months, but your infrastructure has grown organically with minimal security controls - no centralized logging, inconsistent MFA adoption, manual access provisioning, secrets in code repositories. Design a compliance roadmap. How do you prioritize efforts? What quick wins can you achieve vs long-term changes? How do you balance compliance work with feature development?',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true);
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
 
     -- ============================================================================
@@ -1067,7 +1072,7 @@ VALUES
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
     (315, 'Your company wants to move from nightly batch processing to real-time analytics. Current batch job processes 500GB daily (customer clickstream) with complex joins and aggregations, taking 3 hours to complete. Business wants insights available within 5 minutes of events occurring. Design a migration strategy. What are the risks and how do you minimize them? How do you handle the transition period where both systems run in parallel?',
-     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true);
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
 -- End of Data Engineering section (Topics 51-63, Questions 251-315)
 
@@ -1207,7 +1212,7 @@ VALUES
     (354, 'What are rich push notifications and how do you implement custom actions and media attachments',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (355, 'Design a scalable push notification system for a messaging app with 10 million users that needs to send targeted notifications based on user preferences and handle delivery failures gracefully. Discuss token management and notification targeting strategies',
+    (355, 'Your messaging app with 10 million users needs to send targeted notifications based on user preferences (muted conversations, do-not-disturb schedules, notification categories). Users report missing notifications, delayed delivery, and notifications for muted chats. You need to handle token refresh when users reinstall the app and gracefully degrade when FCM/APNs have outages. Discuss your approach to notification targeting, token lifecycle management, delivery tracking, and handling platform-specific quirks. How would you debug why a specific user isn''t receiving notifications?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 72: Mobile Security (5 questions)
@@ -1223,7 +1228,7 @@ VALUES
     (359, 'What is reverse engineering of mobile apps and what techniques can you use to make it harder',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (360, 'Design a secure mobile banking app authentication flow that balances security with user experience. Consider biometric authentication, token management, session handling, and defense against various attack vectors',
+    (360, 'Your mobile banking app handles sensitive transactions and has been targeted by fraudsters using stolen credentials, session hijacking, and man-in-the-middle attacks. Users also complain about too many security prompts degrading UX. Discuss your authentication strategy: how would you implement biometric authentication with fallback options, manage token refresh and session timeouts, detect and respond to rooted/jailbroken devices, protect against common attack vectors while minimizing friction for legitimate users? What security vs UX trade-offs would you make?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
     -- Topic 73: Mobile Testing (5 questions)
@@ -1255,7 +1260,7 @@ VALUES
     (369, 'What techniques do you use to reduce mobile app build times in CI/CD pipelines',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (370, 'Design a complete mobile CI/CD pipeline that handles iOS and Android builds, runs tests on real devices, manages multiple environments, and supports feature flags and gradual rollouts. What are the challenges with secrets management and how do you handle build reproducibility',
+    (370, 'Your company ships iOS and Android apps weekly, but releases are painful: iOS builds take 45 minutes, Android builds fail intermittently, code signing issues block releases, and coordinating beta testing across platforms is manual. You need separate builds for dev, staging, and production with different API endpoints and feature flags. Discuss your CI/CD pipeline architecture: how would you structure the pipeline for both platforms, manage signing certificates and provisioning profiles securely, implement staged rollouts with automatic rollback, and reduce the build-test-deploy cycle time?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
 
@@ -1356,6 +1361,381 @@ VALUES
     (399, 'How do you handle data augmentation for computer vision tasks and what transformations are commonly used',
      NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
     
-    (400, 'Design a real-time object detection system for a security camera that needs to identify people and vehicles with low latency on edge devices. Discuss model selection, optimization for inference speed, handling various lighting conditions, and reducing false positives',
+    (400, 'Your client wants to deploy object detection on security cameras to identify people and vehicles entering a facility. The system must run on edge devices (limited GPU), achieve under 100ms latency for real-time alerting, work across day/night conditions, and minimize false positives (staff have alarm fatigue from current system). Discuss your approach: how would you select and optimize a model for edge deployment, handle varying lighting and weather conditions, tune the confidence threshold trade-off between missed detections and false alarms, and evaluate system performance in production?',
      NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
 
+    -- Topic 81: Natural Language Processing (5 questions)
+    (401, 'What is tokenization in NLP and how do different tokenization strategies like word-level, subword (BPE), and character-level affect model performance',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (402, 'Explain word embeddings like Word2Vec and GloVe. How do they capture semantic relationships between words',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (403, 'Compare RNN, LSTM, and Transformer architectures for sequence modeling tasks',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (404, 'What is attention mechanism and why was it a breakthrough in NLP',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (405, 'You need to build a sentiment analysis system for customer reviews in multiple languages with limited labeled data per language. Discuss approaches including transfer learning from multilingual models, data augmentation strategies, and handling class imbalance between positive and negative reviews',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 82: Recommender Systems (5 questions)
+    (406, 'Explain the difference between collaborative filtering and content-based filtering in recommender systems',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (407, 'What is the cold start problem in recommendation systems and how do you address it',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (408, 'Compare matrix factorization techniques like SVD and ALS for collaborative filtering',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (409, 'Explain how neural collaborative filtering and deep learning improve traditional recommendation approaches',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (410, 'Your e-commerce platform needs to recommend products to 100 million users with real-time updates as user behavior changes. Discuss the trade-offs between accuracy and scalability, handling sparse user-item interactions, incorporating contextual information like time and location, and measuring recommendation quality beyond accuracy',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 83: Time Series Forecasting (5 questions)
+    (411, 'What makes time series data different from regular tabular data in machine learning',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (412, 'Explain stationarity in time series and why it matters for forecasting models',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (413, 'Compare ARIMA, Prophet, and LSTM approaches for time series forecasting',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (414, 'How do you handle seasonality and trends in time series forecasting',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (415, 'You need to forecast demand for 10,000 products across 500 stores with varying seasonal patterns and promotional events. Discuss strategies for handling the scale, incorporating external factors like holidays and weather, dealing with intermittent demand for slow-moving products, and providing uncertainty estimates with predictions',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 84: MLOps (5 questions)
+    (416, 'What is MLOps and how does it differ from traditional DevOps',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (417, 'Explain the ML lifecycle from experimentation to production deployment',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (418, 'What is model versioning and why is it important in machine learning systems',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (419, 'Compare different model serving strategies like batch prediction, real-time API, and edge deployment',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (420, 'Your ML team is struggling with inconsistent results between training and production, slow deployment cycles taking weeks, and difficulty tracking which model version is running where. Design an MLOps architecture covering experiment tracking, model registry, CI/CD pipelines, and deployment strategies that enables rapid iteration while maintaining reproducibility',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 85: Model Deployment (5 questions)
+    (421, 'What are the main challenges in deploying machine learning models to production',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (422, 'Explain the difference between online and offline model serving',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (423, 'How do you handle model updates in production without downtime using strategies like blue-green deployment or canary releases',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (424, 'What is feature store and why is it important for ML model deployment',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (425, 'Your computer vision model takes 500ms to process each image but you need to serve predictions with less than 100ms latency at 1000 requests per second. Discuss optimization strategies including model compression, quantization, hardware acceleration, batching, and caching while maintaining acceptable accuracy',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 86: Model Monitoring (5 questions)
+    (426, 'Why is model monitoring important after deployment and what can go wrong with production ML models',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (427, 'Explain data drift and model drift. How do they impact model performance',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (428, 'What metrics should you monitor for a classification model in production',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (429, 'How do you detect concept drift and trigger model retraining automatically',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (430, 'Your fraud detection model was performing well but accuracy has dropped from 95% to 78% over three months without any code changes. Walk through your debugging approach covering data quality checks, drift detection, performance analysis across different segments, and determining whether to retrain or investigate data issues',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 87: Experiment Tracking (5 questions)
+    (431, 'What is experiment tracking in machine learning and why is it important',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (432, 'Explain what metadata you should track for each ML experiment',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (433, 'Compare different experiment tracking tools like MLflow, Weights and Biases, and Neptune',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (434, 'How do you organize and compare hundreds of experiments to identify the best performing model',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (435, 'Your data science team of 20 people is running 100+ experiments per week with different datasets, features, and algorithms but struggling to reproduce results or know what has been tried before. Design an experiment tracking strategy covering what to log, how to organize experiments, comparing results, and ensuring reproducibility',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 88: AutoML (5 questions)
+    (436, 'What is AutoML and what parts of the machine learning pipeline can it automate',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (437, 'Explain neural architecture search and how it differs from traditional hyperparameter tuning',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (438, 'Compare different AutoML approaches like Google AutoML, H2O.ai, and Auto-sklearn',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (439, 'What are the limitations and trade-offs of using AutoML versus manual model development',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (440, 'You need to build ML models for 50 different business use cases with limited data science resources. Discuss when AutoML is appropriate versus manual development, how to balance automation with domain expertise, handling edge cases AutoML might miss, and ensuring model interpretability and compliance',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 89: Explainable AI (5 questions)
+    (441, 'Why is model interpretability important especially in regulated industries like healthcare and finance',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (442, 'Explain the difference between model-agnostic and model-specific interpretability methods',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (443, 'Compare LIME, SHAP, and feature importance for explaining model predictions',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (444, 'What is the trade-off between model accuracy and interpretability',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (445, 'Your bank is using a deep learning model for loan approval but regulators require you to explain why each application was rejected. Discuss strategies for making complex models explainable, balancing accuracy with interpretability, communicating explanations to non-technical stakeholders, and handling bias and fairness concerns',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 90: ML Ethics and Fairness (5 questions)
+    (446, 'What are common sources of bias in machine learning systems',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (447, 'Explain different fairness metrics like demographic parity, equal opportunity, and equalized odds',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (448, 'How do you detect and measure bias in training data and model predictions',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (449, 'What techniques can you use to mitigate bias in machine learning models',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (450, 'Your hiring algorithm is showing significantly lower acceptance rates for certain demographic groups despite using only job-relevant features. Walk through how you would investigate this fairness issue, identify root causes, evaluate different fairness metrics and their trade-offs, and determine what interventions would be appropriate while maintaining predictive performance',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- ============================================================================
+    -- SYSTEM DESIGN TOPICS (Topics 91-100, Questions 451-500)
+    -- ============================================================================
+
+    -- Topic 91: System Design Fundamentals (5 questions)
+    (451, 'What are the key considerations when designing a scalable distributed system',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (452, 'Explain the CAP theorem and its implications for distributed database design',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (453, 'Compare vertical scaling versus horizontal scaling with their trade-offs',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (454, 'What is the difference between stateful and stateless services and when would you use each',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (455, 'You are tasked with redesigning a monolithic e-commerce application that is struggling with Black Friday traffic spikes and slow deployment cycles. Discuss your approach to identifying bottlenecks, deciding what to extract first, handling data consistency during migration, and ensuring zero downtime during the transition',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 92: Scalability Patterns (5 questions)
+    (456, 'What is database sharding and when should you consider it',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (457, 'Explain different caching strategies like write-through, write-back, and cache-aside',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (458, 'Compare database read replicas versus caching for improving read performance',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (459, 'What is the circuit breaker pattern and how does it improve system resilience',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (460, 'Your social media application has grown from 100K to 10M users and the database is becoming a bottleneck with slow queries and frequent timeouts. Discuss strategies for scaling including read replicas, caching layers, database sharding approaches, query optimization, and handling eventual consistency',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 93: Database Design Patterns (5 questions)
+    (461, 'What are the trade-offs between SQL and NoSQL databases',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (462, 'Explain database normalization and when denormalization might be beneficial',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (463, 'Compare different NoSQL database types: key-value, document, column-family, and graph databases',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (464, 'What is eventual consistency and when is it acceptable versus requiring strong consistency',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (465, 'Design the database architecture for a global ride-sharing application that needs to handle millions of concurrent ride requests, track driver locations in real-time, calculate pricing dynamically, and maintain ride history. Discuss partitioning strategies, consistency requirements, handling hot spots, and geo-distributed data placement',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 94: Caching Strategies (5 questions)
+    (466, 'What problems does caching solve and what are common cache invalidation strategies',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (467, 'Explain the differences between CDN, application-level cache, and database query cache',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (468, 'Compare Redis and Memcached for caching use cases',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (469, 'What is cache stampede and how do you prevent it',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (470, 'Your news website is experiencing severe load on the database during breaking news events when millions of users request the same article simultaneously. Design a multi-layer caching strategy covering CDN, application cache, and database cache, handling cache invalidation when articles are updated, and preventing thundering herd problems',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 95: Load Balancing (5 questions)
+    (471, 'What is load balancing and why is it necessary in distributed systems',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (472, 'Compare different load balancing algorithms like round-robin, least connections, and weighted distribution',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (473, 'Explain Layer 4 versus Layer 7 load balancing and when to use each',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (474, 'How do load balancers perform health checks and handle unhealthy instances',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (475, 'Design a load balancing strategy for a video streaming platform with geographically distributed users, varying content popularity, and live streaming requirements. Discuss global versus regional load balancing, session affinity considerations, handling server failures gracefully, and optimizing for video quality of service',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 96: Microservices Architecture (5 questions)
+    (476, 'What are microservices and how do they differ from monolithic architecture',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (477, 'Explain service discovery and why it is important in microservices',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (478, 'Compare different communication patterns in microservices: synchronous HTTP, asynchronous messaging, and event-driven',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (479, 'What is the saga pattern for managing distributed transactions across microservices',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (480, 'Your company is migrating from a monolith to microservices and experiencing challenges with inter-service communication failures, data consistency across services, and increased operational complexity. Discuss strategies for service boundaries, handling failures with circuit breakers and retries, managing distributed transactions, and monitoring service dependencies',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 97: API Design (5 questions)
+    (481, 'What are REST API design best practices and common HTTP status codes',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (482, 'Compare REST, GraphQL, and gRPC for API design',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (483, 'Explain API versioning strategies and their trade-offs',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (484, 'How do you design APIs for rate limiting and preventing abuse',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (485, 'Design a public API for a payment processing platform that needs to support high throughput, maintain backward compatibility, provide clear error messages, implement security best practices, and handle rate limiting. Discuss authentication approaches, idempotency for payment operations, webhook design for async notifications, and API documentation strategy',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 98: Message Queues (5 questions)
+    (486, 'What problems do message queues solve in distributed systems',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (487, 'Explain the difference between message queues and publish-subscribe patterns',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (488, 'Compare RabbitMQ, Apache Kafka, and Amazon SQS',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (489, 'What are dead letter queues and when should you use them',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (490, 'Your order processing system needs to handle 10,000 orders per second during flash sales while ensuring orders are processed exactly once and in the correct sequence. Design a message queue architecture discussing choice of queue technology, handling backpressure, ensuring message ordering, implementing retry logic with exponential backoff, and monitoring queue health',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 99: Distributed Systems (5 questions)
+    (491, 'What is consensus in distributed systems and why is it challenging',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (492, 'Explain leader election and common algorithms like Raft or Paxos at a high level',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (493, 'What is the split-brain problem in distributed systems and how do you prevent it',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (494, 'Compare different replication strategies: master-slave, master-master, and quorum-based',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (495, 'Design a distributed configuration management system similar to etcd or ZooKeeper that needs to provide strong consistency guarantees, handle network partitions gracefully, support automatic failover, and scale to thousands of clients. Discuss consensus algorithms, replication strategies, handling failures, and performance considerations',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 100: Real-time Systems (5 questions)
+    (496, 'What are the challenges of building real-time systems compared to batch processing systems',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (497, 'Explain WebSockets and Server-Sent Events for real-time communication',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (498, 'Compare different real-time data processing frameworks like Apache Flink, Spark Streaming, and Kafka Streams',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (499, 'What is backpressure in stream processing and how do you handle it',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (500, 'Design a real-time analytics dashboard for a trading platform that needs to display live market data, calculate moving averages and alerts with sub-second latency, handle millions of events per second, and provide historical playback capability. Discuss stream processing architecture, state management, handling late-arriving data, and ensuring exactly-once processing',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- ============================================================================
+    -- ADDITIONAL TOPICS (Topics 101-103, Questions 501-515)
+    -- ============================================================================
+
+    -- Topic 101: Security Architecture (5 questions)
+    (501, 'What are the OWASP Top 10 security vulnerabilities and how do you prevent them',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (502, 'Explain different authentication mechanisms: session-based, token-based, and OAuth',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (503, 'Compare symmetric and asymmetric encryption and when to use each',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (504, 'What is zero-trust security architecture and how does it differ from perimeter-based security',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (505, 'Your financial services application needs to achieve SOC 2 and PCI DSS compliance while maintaining developer productivity. Discuss security architecture covering authentication and authorization, data encryption at rest and in transit, secrets management, audit logging, vulnerability scanning, and balancing security with usability',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 102: Cloud Architecture (5 questions)
+    (506, 'What are the main differences between IaaS, PaaS, and SaaS cloud service models',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (507, 'Explain the benefits and challenges of multi-cloud versus single-cloud strategy',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (508, 'Compare serverless computing with traditional container-based deployments',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (509, 'What is cloud cost optimization and what strategies can reduce cloud spending',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (510, 'Your startup is experiencing unpredictable growth and current infrastructure costs are consuming 40% of revenue with frequent outages during traffic spikes. Design a cloud architecture strategy discussing right-sizing resources, auto-scaling policies, choosing between serverless and containers, implementing disaster recovery, and optimizing costs while maintaining performance SLAs',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true),
+
+    -- Topic 103: Performance Optimization (5 questions)
+    (511, 'What are common performance bottlenecks in web applications and how do you identify them',
+     NULL, 'technical', 'easy', 'organization', 1, 'custom', 3, true),
+    
+    (512, 'Explain different profiling techniques for identifying CPU and memory issues',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (513, 'Compare different approaches to database query optimization',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (514, 'What is the difference between latency and throughput and how do you optimize for each',
+     NULL, 'technical', 'medium', 'organization', 1, 'custom', 5, true),
+    
+    (515, 'Your web application API response times have degraded from 100ms to 2 seconds over six months as user base grew from 10K to 1M users. Walk through your systematic approach to diagnosing performance issues covering profiling tools, database query analysis, identifying N+1 queries, evaluating caching opportunities, and determining whether the solution requires code optimization or infrastructure scaling',
+     NULL, 'technical', 'hard', 'organization', 1, 'custom', 7, true);
