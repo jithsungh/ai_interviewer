@@ -189,9 +189,15 @@ def register_middleware(app: FastAPI) -> None:
     logger.debug("✓ ErrorFormattingMiddleware registered")
     
     # 4. CORS (FOURTH - must run before auth for OPTIONS requests)
+    # Allow localhost for development and Tailscale IPs for remote dev
+    allowed_origins = [
+        "http://localhost:8080",
+        "http://localhost:3000",
+        "http://100.95.213.103:8080",  # Tailscale frontend
+    ]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:8080"],
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],

@@ -803,6 +803,9 @@ def list_questions(
     identity: IdentityContext = Depends(require_admin),
     db: Session = Depends(get_db_session_with_commit),
 ) -> QuestionListResponse:
+    # Treat "undefined" string from frontend as None
+    if question_type in ("undefined", "null", ""):
+        question_type = None
     svc = build_question_service(db)
     questions, total = svc.list_questions(
         identity, is_active=is_active, question_type=question_type, page=page, per_page=per_page,
