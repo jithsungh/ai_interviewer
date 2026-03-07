@@ -9,3 +9,6 @@ data/leetcode_problems/
 */__pycache__
 *.pyc
 .env
+
+*.md
+!README.md
