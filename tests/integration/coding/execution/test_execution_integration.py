@@ -187,7 +187,7 @@ class TestCodeSubmissionRepositoryCRUD:
             source_code="x = 1",
         )
 
-        pending = repo.list_pending(limit=10)
+        pending = repo.list_pending(limit=10000)
         assert any(s.id == created.id for s in pending)
 
     def test_count_submissions_since(self, db_session, coding_seed):

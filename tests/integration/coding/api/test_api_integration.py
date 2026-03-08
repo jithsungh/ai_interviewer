@@ -131,8 +131,12 @@ class TestSubmitCode:
         ).scalar_one()
         db_session.flush()
 
+        import time as _time
+        now = int(_time.time())
         other_identity = IdentityContext(
             user_id=other_user_id, user_type="candidate",
+            organization_id=None, admin_role=None,
+            token_version=1, issued_at=now, expires_at=now + 3600,
         )
 
         svc = CodingApiService(db_session)
@@ -326,8 +330,12 @@ class TestListSubmissionsForInterview:
         ).scalar_one()
         db_session.flush()
 
+        import time as _time
+        now = int(_time.time())
         other_identity = IdentityContext(
             user_id=other_user_id, user_type="candidate",
+            organization_id=None, admin_role=None,
+            token_version=1, issued_at=now, expires_at=now + 3600,
         )
 
         svc = CodingApiService(db_session)

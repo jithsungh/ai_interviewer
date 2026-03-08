@@ -63,7 +63,8 @@ class InterviewSubmissionModel(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("candidate_id", "window_id", "role_id", name="uq_candidate_window_role"),
+        # Uniqueness enforced via partial index uq_candidate_window_role_non_practice
+        # (allows multiple practice submissions per candidate)
         {"extend_existing": True},
     )
 

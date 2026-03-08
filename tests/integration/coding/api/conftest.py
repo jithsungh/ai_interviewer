@@ -283,13 +283,16 @@ def seed_submission(db_session, seed_candidate, seed_window, seed_role, seed_tem
 
 
 @pytest.fixture()
-def seed_coding_problem(db_session):
+def seed_coding_problem(db_session, _unique_suffix):
+    db_session.execute(text(
+        "SELECT setval('coding_problems_id_seq', COALESCE((SELECT MAX(id) FROM coding_problems), 0))"
+    ))
     result = db_session.execute(
         text(
             "INSERT INTO coding_problems (body, difficulty, scope, source_name, source_id, title) "
             "VALUES (:body, :diff, :scope, :src_name, :src_id, :title) RETURNING id"
         ),
-        {"body": "Return the square of the input.", "diff": "easy", "scope": "public", "src_name": "leetcode", "src_id": "test-seed-problem", "title": "Square It"},
+        {"body": "Return the square of the input.", "diff": "easy", "scope": "public", "src_name": "leetcode", "src_id": f"test-seed-{_unique_suffix}", "title": "Square It"},
     )
     problem_id = result.scalar_one()
     db_session.flush()
@@ -343,18 +346,32 @@ def coding_seed(db_session, seed_exchange, seed_coding_problem, seed_test_cases)
 @pytest.fixture()
 def candidate_identity(seed_candidate_user):
     """Build a candidate IdentityContext for service calls."""
+    import time as _time
     from app.shared.auth_context import IdentityContext
+    now = int(_time.time())
     return IdentityContext(
         user_id=seed_candidate_user,
         user_type="candidate",
+        organization_id=None,
+        admin_role=None,
+        token_version=1,
+        issued_at=now,
+        expires_at=now + 3600,
     )
 
 
 @pytest.fixture()
-def admin_identity(seed_admin_user):
+def admin_identity(seed_admin_user, seed_organization):
     """Build an admin IdentityContext for service calls."""
+    import time as _time
     from app.shared.auth_context import IdentityContext
+    now = int(_time.time())
     return IdentityContext(
         user_id=seed_admin_user,
         user_type="admin",
+        organization_id=seed_organization,
+        admin_role="admin",
+        token_version=1,
+        issued_at=now,
+        expires_at=now + 3600,
     )

@@ -106,6 +106,8 @@ class TestCreate:
         """Raises DuplicateAnalyticsError on UNIQUE violation."""
         session = MagicMock()
         mock_to_model.return_value = _make_model()
+        session.begin_nested.return_value.__enter__ = MagicMock()
+        session.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
         session.flush.side_effect = IntegrityError(
             "unique constraint", params=None, orig=Exception("unique")
         )
@@ -117,7 +119,7 @@ class TestCreate:
             repo.create(dto)
 
         assert exc_info.value.exchange_id == 42
-        session.rollback.assert_called_once()
+        session.begin_nested.assert_called_once()
 
 
 class TestCreateOrGet:
