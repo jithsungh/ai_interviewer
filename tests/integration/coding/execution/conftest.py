@@ -389,8 +389,11 @@ def seed_submission(
 
 
 @pytest.fixture()
-def seed_coding_problem(db_session):
+def seed_coding_problem(db_session, _unique_suffix):
     """Insert a minimal coding problem."""
+    db_session.execute(text(
+        "SELECT setval('coding_problems_id_seq', COALESCE((SELECT MAX(id) FROM coding_problems), 0))"
+    ))
     result = db_session.execute(
         text(
             """
@@ -405,7 +408,7 @@ def seed_coding_problem(db_session):
             "diff": "easy",
             "scope": "public",
             "src_name": "leetcode",
-            "src_id": "test-seed-problem",
+            "src_id": f"test-seed-{_unique_suffix}",
             "title": "Square It",
         },
     )

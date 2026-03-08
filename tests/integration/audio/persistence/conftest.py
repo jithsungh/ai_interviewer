@@ -237,15 +237,33 @@ def seed_submission(db_session, seed_candidate, seed_window, seed_role, seed_tem
 
 
 @pytest.fixture()
-def seed_exchange(db_session, seed_submission):
+def seed_question(db_session, _unique_suffix):
+    """Insert a minimal question for FK references."""
+    db_session.execute(text(
+        "SELECT setval('questions_id_seq', COALESCE((SELECT MAX(id) FROM questions), 0))"
+    ))
+    result = db_session.execute(
+        text(
+            "INSERT INTO questions (question_text, question_type, difficulty, scope) "
+            "VALUES (:qt, :qtype, :diff, :scope) RETURNING id"
+        ),
+        {"qt": f"Question {_unique_suffix}", "qtype": "behavioral", "diff": "easy", "scope": "public"},
+    )
+    question_id = result.scalar_one()
+    db_session.flush()
+    return question_id
+
+
+@pytest.fixture()
+def seed_exchange(db_session, seed_submission, seed_question):
     """Insert a minimal interview exchange for audio analytics."""
     result = db_session.execute(
         text(
             "INSERT INTO interview_exchanges "
-            "(interview_submission_id, sequence_order, question_text, difficulty_at_time) "
-            "VALUES (:isid, :seq, :qt, :dat) RETURNING id"
+            "(interview_submission_id, sequence_order, question_id, question_text, difficulty_at_time) "
+            "VALUES (:isid, :seq, :qid, :qt, :dat) RETURNING id"
         ),
-        {"isid": seed_submission, "seq": 1, "qt": "Describe your experience.", "dat": "easy"},
+        {"isid": seed_submission, "seq": 1, "qid": seed_question, "qt": "Describe your experience.", "dat": "easy"},
     )
     exchange_id = result.scalar_one()
     db_session.flush()
@@ -253,17 +271,17 @@ def seed_exchange(db_session, seed_submission):
 
 
 @pytest.fixture()
-def seed_exchange_pair(db_session, seed_submission):
+def seed_exchange_pair(db_session, seed_submission, seed_question):
     """Insert two exchanges for the same submission."""
     ids = []
     for seq in (1, 2):
         result = db_session.execute(
             text(
                 "INSERT INTO interview_exchanges "
-                "(interview_submission_id, sequence_order, question_text, difficulty_at_time) "
-                "VALUES (:isid, :seq, :qt, :dat) RETURNING id"
+                "(interview_submission_id, sequence_order, question_id, question_text, difficulty_at_time) "
+                "VALUES (:isid, :seq, :qid, :qt, :dat) RETURNING id"
             ),
-            {"isid": seed_submission, "seq": seq, "qt": f"Question {seq}", "dat": "easy"},
+            {"isid": seed_submission, "seq": seq, "qid": seed_question, "qt": f"Question {seq}", "dat": "easy"},
         )
         ids.append(result.scalar_one())
     db_session.flush()
