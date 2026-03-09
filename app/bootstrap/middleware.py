@@ -191,9 +191,9 @@ def register_middleware(app: FastAPI) -> None:
     # 4. CORS (FOURTH - must run before auth for OPTIONS requests)
     # Allow localhost for development and Tailscale IPs for remote dev
     allowed_origins = [
-        "http://localhost:8080",
-        "http://localhost:3000",
-        "http://100.95.213.103:8080",  # Tailscale frontend
+        "http://localhost:8080/",
+        "http://localhost:3000/",
+        "http://100.95.213.103:8080/",  # Tailscale frontend
     ]
     app.add_middleware(
         CORSMiddleware,
