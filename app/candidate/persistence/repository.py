@@ -18,17 +18,26 @@ from sqlalchemy.orm import Session
 from app.admin.persistence.models import (
     CodingProblemModel,
     InterviewSubmissionWindowModel,
+    InterviewTemplateModel,
     QuestionModel,
     RoleModel,
+    RubricDimensionModel,
     TopicModel,
     WindowRoleTemplateModel,
 )
 from app.auth.persistence.models import Candidate, Organization, User
-from app.evaluation.persistence.models import InterviewResultModel
+from app.audio.persistence.models import AudioAnalyticsModel
+from app.coding.persistence.models import CodeSubmissionModel, CodeExecutionResultModel
+from app.evaluation.persistence.models import (
+    EvaluationDimensionScoreModel,
+    EvaluationModel,
+    InterviewResultModel,
+)
 from app.interview.session.persistence.models import (
     InterviewExchangeModel,
     InterviewSubmissionModel,
 )
+from app.proctoring.persistence.models import ProctoringEventModel
 from app.shared.errors import NotFoundError
 from app.shared.observability import get_context_logger
 
@@ -153,9 +162,53 @@ class CandidateQueryRepository:
             else:
                 status = "open"
 
-            # Duration in minutes from time range
-            delta = w.end_time - w.start_time
-            duration_minutes = int(delta.total_seconds() / 60) if delta else None
+            # Fetch all role-template mappings for this window
+            wrt_rows = (
+                self._db.query(WindowRoleTemplateModel)
+                .filter(WindowRoleTemplateModel.window_id == w.id)
+                .all()
+            )
+            role_templates = []
+            for wrt in wrt_rows:
+                role_obj = (
+                    self._db.query(RoleModel)
+                    .filter(RoleModel.id == wrt.role_id)
+                    .first()
+                )
+                tmpl_obj = (
+                    self._db.query(InterviewTemplateModel)
+                    .filter(InterviewTemplateModel.id == wrt.template_id)
+                    .first()
+                )
+                role_templates.append({
+                    "id": wrt.id,
+                    "window_id": wrt.window_id,
+                    "role_id": wrt.role_id,
+                    "template_id": wrt.template_id,
+                    "selection_weight": wrt.selection_weight,
+                    "role": {
+                        "id": role_obj.id,
+                        "name": role_obj.name,
+                        "description": getattr(role_obj, "description", None),
+                        "scope": getattr(role_obj, "scope", None),
+                    } if role_obj else {"id": wrt.role_id, "name": "Unknown"},
+                    "template": {
+                        "id": tmpl_obj.id,
+                        "name": tmpl_obj.name,
+                        "description": getattr(tmpl_obj, "description", None),
+                        "scope": getattr(tmpl_obj, "scope", None),
+                        "total_estimated_time_minutes": getattr(tmpl_obj, "total_estimated_time_minutes", None),
+                        "version": getattr(tmpl_obj, "version", None),
+                        "is_active": getattr(tmpl_obj, "is_active", None),
+                    } if tmpl_obj else {"id": wrt.template_id, "name": "Unknown"},
+                })
+
+            # Get organization type
+            org = (
+                self._db.query(Organization)
+                .filter(Organization.id == w.organization_id)
+                .first()
+            )
 
             results.append({
                 "id": w.id,
@@ -163,10 +216,15 @@ class CandidateQueryRepository:
                 "scope": w.scope,
                 "start_time": w.start_time,
                 "end_time": w.end_time,
-                "organization": {"id": row.org_id, "name": row.org_name},
-                "role": {"id": row.role_id, "name": row.role_name},
-                "duration_minutes": duration_minutes,
+                "timezone": getattr(w, "timezone", None),
+                "organization": {
+                    "id": row.org_id,
+                    "name": row.org_name,
+                    "organization_type": getattr(org, "organization_type", None) if org else None,
+                },
+                "role_templates": role_templates,
                 "max_allowed_submissions": w.max_allowed_submissions,
+                "allow_after_end_time": getattr(w, "allow_after_end_time", False),
                 "allow_resubmission": w.allow_resubmission,
                 "candidate_submission_count": row.submission_count,
                 "status": status,
@@ -198,6 +256,8 @@ class CandidateQueryRepository:
                 Organization.name.label("org_name"),
                 RoleModel.id.label("role_id"),
                 RoleModel.name.label("role_name"),
+                InterviewTemplateModel.id.label("template_id"),
+                InterviewTemplateModel.name.label("template_name"),
             )
             .join(
                 InterviewSubmissionWindowModel,
@@ -210,6 +270,10 @@ class CandidateQueryRepository:
             .join(
                 RoleModel,
                 RoleModel.id == InterviewSubmissionModel.role_id,
+            )
+            .outerjoin(
+                InterviewTemplateModel,
+                InterviewTemplateModel.id == InterviewSubmissionModel.template_id,
             )
             .filter(InterviewSubmissionModel.candidate_id == candidate_id)
         )
@@ -246,12 +310,14 @@ class CandidateQueryRepository:
                 "window": {"id": row.window_id, "name": row.window_name},
                 "organization": {"id": row.org_id, "name": row.org_name},
                 "role": {"id": row.role_id, "name": row.role_name},
+                "template": {"id": row.template_id, "name": row.template_name} if row.template_id else None,
                 "status": sub.status,
                 "submitted_at": sub.submitted_at,
                 "started_at": sub.started_at,
                 "final_score": float(sub.final_score) if sub.final_score else None,
                 "result_status": result.result_status if result else None,
                 "recommendation": result.recommendation if result else None,
+                "mode": sub.mode,
             })
 
         return results, total
@@ -342,7 +408,7 @@ class CandidateQueryRepository:
         )
         score_history = [
             {
-                "date": row.submitted_at.strftime("%b %Y"),
+                "date": row.submitted_at.strftime("%Y-%m"),
                 "score": float(row.final_score),
             }
             for row in score_rows
@@ -366,11 +432,18 @@ class CandidateQueryRepository:
             for skill, scores in skill_map.items()
         ]
 
+        # Derive strong areas (score >= 80) and improvement areas (score < 75)
+        sorted_skills = sorted(skill_breakdown, key=lambda s: s["score"], reverse=True)
+        strong_areas = [s["skill"] for s in sorted_skills if s["score"] >= 80][:5]
+        improvement_areas = [s["skill"] for s in sorted_skills if s["score"] < 75][:5]
+
         return {
             "total_interviews": total_q,
             "average_score": round(float(avg_score), 1) if avg_score else None,
             "pass_rate": round(pass_rate, 1) if pass_rate is not None else None,
             "total_practice_time_minutes": total_time_minutes,
+            "strong_areas": strong_areas,
+            "improvement_areas": improvement_areas,
             "score_history": score_history,
             "skill_breakdown": skill_breakdown,
         }
@@ -411,7 +484,11 @@ class CandidateQueryRepository:
             "education": meta.get("education", []),
             "work_experience": meta.get("work_experience", []),
             "plan": candidate.plan,
+            "status": getattr(candidate, "status", None),
+            "user_type": user.user_type,
+            "last_login_at": getattr(user, "last_login_at", None),
             "created_at": candidate.created_at,
+            "updated_at": getattr(candidate, "updated_at", None),
         }
 
     def update_candidate_profile(
@@ -543,6 +620,7 @@ class CandidateQueryRepository:
                     "skill": q.question_type,
                     "difficulty": q.difficulty,
                     "type": q.question_type,
+                    "estimated_time_minutes": getattr(q, "estimated_time_minutes", None),
                     "completed": q.id in completed_question_ids,
                 })
 
@@ -554,6 +632,7 @@ class CandidateQueryRepository:
                     "skill": "coding",
                     "difficulty": cp.difficulty,
                     "type": "coding",
+                    "estimated_time_minutes": getattr(cp, "estimated_time_minutes", None),
                     "completed": cp.id in completed_problem_ids,
                 })
 
@@ -656,3 +735,334 @@ class CandidateQueryRepository:
         self._db.flush()
 
         return submission
+
+    # ────────────────────────────────────────────────────────────
+    # Submission Detail (full nested view)
+    # ────────────────────────────────────────────────────────────
+
+    def get_submission_detail(
+        self,
+        user_id: int,
+        submission_id: int,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Fetch a single submission with all nested data:
+        window (+org), role, template, result, exchanges
+        (+evaluations +dimension_scores +audio_analytics +code_submissions),
+        and proctoring events.
+
+        Returns None if the submission doesn't exist or doesn't belong
+        to the candidate.
+        """
+        candidate_id = self._resolve_candidate_id(user_id)
+
+        sub = (
+            self._db.query(InterviewSubmissionModel)
+            .filter(
+                InterviewSubmissionModel.id == submission_id,
+                InterviewSubmissionModel.candidate_id == candidate_id,
+            )
+            .first()
+        )
+        if sub is None:
+            return None
+
+        # --- Window + Organization ---
+        window_dict = None
+        win = (
+            self._db.query(InterviewSubmissionWindowModel)
+            .filter(InterviewSubmissionWindowModel.id == sub.window_id)
+            .first()
+        )
+        if win:
+            org = (
+                self._db.query(Organization)
+                .filter(Organization.id == win.organization_id)
+                .first()
+            )
+            window_dict = {
+                "id": win.id,
+                "organization_id": win.organization_id,
+                "admin_id": getattr(win, "admin_id", None),
+                "name": win.name,
+                "scope": win.scope,
+                "start_time": self._iso(win.start_time),
+                "end_time": self._iso(win.end_time),
+                "timezone": getattr(win, "timezone", None),
+                "max_allowed_submissions": win.max_allowed_submissions,
+                "allow_after_end_time": getattr(win, "allow_after_end_time", False),
+                "allow_resubmission": win.allow_resubmission,
+                "organization": {
+                    "id": org.id,
+                    "name": org.name,
+                    "organization_type": getattr(org, "organization_type", None),
+                    "plan": getattr(org, "plan", None),
+                    "domain": getattr(org, "domain", None),
+                    "status": getattr(org, "status", None),
+                } if org else None,
+            }
+
+        # --- Role ---
+        role_dict = None
+        role = self._db.query(RoleModel).filter(RoleModel.id == sub.role_id).first()
+        if role:
+            role_dict = {
+                "id": role.id,
+                "name": role.name,
+                "description": getattr(role, "description", None),
+                "scope": getattr(role, "scope", None),
+            }
+
+        # --- Template ---
+        template_dict = None
+        tmpl = self._db.query(InterviewTemplateModel).filter(InterviewTemplateModel.id == sub.template_id).first()
+        if tmpl:
+            template_dict = {
+                "id": tmpl.id,
+                "name": tmpl.name,
+                "description": getattr(tmpl, "description", None),
+                "scope": getattr(tmpl, "scope", None),
+                "total_estimated_time_minutes": getattr(tmpl, "total_estimated_time_minutes", None),
+                "version": getattr(tmpl, "version", None),
+                "is_active": getattr(tmpl, "is_active", None),
+            }
+
+        # --- Result ---
+        result_dict = None
+        result = (
+            self._db.query(InterviewResultModel)
+            .filter(
+                InterviewResultModel.interview_submission_id == sub.id,
+                InterviewResultModel.is_current == True,  # noqa: E712
+            )
+            .first()
+        )
+        if result:
+            result_dict = {
+                "id": result.id,
+                "interview_submission_id": result.interview_submission_id,
+                "final_score": float(result.final_score) if result.final_score else None,
+                "normalized_score": float(result.normalized_score) if result.normalized_score else None,
+                "result_status": result.result_status,
+                "recommendation": result.recommendation,
+                "section_scores": result.section_scores,
+                "strengths": result.strengths,
+                "weaknesses": result.weaknesses,
+                "summary_notes": result.summary_notes,
+                "generated_by": result.generated_by,
+                "is_current": result.is_current,
+                "computed_at": self._iso(getattr(result, "computed_at", None)),
+                "created_at": self._iso(result.created_at),
+            }
+
+        # --- Exchanges ---
+        exchange_rows = (
+            self._db.query(InterviewExchangeModel)
+            .filter(InterviewExchangeModel.interview_submission_id == sub.id)
+            .order_by(InterviewExchangeModel.sequence_order.asc())
+            .all()
+        )
+        exchanges = []
+        for ex in exchange_rows:
+            # Evaluation for this exchange
+            eval_dict = None
+            evaluation = (
+                self._db.query(EvaluationModel)
+                .filter(
+                    EvaluationModel.interview_exchange_id == ex.id,
+                    EvaluationModel.is_final == True,  # noqa: E712
+                )
+                .first()
+            )
+            if evaluation:
+                dim_rows = (
+                    self._db.query(
+                        EvaluationDimensionScoreModel,
+                        RubricDimensionModel.dimension_name,
+                    )
+                    .outerjoin(
+                        RubricDimensionModel,
+                        RubricDimensionModel.id == EvaluationDimensionScoreModel.rubric_dimension_id,
+                    )
+                    .filter(EvaluationDimensionScoreModel.evaluation_id == evaluation.id)
+                    .all()
+                )
+                eval_dict = {
+                    "id": evaluation.id,
+                    "interview_exchange_id": evaluation.interview_exchange_id,
+                    "evaluator_type": evaluation.evaluator_type,
+                    "total_score": float(evaluation.total_score) if evaluation.total_score else None,
+                    "is_final": evaluation.is_final,
+                    "evaluated_at": self._iso(evaluation.evaluated_at),
+                    "created_at": self._iso(evaluation.created_at),
+                    "dimension_scores": [
+                        {
+                            "id": ds.id,
+                            "evaluation_id": ds.evaluation_id,
+                            "rubric_dimension_id": ds.rubric_dimension_id,
+                            "score": float(ds.score) if ds.score else 0,
+                            "dimension_name": dim_name or "",
+                            "created_at": self._iso(ds.created_at),
+                        }
+                        for ds, dim_name in dim_rows
+                    ],
+                }
+
+            # Audio analytics
+            audio_dict = None
+            audio = (
+                self._db.query(AudioAnalyticsModel)
+                .filter(AudioAnalyticsModel.interview_exchange_id == ex.id)
+                .first()
+            )
+            if audio:
+                audio_dict = {
+                    "id": audio.id,
+                    "interview_exchange_id": audio.interview_exchange_id,
+                    "transcript": audio.transcript,
+                    "confidence_score": float(audio.confidence_score) if audio.confidence_score else None,
+                    "speech_rate_wpm": audio.speech_rate_wpm,
+                    "filler_word_count": audio.filler_word_count,
+                    "sentiment_score": float(audio.sentiment_score) if audio.sentiment_score else None,
+                    "created_at": self._iso(audio.created_at),
+                }
+
+            # Code submission
+            code_dict = None
+            code_sub = (
+                self._db.query(CodeSubmissionModel)
+                .filter(CodeSubmissionModel.interview_exchange_id == ex.id)
+                .first()
+            )
+            if code_sub:
+                exec_results = (
+                    self._db.query(CodeExecutionResultModel)
+                    .filter(CodeExecutionResultModel.code_submission_id == code_sub.id)
+                    .all()
+                )
+                code_dict = {
+                    "id": code_sub.id,
+                    "interview_exchange_id": code_sub.interview_exchange_id,
+                    "coding_problem_id": code_sub.coding_problem_id,
+                    "language": code_sub.language,
+                    "source_code": code_sub.source_code,
+                    "execution_status": code_sub.execution_status,
+                    "score": float(code_sub.score) if code_sub.score else None,
+                    "execution_time_ms": code_sub.execution_time_ms,
+                    "memory_kb": code_sub.memory_kb,
+                    "submitted_at": self._iso(code_sub.submitted_at),
+                    "created_at": self._iso(code_sub.created_at),
+                    "execution_results": [
+                        {
+                            "id": er.id,
+                            "code_submission_id": er.code_submission_id,
+                            "test_case_id": er.test_case_id,
+                            "passed": er.passed,
+                            "actual_output": er.actual_output,
+                            "runtime_ms": er.runtime_ms,
+                            "memory_kb": er.memory_kb,
+                            "exit_code": er.exit_code,
+                            "created_at": self._iso(er.created_at),
+                        }
+                        for er in exec_results
+                    ],
+                }
+
+            exchanges.append({
+                "id": ex.id,
+                "interview_submission_id": ex.interview_submission_id,
+                "sequence_order": ex.sequence_order,
+                "question_text": ex.question_text,
+                "difficulty_at_time": ex.difficulty_at_time,
+                "coding_problem_id": getattr(ex, "coding_problem_id", None),
+                "response_text": ex.response_text,
+                "response_code": getattr(ex, "response_code", None),
+                "response_time_ms": ex.response_time_ms,
+                "created_at": self._iso(ex.created_at),
+                "evaluation": eval_dict,
+                "audio_analytics": audio_dict,
+                "code_submission": code_dict,
+            })
+
+        # --- Proctoring events ---
+        proctor_rows = (
+            self._db.query(ProctoringEventModel)
+            .filter(ProctoringEventModel.interview_submission_id == sub.id)
+            .order_by(ProctoringEventModel.occurred_at.asc())
+            .all()
+        )
+        proctoring_events = [
+            {
+                "id": pe.id,
+                "interview_submission_id": pe.interview_submission_id,
+                "event_type": pe.event_type,
+                "severity": pe.severity,
+                "risk_weight": float(pe.risk_weight) if pe.risk_weight else None,
+                "occurred_at": self._iso(pe.occurred_at),
+                "created_at": self._iso(pe.created_at),
+            }
+            for pe in proctor_rows
+        ]
+
+        return {
+            "id": sub.id,
+            "candidate_id": sub.candidate_id,
+            "window_id": sub.window_id,
+            "role_id": sub.role_id,
+            "template_id": sub.template_id,
+            "mode": sub.mode,
+            "status": sub.status,
+            "final_score": float(sub.final_score) if sub.final_score else None,
+            "consent_captured": sub.consent_captured,
+            "started_at": self._iso(sub.started_at),
+            "submitted_at": self._iso(sub.submitted_at),
+            "created_at": self._iso(sub.created_at),
+            "updated_at": self._iso(getattr(sub, "updated_at", None)),
+            "window": window_dict,
+            "role": role_dict,
+            "template": template_dict,
+            "result": result_dict,
+            "exchanges": exchanges,
+            "proctoring_events": proctoring_events,
+        }
+
+    # ────────────────────────────────────────────────────────────
+    # Resumes
+    # ────────────────────────────────────────────────────────────
+
+    def get_candidate_resumes(self, user_id: int) -> List[Dict[str, Any]]:
+        """Fetch resumes for a candidate via raw SQL (no ORM model)."""
+        candidate_id = self._resolve_candidate_id(user_id)
+        rows = self._db.execute(
+            text(
+                "SELECT id, candidate_id, file_url, parsed_text, "
+                "extracted_data, uploaded_at, created_at "
+                "FROM resumes WHERE candidate_id = :cid "
+                "ORDER BY created_at DESC"
+            ),
+            {"cid": candidate_id},
+        ).fetchall()
+
+        return [
+            {
+                "id": r[0],
+                "candidate_id": r[1],
+                "file_url": r[2],
+                "parsed_text": r[3],
+                "extracted_data": r[4],
+                "uploaded_at": self._iso(r[5]),
+                "created_at": self._iso(r[6]),
+            }
+            for r in rows
+        ]
+
+    # ────────────────────────────────────────────────────────────
+    # Helpers
+    # ────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _iso(dt) -> Optional[str]:
+        """Format datetime to ISO-8601 string or None."""
+        if dt is None:
+            return None
+        return dt.isoformat() if hasattr(dt, "isoformat") else str(dt)

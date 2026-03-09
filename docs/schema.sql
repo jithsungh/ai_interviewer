@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict olj4iwhlltbbazVPlwLGwROz3mPQ7DXT2bPPbITgBM2odkGKsRIjSgYcdB7uUIg
+\restrict Rz3JZ3hiScrO1fDhMzwS4dyaVkEN20XgplZeFBl5ai1PRVdc36X2wYE7wCokVkf
 
 -- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
 -- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
@@ -2836,14 +2836,6 @@ ALTER TABLE ONLY public.interview_submission_windows
 
 
 --
--- Name: interview_submissions interview_submissions_candidate_id_window_id_role_id_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
---
-
-ALTER TABLE ONLY public.interview_submissions
-    ADD CONSTRAINT interview_submissions_candidate_id_window_id_role_id_key UNIQUE (candidate_id, window_id, role_id);
-
-
---
 -- Name: interview_submissions interview_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -4016,6 +4008,13 @@ CREATE INDEX idx_windows_time ON public.interview_submission_windows USING btree
 
 
 --
+-- Name: uq_candidate_window_role_non_practice; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE UNIQUE INDEX uq_candidate_window_role_non_practice ON public.interview_submissions USING btree (candidate_id, window_id, role_id) WHERE (window_id <> 86);
+
+
+--
 -- Name: uq_evaluations_exchange_final; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -4690,5 +4689,5 @@ GRANT ALL ON SCHEMA public TO vysali;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict olj4iwhlltbbazVPlwLGwROz3mPQ7DXT2bPPbITgBM2odkGKsRIjSgYcdB7uUIg
+\unrestrict Rz3JZ3hiScrO1fDhMzwS4dyaVkEN20XgplZeFBl5ai1PRVdc36X2wYE7wCokVkf
 

@@ -2,13 +2,15 @@
 Candidate API Routes
 
 REST endpoints for candidate-facing operations:
-  GET  /windows                 — list visible interview windows (Gap 1)
-  GET  /submissions             — list past submissions (Gap 2)
-  GET  /stats                   — aggregate performance statistics (Gap 3)
-  GET  /profile                 — get candidate profile (Gap 4)
-  PUT  /profile                 — update candidate profile (Gap 4)
-  GET  /practice/questions      — list practice questions by skill (Gap 5)
-  POST /practice/start          — start ad-hoc practice session (Gap 6)
+  GET  /windows                      — list visible interview windows (Gap 1)
+  GET  /submissions                  — list past submissions (Gap 2)
+  GET  /submissions/{submission_id}  — detailed submission view
+  GET  /stats                        — aggregate performance statistics (Gap 3)
+  GET  /profile                      — get candidate profile (Gap 4)
+  PUT  /profile                      — update candidate profile (Gap 4)
+  GET  /practice/questions           — list practice questions by skill (Gap 5)
+  POST /practice/start               — start ad-hoc practice session (Gap 6)
+  GET  /resumes                      — list candidate resumes
 
 URL prefix: /api/v1/candidate (set in router_registry.py)
 Auth: All endpoints require candidate JWT (via require_candidate dependency).
@@ -30,9 +32,11 @@ from app.bootstrap.dependencies import (
 from app.candidate.api.contracts import (
     CandidateProfileResponse,
     CandidateStatsResponse,
+    CandidateSubmissionDetailResponse,
     CandidateSubmissionListResponse,
     CandidateWindowListResponse,
     PracticeQuestionListResponse,
+    ResumeListResponse,
     StartPracticeRequest,
     StartPracticeResponse,
     UpdateCandidateProfileRequest,
@@ -116,6 +120,35 @@ def list_submissions(
         page=page,
         per_page=per_page,
         status=status,
+    )
+
+
+# ────────────────────────────────────────────────────────────
+# Submission Detail
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/submissions/{submission_id}",
+    response_model=CandidateSubmissionDetailResponse,
+    summary="Get full submission detail with nested data",
+    status_code=200,
+)
+def get_submission_detail(
+    submission_id: int,
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CandidateSubmissionDetailResponse:
+    """
+    Get a detailed view of a single submission including
+    window, role, template, result (with section scores),
+    exchanges (with evaluations, code submissions, audio analytics),
+    and proctoring events.
+    """
+    svc = _build_service(db)
+    return svc.get_submission_detail(
+        user_id=identity.user_id,
+        submission_id=submission_id,
     )
 
 
@@ -260,3 +293,26 @@ def start_practice(
         difficulty=body.difficulty,
         consent_accepted=body.consent_accepted,
     )
+
+
+# ────────────────────────────────────────────────────────────
+# Resumes
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/resumes",
+    response_model=ResumeListResponse,
+    summary="List candidate resumes",
+    status_code=200,
+)
+def list_resumes(
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> ResumeListResponse:
+    """
+    Get all resumes for the authenticated candidate,
+    including parsed text and extracted data.
+    """
+    svc = _build_service(db)
+    return svc.get_resumes(user_id=identity.user_id)
