@@ -24,7 +24,8 @@ from .settings import (
     SecuritySettings,
     AudioSettings,
     RateLimitSettings,
-    FeatureFlagsSettings
+    FeatureFlagsSettings,
+    AzureStorageSettings
 )
 from .feature_flags import FeatureFlags, create_feature_flags
 from .security import (
@@ -67,6 +68,7 @@ __all__ = [
     "AudioSettings",
     "RateLimitSettings",
     "FeatureFlagsSettings",
+    "AzureStorageSettings",
     
     # Feature Flags
     "feature_flags",

@@ -174,6 +174,15 @@ def register_routers(app: FastAPI) -> None:
     )
     logger.debug("✓ Interview realtime router registered")
     
+    # Storage Module (Azure Blob Storage)
+    from app.shared.storage.routes import router as storage_router
+    app.include_router(
+        storage_router,
+        prefix=f"{api_prefix}/storage",
+        tags=["Storage"]
+    )
+    logger.debug("✓ Storage router registered")
+    
     # ==========================================
     # Health Check Endpoints
     # ==========================================

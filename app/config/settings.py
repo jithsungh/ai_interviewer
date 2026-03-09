@@ -368,6 +368,48 @@ class FeatureFlagsSettings(BaseSettings):
 
 
 # ====================
+# Azure Blob Storage Settings
+# ====================
+class AzureStorageSettings(BaseSettings):
+    """Azure Blob Storage configuration for file uploads (resumes, images, etc.)"""
+    
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILE,
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore"
+    )
+    
+    # Connection
+    azure_storage_account_name: str = Field(..., env="AZURE_STORAGE_ACCOUNT_NAME")
+    azure_storage_account_key: str = Field(..., env="AZURE_STORAGE_ACCOUNT_KEY")
+    azure_storage_connection_string: Optional[str] = Field(default=None, env="AZURE_STORAGE_CONNECTION_STRING")
+    
+    # Container names
+    azure_container_resumes: str = Field(default="candidate-resumes", env="AZURE_CONTAINER_RESUMES")
+    azure_container_recordings: str = Field(default="interview-recordings", env="AZURE_CONTAINER_RECORDINGS")
+    azure_container_images: str = Field(default="candidate-images", env="AZURE_CONTAINER_IMAGES")
+    azure_container_logos: str = Field(default="organization-logos", env="AZURE_CONTAINER_LOGOS")
+    azure_container_job_descriptions: str = Field(default="job-descriptions", env="AZURE_CONTAINER_JOB_DESCRIPTIONS")
+    
+    # Upload limits
+    azure_max_upload_size_mb: int = Field(default=50, env="AZURE_MAX_UPLOAD_SIZE_MB")
+    azure_sas_token_expiry_hours: int = Field(default=1, env="AZURE_SAS_TOKEN_EXPIRY_HOURS")
+    
+    @property
+    def account_url(self) -> str:
+        return f"https://{self.azure_storage_account_name}.blob.core.windows.net"
+    
+    @model_validator(mode='after')
+    def validate_storage_config(self):
+        if self.azure_max_upload_size_mb <= 0:
+            raise ValueError("AZURE_MAX_UPLOAD_SIZE_MB must be > 0")
+        if self.azure_sas_token_expiry_hours <= 0:
+            raise ValueError("AZURE_SAS_TOKEN_EXPIRY_HOURS must be > 0")
+        return self
+
+
+# ====================
 # Master Settings
 # ====================
 class Settings(BaseSettings):
@@ -390,12 +432,19 @@ class Settings(BaseSettings):
     audio: AudioSettings
     rate_limit: RateLimitSettings
     feature_flags: FeatureFlagsSettings
+    azure_storage: Optional[AzureStorageSettings] = None
     
     @classmethod
     def load(cls) -> "Settings":
         """Load and validate all settings at startup"""
         try:
             app_settings = AppSettings()
+            
+            # Azure storage is optional — only load if credentials are configured
+            azure_storage = None
+            if os.getenv("AZURE_STORAGE_ACCOUNT_NAME") and os.getenv("AZURE_STORAGE_ACCOUNT_KEY"):
+                azure_storage = AzureStorageSettings()
+            
             settings = cls(
                 app=app_settings,
                 database=DatabaseSettings(),
@@ -406,7 +455,8 @@ class Settings(BaseSettings):
                 security=SecuritySettings(),
                 audio=AudioSettings(),
                 rate_limit=RateLimitSettings(),
-                feature_flags=FeatureFlagsSettings()
+                feature_flags=FeatureFlagsSettings(),
+                azure_storage=azure_storage
             )
             logger.info(f"Configuration loaded successfully for {settings.app.app_env} environment")
             return settings
