@@ -68,10 +68,14 @@ class IdentityBuilder:
                     f"Must be 'superadmin', 'admin', or 'read_only'"
                 )
         
+        # Extract candidate_id (only present for candidate tokens)
+        candidate_id = claims.get("candidate_id") if user_type == UserType.CANDIDATE else None
+
         # Build IdentityContext
         return IdentityContext(
             user_id=claims["sub"],
             user_type=user_type,
+            candidate_id=candidate_id,
             organization_id=claims.get("organization_id"),
             admin_role=admin_role,
             token_version=claims["token_version"],

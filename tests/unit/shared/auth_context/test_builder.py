@@ -39,6 +39,7 @@ class TestIdentityBuilder:
         claims = {
             "sub": 123,
             "user_type": "candidate",
+            "candidate_id": 123,
             "token_version": 1,
             "iat": 1700000000,
             "exp": 1700003600

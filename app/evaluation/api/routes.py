@@ -595,9 +595,14 @@ def _authorize_evaluation_access(
         {"eid": evaluation.interview_exchange_id},
     ).first()
 
-    if not row or row.candidate_id != identity.user_id:
-        raise AuthorizationError(
-            message="Cannot view evaluations for other candidates' interviews",
+    if not row:
+        raise NotFoundError(
+            resource_type="Evaluation", resource_id=evaluation.id
+        )
+    if row.candidate_id != identity.user_id:
+        # Return 404 instead of 403 to avoid leaking evaluation existence
+        raise NotFoundError(
+            resource_type="Evaluation", resource_id=evaluation.id
         )
 
 
@@ -626,8 +631,9 @@ def _authorize_exchange_access(
             resource_type="Exchange", resource_id=exchange_id
         )
     if row.candidate_id != identity.user_id:
-        raise AuthorizationError(
-            message="Cannot view evaluations for other candidates' exchanges",
+        # Return 404 instead of 403 to avoid leaking exchange existence
+        raise NotFoundError(
+            resource_type="Exchange", resource_id=exchange_id
         )
 
 
@@ -652,6 +658,7 @@ def _authorize_submission_access(
             resource_type="Submission", resource_id=submission_id
         )
     if row.candidate_id != identity.user_id:
-        raise AuthorizationError(
-            message="Cannot view results for other candidates' interviews",
+        # Return 404 instead of 403 to avoid leaking submission existence
+        raise NotFoundError(
+            resource_type="Submission", resource_id=submission_id
         )

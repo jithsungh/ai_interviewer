@@ -29,6 +29,7 @@ def import_all_models():
     Note: This is called automatically by engine initialization.
     """
     # Import models to register them with Base.metadata
+    import app.auth.persistence.models  # noqa: F401
     import app.admin.persistence.models  # noqa: F401
     import app.ai.prompts.models  # noqa: F401
     import app.coding.persistence.models  # noqa: F401

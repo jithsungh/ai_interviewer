@@ -200,6 +200,21 @@ class IdentityInjectionMiddleware(BaseHTTPMiddleware):
         )
         
         # Proceed to next handler
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        except RuntimeError as exc:
+            if str(exc) == "No response returned.":
+                # Starlette BaseHTTPMiddleware bug: the response was already
+                # sent (e.g. by an exception handler) but call_next lost
+                # track of it due to dependency-generator cleanup re-raising.
+                # Return a fallback 500 so the middleware chain doesn't crash.
+                from starlette.responses import Response as StarletteResponse
+                logger.warning(
+                    "Caught 'No response returned' from call_next; "
+                    "response was likely already sent by an exception handler.",
+                    metadata={"request_id": request_id, "path": request.url.path},
+                )
+                return StarletteResponse(status_code=500)
+            raise
         
         return response

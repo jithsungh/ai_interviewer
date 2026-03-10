@@ -57,6 +57,7 @@ class TestGetOptionalIdentity:
         mock_request.state.identity = IdentityContext(
             user_id=123,
             user_type=UserType.CANDIDATE,
+            candidate_id=123,
             organization_id=None,
             admin_role=None,
             token_version=1,
@@ -138,6 +139,7 @@ class TestRequireAdmin:
         candidate_identity = IdentityContext(
             user_id=123,
             user_type=UserType.CANDIDATE,
+            candidate_id=123,
             organization_id=None,
             admin_role=None,
             token_version=1,
@@ -157,6 +159,7 @@ class TestRequireCandidate:
         candidate_identity = IdentityContext(
             user_id=123,
             user_type=UserType.CANDIDATE,
+            candidate_id=123,
             organization_id=None,
             admin_role=None,
             token_version=1,
@@ -240,6 +243,7 @@ class TestRequireSuperadmin:
         candidate_identity = IdentityContext(
             user_id=123,
             user_type=UserType.CANDIDATE,
+            candidate_id=123,
             organization_id=None,
             admin_role=None,
             token_version=1,

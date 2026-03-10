@@ -590,6 +590,7 @@ class TestGetMeRoute:
         identity = IdentityContext(
             user_id=2,
             user_type=UserType.CANDIDATE,
+            candidate_id=2,
             organization_id=None,
             admin_role=None,
             token_version=1,
@@ -620,6 +621,7 @@ class TestGetMeRoute:
         identity = IdentityContext(
             user_id=999,
             user_type=UserType.CANDIDATE,
+            candidate_id=999,
             organization_id=None,
             admin_role=None,
             token_version=1,

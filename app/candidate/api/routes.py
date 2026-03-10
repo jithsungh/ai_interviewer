@@ -11,6 +11,7 @@ REST endpoints for candidate-facing operations:
   GET  /practice/questions           — list practice questions by skill (Gap 5)
   POST /practice/start               — start ad-hoc practice session (Gap 6)
   GET  /resumes                      — list candidate resumes
+  POST /resumes                      — upload a resume
 
 URL prefix: /api/v1/candidate (set in router_registry.py)
 Auth: All endpoints require candidate JWT (via require_candidate dependency).
@@ -19,9 +20,10 @@ Auth: All endpoints require candidate JWT (via require_candidate dependency).
 from __future__ import annotations
 
 import logging
+from enum import Enum
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from app.bootstrap.dependencies import (
@@ -36,7 +38,9 @@ from app.candidate.api.contracts import (
     CandidateSubmissionListResponse,
     CandidateWindowListResponse,
     PracticeQuestionListResponse,
+    PracticeTemplateListResponse,
     ResumeListResponse,
+    ResumeUploadResponse,
     StartPracticeRequest,
     StartPracticeResponse,
     UpdateCandidateProfileRequest,
@@ -52,6 +56,15 @@ router = APIRouter()
 # ────────────────────────────────────────────────────────────
 # Helpers
 # ────────────────────────────────────────────────────────────
+
+
+class SubmissionStatusFilter(str, Enum):
+    pending = "pending"
+    in_progress = "in_progress"
+    completed = "completed"
+    expired = "expired"
+    cancelled = "cancelled"
+    reviewed = "reviewed"
 
 
 def _build_service(db: Session) -> CandidateService:
@@ -102,10 +115,9 @@ def list_windows(
 def list_submissions(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
-    status: Optional[str] = Query(
+    status: Optional[SubmissionStatusFilter] = Query(
         None,
         description="Filter by submission status (e.g. completed, reviewed)",
-        max_length=20,
     ),
     db: Session = Depends(get_db_session),
     identity: IdentityContext = Depends(require_candidate),
@@ -119,7 +131,7 @@ def list_submissions(
         user_id=identity.user_id,
         page=page,
         per_page=per_page,
-        status=status,
+        status=status.value if status else None,
     )
 
 
@@ -149,6 +161,89 @@ def get_submission_detail(
     return svc.get_submission_detail(
         user_id=identity.user_id,
         submission_id=submission_id,
+    )
+
+
+@router.get(
+    "/submissions/{submission_id}/exchanges",
+    summary="Get exchanges for a submission (candidate-scoped)",
+    status_code=200,
+)
+def get_submission_exchanges(
+    submission_id: int,
+    include_responses: bool = Query(
+        default=True,
+        description="Include response data in exchange listing",
+    ),
+    section: Optional[str] = Query(
+        default=None,
+        description="Filter exchanges by section name",
+        max_length=50,
+    ),
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+):
+    """
+    List exchanges for a submission. Automatically scoped to authenticated candidate.
+    """
+    from app.interview.api.service import InterviewApiService
+    
+    svc = InterviewApiService(db=db)
+    return svc.list_exchanges(
+        submission_id=submission_id,
+        candidate_id=identity.user_id,  # Enforce candidate ownership
+        section=section,
+        include_responses=include_responses,
+    )
+
+
+@router.get(
+    "/submissions/{submission_id}/results",
+    summary="Get evaluation results for a submission (candidate-scoped)",
+    status_code=200,
+)
+async def get_submission_results(
+    submission_id: int,
+    include_history: bool = Query(
+        False, description="Include non-current results"
+    ),
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+):
+    """
+    Get interview results for a submission. Automatically scoped to authenticated candidate.
+    """
+    from app.evaluation.api.dependencies import build_result_repository
+    from app.evaluation.api.contracts import SubmissionResultsResponse, InterviewResultResponse
+    from app.shared.errors import NotFoundError
+    from app.interview.session.persistence.models import InterviewSubmissionModel
+    
+    # Verify ownership by candidate
+    submission = db.query(InterviewSubmissionModel).filter(
+        InterviewSubmissionModel.id == submission_id,
+        InterviewSubmissionModel.candidate_id == identity.user_id,
+    ).first()
+    
+    if not submission:
+        raise NotFoundError(resource_type="Submission", resource_id=submission_id)
+    
+    result_repo = build_result_repository(db)
+    results = result_repo.list_by_submission(
+        submission_id, include_non_current=include_history
+    )
+
+    responses = [InterviewResultResponse.from_model(r) for r in results]
+
+    current_id = None
+    for r in results:
+        if r.is_current:
+            current_id = r.id
+            break
+
+    return SubmissionResultsResponse(
+        interview_submission_id=submission_id,
+        results=responses,
+        current_result_id=current_id,
     )
 
 
@@ -267,7 +362,30 @@ def list_practice_questions(
 
 
 # ────────────────────────────────────────────────────────────
-# Gap 6: Start Practice Session
+# Practice Templates (Interview Setup)
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/practice/templates",
+    response_model=PracticeTemplateListResponse,
+    summary="List available practice interview templates",
+    status_code=200,
+)
+def list_practice_templates(
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> PracticeTemplateListResponse:
+    """
+    List all active interview templates available for practice.
+    Returns template cards for the Interview Setup page.
+    """
+    svc = _build_service(db)
+    return svc.list_practice_templates()
+
+
+# ────────────────────────────────────────────────────────────
+# Start Practice Session
 # ────────────────────────────────────────────────────────────
 
 
@@ -283,14 +401,19 @@ def start_practice(
     identity: IdentityContext = Depends(require_candidate),
 ) -> StartPracticeResponse:
     """
-    Create a new ad-hoc practice interview submission.
-    Returns a submission_id that can be used with the WebSocket endpoint.
+    Create a new practice interview submission.
+    Accepts template_id, experience level, and interaction modes.
+    Returns submission_id + session summary for the UI.
     """
     svc = _build_service(db)
     return svc.start_practice(
         user_id=identity.user_id,
-        interview_type=body.interview_type,
-        difficulty=body.difficulty,
+        template_id=body.template_id,
+        experience_level=body.experience_level,
+        target_company=body.target_company,
+        voice_interview=body.voice_interview,
+        video_recording=body.video_recording,
+        ai_proctoring=body.ai_proctoring,
         consent_accepted=body.consent_accepted,
     )
 
@@ -316,3 +439,23 @@ def list_resumes(
     """
     svc = _build_service(db)
     return svc.get_resumes(user_id=identity.user_id)
+
+
+@router.post(
+    "/resumes",
+    response_model=ResumeUploadResponse,
+    summary="Upload a resume",
+    status_code=201,
+)
+def upload_resume(
+    file: UploadFile = File(..., description="PDF or Word resume (pdf, doc, docx)"),
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> ResumeUploadResponse:
+    """
+    Upload a new resume. Accepted formats: PDF, DOC, DOCX.
+    The file is stored in blob storage and a record is created
+    in the resumes table linked to the candidate.
+    """
+    svc = _build_service(db)
+    return svc.upload_resume(user_id=identity.user_id, file=file)

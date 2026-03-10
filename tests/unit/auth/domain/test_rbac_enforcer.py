@@ -51,6 +51,7 @@ class TestRBACEnforcer:
         self.candidate_context = IdentityContext(
             user_id=4,
             user_type=UserType.CANDIDATE,
+            candidate_id=4,
             organization_id=None,
             admin_role=None,
             token_version=1,

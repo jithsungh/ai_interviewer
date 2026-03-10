@@ -35,7 +35,7 @@ class InterviewSubmissionModel(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     candidate_id = Column(BigInteger, ForeignKey("candidates.id"), nullable=False, index=True)
-    window_id = Column(BigInteger, ForeignKey("interview_windows.id"), nullable=False)
+    window_id = Column(BigInteger, ForeignKey("interview_submission_windows.id"), nullable=False)
     role_id = Column(BigInteger, ForeignKey("roles.id"), nullable=False)
     template_id = Column(BigInteger, ForeignKey("interview_templates.id"), nullable=False)
     mode = Column(String(20), nullable=False, server_default=text("'async'"))

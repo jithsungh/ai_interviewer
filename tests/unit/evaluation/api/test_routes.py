@@ -142,16 +142,16 @@ class TestGetEvaluationAuthorization:
     def test_candidate_other_interview_blocked(self):
         """Candidate should NOT access evaluation of another's interview."""
         from app.evaluation.api.routes import _authorize_evaluation_access
-        from app.shared.errors import AuthorizationError
+        from app.shared.errors import NotFoundError
 
         db = MagicMock(spec=Session)
         identity = _make_candidate_identity(user_id=10)
-        mock_eval = Mock(spec=EvaluationModel, interview_exchange_id=1)
+        mock_eval = Mock(spec=EvaluationModel, interview_exchange_id=1, id=123)
 
         row = Mock(candidate_id=99)  # Different candidate
         db.execute.return_value.first.return_value = row
 
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(NotFoundError):
             _authorize_evaluation_access(db, identity, mock_eval)
 
 
@@ -215,14 +215,14 @@ class TestAuthorizeSubmissionAccess:
     def test_candidate_other_submission_blocked(self):
         """Candidate should NOT access another's submission."""
         from app.evaluation.api.routes import _authorize_submission_access
-        from app.shared.errors import AuthorizationError
+        from app.shared.errors import NotFoundError
 
         db = MagicMock(spec=Session)
         identity = _make_candidate_identity(user_id=10)
         row = Mock(candidate_id=99)
         db.execute.return_value.first.return_value = row
 
-        with pytest.raises(AuthorizationError):
+        with pytest.raises(NotFoundError):
             _authorize_submission_access(db, identity, submission_id=1)
 
     def test_submission_not_found(self):

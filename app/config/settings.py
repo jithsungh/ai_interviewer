@@ -365,6 +365,7 @@ class FeatureFlagsSettings(BaseSettings):
     enable_practice_mode: bool = Field(default=False, env="ENABLE_PRACTICE_MODE")
     enable_human_override: bool = Field(default=True, env="ENABLE_HUMAN_OVERRIDE")
     enable_resume_parsing: bool = Field(default=True, env="ENABLE_RESUME_PARSING")
+    enable_mock_data: bool = Field(default=False, env="ENABLE_MOCK_DATA")
 
 
 # ====================

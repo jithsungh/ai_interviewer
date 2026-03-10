@@ -165,17 +165,23 @@ class SubmissionRepository:
         if extra_updates:
             set_clause += f", {extra_updates}"
 
-        sql = text(
-            f"UPDATE interview_submissions "
-            f"SET {set_clause} "
-            f"WHERE id = :sid AND status = :expected "
-            f"RETURNING id"
-        )
-        params = {
+        where_clause = "id = :sid AND status = :expected"
+        params: dict = {
             "target": target_status.value,
             "sid": submission_id,
             "expected": expected_status.value,
         }
+        if candidate_id is not None:
+            # Enforce ownership: only the owning candidate can transition
+            where_clause += " AND candidate_id = :cid"
+            params["cid"] = candidate_id
+
+        sql = text(
+            f"UPDATE interview_submissions "
+            f"SET {set_clause} "
+            f"WHERE {where_clause} "
+            f"RETURNING id"
+        )
 
         result = self._session.execute(sql, params)
         row = result.fetchone()

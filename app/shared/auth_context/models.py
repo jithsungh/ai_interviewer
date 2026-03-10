@@ -72,19 +72,22 @@ class IdentityContext:
     """
     
     # User identification
-    user_id: int
+    user_id: int          # users.id (PK of users table)
     user_type: UserType
-    
-    # Tenant identification (admin only)
-    organization_id: Optional[int]
-    
-    # Role information (admin only)
-    admin_role: Optional[AdminRole]
-    
+
     # Token metadata (for revocation)
     token_version: int
     issued_at: int       # Unix timestamp
     expires_at: int      # Unix timestamp
+
+    # Optional fields (must follow non-default fields)
+    candidate_id: Optional[int] = None  # candidates.id — populated from JWT for candidate tokens
+
+    # Tenant identification (admin only)
+    organization_id: Optional[int] = None
+
+    # Role information (admin only)
+    admin_role: Optional[AdminRole] = None
     
     def __post_init__(self):
         """Validate invariants after initialization"""
@@ -101,6 +104,12 @@ class IdentityContext:
                 raise ValueError("Candidate user cannot have organization_id")
             if self.admin_role is not None:
                 raise ValueError("Candidate user cannot have admin_role")
+            if self.candidate_id is None:
+                raise ValueError("Candidate user must have candidate_id")
+        
+        # Admins must not have candidate_id
+        if self.user_type == UserType.ADMIN and self.candidate_id is not None:
+            raise ValueError("Admin user cannot have candidate_id")
         
         # Validate token timestamps
         if self.issued_at >= self.expires_at:
