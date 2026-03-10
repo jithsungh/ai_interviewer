@@ -130,6 +130,29 @@ class FinalizeInterviewRequest(BaseModel):
     }
 
 
+class GenerateReportRequest(BaseModel):
+    """POST /generate-report — trigger full evaluation + aggregation pipeline."""
+
+    interview_submission_id: int = Field(
+        ..., gt=0, description="Submission to generate report for"
+    )
+    force_regenerate: bool = Field(
+        default=False,
+        description="Force re-evaluation and re-aggregation",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "interview_submission_id": 100,
+                    "force_regenerate": False,
+                }
+            ]
+        }
+    }
+
+
 # ============================================================================
 # RESPONSES
 # ============================================================================

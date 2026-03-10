@@ -52,7 +52,7 @@ from app.evaluation.aggregation.schemas import (
     SummaryData,
 )
 from app.evaluation.aggregation.section_aggregator import SectionAggregator
-from app.evaluation.aggregation.summary_generator import SummaryGenerator
+from app.evaluation.aggregation.summary_generator import ExchangeDetail, SummaryGenerator
 from app.evaluation.persistence.models import (
     InterviewResultModel as InterviewResult,
     SupplementaryReportModel as SupplementaryReport,
@@ -109,7 +109,7 @@ class AggregationService:
         self._recommendation_engine = RecommendationEngine(config=self._config)
         self._proctoring_adjuster = ProctoringAdjuster(config=self._config)
         self._summary_generator = SummaryGenerator(
-            llm_provider=llm_provider, config=self._config
+            llm_provider=llm_provider, config=self._config, db=db
         )
 
     # ── Public API ─────────────────────────────────────────────────────
@@ -208,20 +208,26 @@ class AggregationService:
             recommendation, proctoring_risk
         )
 
-        # Step 11: Generate summary
+        # Step 11: Fetch exchange details for evidence-based summary
+        exchange_detail_list = self._fetch_exchange_details(
+            submission_id, exchanges, evaluations
+        )
+
+        # Step 12: Generate summary
         summary = await self._summary_generator.generate(
             section_scores=section_scores,
             normalized_score=normalized_score,
             recommendation=recommendation,
+            exchange_details=exchange_detail_list,
         )
 
-        # Step 12: Build snapshots
+        # Step 13: Build snapshots
         rubric_snapshot = self._build_rubric_snapshot(template_id)
         template_weight_snapshot = {
             name: {"weight": weight} for name, weight in template_weights.items()
         }
 
-        # Step 13: Persist
+        # Step 14: Persist
         result_data = InterviewResultData(
             interview_submission_id=submission_id,
             final_score=final_score,
@@ -357,6 +363,85 @@ class AggregationService:
             )
             for row in rows
         ]
+
+    def _fetch_exchange_details(
+        self,
+        submission_id: int,
+        exchanges: List[ExchangeSummaryDTO],
+        evaluations: List[EvaluationSummaryDTO],
+    ) -> List[ExchangeDetail]:
+        """
+        Fetch rich exchange data for evidence-based summary generation.
+
+        Joins question text, response, difficulty, and per-dimension scores
+        for each exchange.
+        """
+        eval_lookup = {e.interview_exchange_id: e for e in evaluations}
+
+        # Fetch question text, response, difficulty for all exchanges
+        rows = self._db.execute(
+            text(
+                "SELECT id, sequence_order, question_text, "
+                "       response_text, response_code, "
+                "       difficulty_at_time, content_metadata "
+                "FROM interview_exchanges "
+                "WHERE interview_submission_id = :sid "
+                "ORDER BY sequence_order"
+            ),
+            {"sid": submission_id},
+        ).fetchall()
+
+        details: List[ExchangeDetail] = []
+
+        for row in rows:
+            metadata = row.content_metadata or {}
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+            section_name = metadata.get("section_name", "unknown")
+
+            # Fetch dimension scores if evaluation exists
+            eval_data = eval_lookup.get(row.id)
+            dim_scores: List[Dict[str, Any]] = []
+            total_score = None
+
+            if eval_data:
+                total_score = float(eval_data.total_score)
+                dim_rows = self._db.execute(
+                    text(
+                        "SELECT eds.score, eds.max_score, eds.justification, "
+                        "       rd.dimension_name "
+                        "FROM evaluation_dimension_scores eds "
+                        "JOIN rubric_dimensions rd ON rd.id = eds.rubric_dimension_id "
+                        "WHERE eds.evaluation_id = :eid"
+                    ),
+                    {"eid": eval_data.evaluation_id},
+                ).fetchall()
+
+                dim_scores = [
+                    {
+                        "dimension_name": dr.dimension_name,
+                        "score": float(dr.score),
+                        "max_score": float(dr.max_score) if dr.max_score else 10,
+                        "justification": dr.justification,
+                    }
+                    for dr in dim_rows
+                ]
+
+            response = row.response_text or row.response_code or ""
+
+            details.append(
+                ExchangeDetail(
+                    sequence_order=row.sequence_order,
+                    section_name=section_name,
+                    question_text=row.question_text or "",
+                    response_text=response,
+                    difficulty=row.difficulty_at_time,
+                    total_score=total_score,
+                    dimension_scores=dim_scores,
+                )
+            )
+
+        return details
 
     def _fetch_template_weights(self, template_id: int) -> Dict[str, int]:
         """

@@ -42,6 +42,7 @@ from app.evaluation.api.contracts import (
     EvaluationResponse,
     ExchangeEvaluationsResponse,
     FinalizeInterviewRequest,
+    GenerateReportRequest,
     HumanOverrideRequest,
     InterviewResultResponse,
     SubmissionReportsResponse,
@@ -329,6 +330,125 @@ async def finalize_interview(
         raise NotFoundError(
             resource_type="InterviewResult",
             resource_id=request.interview_submission_id,
+        )
+
+    return InterviewResultResponse.from_model(result_model)
+
+
+# ---------------------------------------------------------------------------
+# 3b. POST /generate-report (candidate accessible)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/generate-report",
+    response_model=InterviewResultResponse,
+    status_code=201,
+    summary="Generate full interview report (evaluate + aggregate)",
+    responses={
+        200: {"description": "Existing result returned"},
+        201: {"description": "New result created"},
+    },
+)
+async def generate_report(
+    request: GenerateReportRequest,
+    identity: IdentityContext = Depends(get_identity),
+    db: Session = Depends(get_db_session_with_commit),
+) -> InterviewResultResponse:
+    """
+    Generate a full interview report by evaluating all exchanges and
+    aggregating the results.
+
+    This endpoint is callable by candidates for their own submissions.
+    It runs the complete pipeline:
+      1. Score each exchange with AI
+      2. Aggregate into an interview result
+      3. Return the final result
+
+    If a result already exists and force_regenerate is False,
+    returns the existing result (200).
+    """
+    submission_id = request.interview_submission_id
+
+    # Auth check: candidates can only generate reports for their own submissions
+    _authorize_submission_access(db, identity, submission_id)
+
+    # Check for existing result
+    result_repo = build_result_repository(db)
+    existing = result_repo.get_current_by_submission(submission_id)
+    if existing and not request.force_regenerate:
+        return InterviewResultResponse.from_model(existing)
+
+    # Step 1: Evaluate all exchanges that don't have final evaluations
+    exchange_rows = db.execute(
+        text(
+            "SELECT ie.id "
+            "FROM interview_exchanges ie "
+            "WHERE ie.interview_submission_id = :sid "
+            "ORDER BY ie.sequence_order"
+        ),
+        {"sid": submission_id},
+    ).fetchall()
+
+    if not exchange_rows:
+        raise NotFoundError(
+            resource_type="InterviewExchanges",
+            resource_id=submission_id,
+        )
+
+    from app.evaluation.scoring.service import EvaluatorType, ScoringService
+
+    scoring_service = ScoringService(db=db)
+    evaluated_count = 0
+
+    for row in exchange_rows:
+        exchange_id = row.id
+        # Check if already has a final evaluation
+        eval_repo = build_evaluation_repository(db)
+        existing_eval = eval_repo.get_final_by_exchange(exchange_id)
+        if existing_eval and not request.force_regenerate:
+            evaluated_count += 1
+            continue
+
+        try:
+            await scoring_service.score_exchange(
+                interview_exchange_id=exchange_id,
+                evaluator_type=EvaluatorType.AI,
+                force_rescore=request.force_regenerate,
+            )
+            evaluated_count += 1
+            logger.info(
+                "Exchange evaluated",
+                extra={"exchange_id": exchange_id, "submission_id": submission_id},
+            )
+        except Exception as e:
+            logger.warning(
+                "Failed to evaluate exchange, skipping",
+                extra={"exchange_id": exchange_id, "error": str(e)},
+            )
+
+    # Step 2: Aggregate into interview result
+    from app.evaluation.aggregation.service import AggregationService
+
+    agg_service = AggregationService(db=db)
+    try:
+        await agg_service.aggregate_interview_result(
+            submission_id=submission_id,
+            generated_by="ai",
+            force_reaggregate=request.force_regenerate,
+        )
+    except Exception as e:
+        logger.warning(
+            "Aggregation failed, returning partial result",
+            extra={"submission_id": submission_id, "error": str(e)},
+        )
+
+    # Fetch and return the result
+    result_model = result_repo.get_current_by_submission(submission_id)
+    if result_model is None:
+        raise NotFoundError(
+            resource_type="InterviewResult",
+            resource_id=submission_id,
         )
 
     return InterviewResultResponse.from_model(result_model)
