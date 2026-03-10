@@ -391,10 +391,24 @@ async def generate_report(
     ).fetchall()
 
     if not exchange_rows:
-        raise NotFoundError(
-            resource_type="InterviewExchanges",
-            resource_id=submission_id,
+        # If no exchanges exist (e.g. user skipped all or ended early), gracefully return a generic result
+        # rather than throwing a 404, so the frontend UI can display it without crashing.
+        empty_result = result_repo.create(
+            interview_submission_id=submission_id,
+            final_score=0.0,
+            normalized_score=0.0,
+            result_status="completed",
+            recommendation="none",
+            scoring_version="1.0",
+            rubric_snapshot=None,
+            template_weight_snapshot=None,
+            section_scores=None,
+            strengths=None,
+            weaknesses=None,
+            summary_notes="Interview completed with no questions answered.",
+            generated_by="system",
         )
+        return InterviewResultResponse.from_model(empty_result)
 
     from app.evaluation.scoring.service import EvaluatorType, ScoringService
 
