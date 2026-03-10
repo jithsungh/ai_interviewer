@@ -38,7 +38,7 @@ CONFIG = {
     "base_url": os.getenv("TEST_BASE_URL", "http://135.235.195.83:8000"),
     "email": os.getenv("TEST_EMAIL", "jithsunghsai@outlook.com"),
     "password": os.getenv("TEST_PASSWORD", "Vallabha@2518"),
-    "submission_id": int(os.getenv("TEST_SUBMISSION_ID", "1000")),  # 0 = will try to create
+    "submission_id": int(os.getenv("TEST_SUBMISSION_ID", "0")),  # 0 = auto-create new session
     "window_id": 1,
     "template_id": 3,
     "timeout_seconds": 120,
@@ -148,11 +148,15 @@ class APIClient:
             log("ERROR", f"Failed to get submissions: {resp.status_code}", resp.text)
             raise Exception(f"Get submissions failed: {resp.text}")
         
-        submissions = resp.json()
+        data = resp.json()
+        # API returns {data: [], pagination: {}}
+        submissions = data.get("data", data) if isinstance(data, dict) else data
         log("SUCCESS", f"Found {len(submissions)} submissions")
+        for s in submissions[:5]:  # Log first 5
+            log("INFO", f"  - submission_id={s.get('submission_id')}, status={s.get('status')}")
         return submissions
     
-    def start_practice_session(self, template_id: int, duration_minutes: int = 30) -> Dict:
+    def start_practice_session(self, template_id: int, experience_level: str = "mid_level") -> Dict:
         """POST /api/v1/candidate/practice/start"""
         log("INFO", f"Starting practice session with template_id={template_id}...")
         
@@ -160,21 +164,51 @@ class APIClient:
             f"{self.base_url}/api/v1/candidate/practice/start",
             json={
                 "template_id": template_id,
-                "duration_minutes": duration_minutes,
+                "consent_accepted": True,
+                "experience_level": experience_level,
             },
             headers=self._headers(),
         )
         
         if resp.status_code not in (200, 201):
-            log("ERROR", f"Failed to start practice: {resp.status_code}", resp.text)
-            raise Exception(f"Start practice failed: {resp.text}")
+            error_text = resp.text
+            # Try to parse error for better message
+            try:
+                err = resp.json().get("error", {})
+                if "no available questions" in error_text.lower() or "total_questions" in error_text.lower():
+                    log("ERROR", "Template has no questions - database may need migrations!")
+                    log("ERROR", "Run: DEV-16_populate-question-topics.sql on the database")
+            except:
+                pass
+            log("ERROR", f"Failed to start practice: {resp.status_code}", error_text)
+            raise Exception(f"Start practice failed: {error_text}")
         
         data = resp.json()
         log("SUCCESS", "Practice session created", {
             "submission_id": data.get("submission_id"),
-            "template_id": data.get("template_id"),
+            "status": data.get("status"),
         })
         return data
+    
+    def get_practice_templates(self) -> List[Dict]:
+        """GET /api/v1/candidate/practice/templates"""
+        log("INFO", "Fetching practice templates...")
+        
+        resp = self._client.get(
+            f"{self.base_url}/api/v1/candidate/practice/templates",
+            headers=self._headers(),
+        )
+        
+        if resp.status_code != 200:
+            log("ERROR", f"Failed to get templates: {resp.status_code}", resp.text)
+            return []
+        
+        data = resp.json()
+        templates = data.get("templates", data) if isinstance(data, dict) else data
+        log("SUCCESS", f"Found {len(templates)} templates")
+        for t in templates[:5]:
+            log("INFO", f"  - id={t.get('id')}: {t.get('name')} ({t.get('category')})")
+        return templates
     
     def start_interview(self, submission_id: int, consent_accepted: bool = True) -> Dict:
         """POST /api/v1/interviews/sessions/start"""
@@ -451,20 +485,35 @@ async def run_interview_flow(config: Dict) -> Dict:
         submission_id = config.get("submission_id", 0)
         
         if submission_id == 0:
+            # First, show available templates
+            log("INFO", "Checking available templates...")
+            templates = api.get_practice_templates()
+            
+            target_template_id = config.get("template_id", 3)
+            template_found = any(t.get("id") == target_template_id for t in templates)
+            if not template_found and templates:
+                log("WARN", f"Template {target_template_id} not found, using first template")
+                target_template_id = templates[0]["id"]
+            
             # Try to get existing submissions
             submissions = api.get_candidate_submissions()
             
-            # Look for pending submission
+            # Look for pending or in_progress submission for reuse
             pending = [s for s in submissions if s.get("status") == "pending"]
+            in_progress = [s for s in submissions if s.get("status") == "in_progress"]
+            
             if pending:
                 submission_id = pending[0]["submission_id"]
                 log("INFO", f"Using existing pending submission: {submission_id}")
+            elif in_progress:
+                submission_id = in_progress[0]["submission_id"]
+                log("INFO", f"Using existing in_progress submission: {submission_id}")
             else:
                 # Create new practice session
-                log("INFO", "No pending submission found, creating practice session...")
+                log("INFO", f"No usable submission found, creating practice session with template_id={target_template_id}...")
                 practice = api.start_practice_session(
-                    template_id=config["template_id"],
-                    duration_minutes=30,
+                    template_id=target_template_id,
+                    experience_level="mid_level",
                 )
                 submission_id = practice["submission_id"]
         
