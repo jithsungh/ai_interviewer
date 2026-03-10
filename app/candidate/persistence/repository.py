@@ -884,7 +884,8 @@ class CandidateQueryRepository:
         )
 
         # AI-driven sections that have no static question pool
-        _ai_driven = {"resume_analysis", "self_introduction", "complexity_analysis"}
+        # Also includes coding_round which is disabled until fully implemented
+        _ai_driven = {"resume_analysis", "self_introduction", "complexity_analysis", "coding_round"}
 
         snapshot_sections: List[Dict[str, Any]] = []
 
