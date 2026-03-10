@@ -44,6 +44,12 @@ class RegisterCandidateCommand:
     password: str
     full_name: Optional[str] = None
     phone: Optional[str] = None
+    location: Optional[str] = None
+    bio: Optional[str] = None
+    experience_years: Optional[int] = None
+    skills: Optional[list[str]] = None
+    linkedin_url: Optional[str] = None
+    github_url: Optional[str] = None
     request_ip: Optional[str] = None
     request_user_agent: Optional[str] = None
 

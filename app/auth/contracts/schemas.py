@@ -102,8 +102,12 @@ class CandidateRegistrationRequest(BaseModel):
     Request schema for candidate user registration.
 
     Candidates are NOT associated with any organization.
+    Step 1: Account (email, password) - required
+    Step 2: Basic info (name, phone) - optional
+    Step 3: Professional (experience, skills, etc.) - optional
     """
 
+    # Step 1: Account (required)
     email: EmailStr = Field(
         ...,
         description="Valid email address, must be unique across all users",
@@ -114,6 +118,8 @@ class CandidateRegistrationRequest(BaseModel):
         max_length=MAX_PASSWORD_LENGTH,
         description="Password meeting complexity requirements",
     )
+
+    # Step 2: Basic Info (optional)
     full_name: Optional[str] = Field(
         None,
         max_length=255,
@@ -123,6 +129,39 @@ class CandidateRegistrationRequest(BaseModel):
         None,
         max_length=50,
         description="Phone number (free-form, any format)",
+    )
+    location: Optional[str] = Field(
+        None,
+        max_length=255,
+        description="City or location",
+    )
+
+    # Step 3: Professional Info (optional)
+    bio: Optional[str] = Field(
+        None,
+        max_length=1000,
+        description="Short bio or summary",
+    )
+    experience_years: Optional[int] = Field(
+        None,
+        ge=0,
+        le=50,
+        description="Years of experience",
+    )
+    skills: Optional[list[str]] = Field(
+        None,
+        max_length=20,
+        description="List of skills (max 20)",
+    )
+    linkedin_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="LinkedIn profile URL",
+    )
+    github_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="GitHub profile URL",
     )
 
     @field_validator("password")

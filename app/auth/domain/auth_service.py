@@ -273,6 +273,18 @@ class AuthService:
             profile_metadata['full_name'] = command.full_name
         if command.phone:
             profile_metadata['phone'] = command.phone
+        if command.location:
+            profile_metadata['location'] = command.location
+        if command.bio:
+            profile_metadata['bio'] = command.bio
+        if command.experience_years is not None:
+            profile_metadata['experience_years'] = command.experience_years
+        if command.skills:
+            profile_metadata['skills'] = command.skills
+        if command.linkedin_url:
+            profile_metadata['linkedin_url'] = command.linkedin_url
+        if command.github_url:
+            profile_metadata['github_url'] = command.github_url
         
         candidate = Candidate(
             user_id=user.id,

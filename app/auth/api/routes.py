@@ -227,6 +227,12 @@ def register_candidate(
         password=body.password,
         full_name=body.full_name,
         phone=body.phone,
+        location=body.location,
+        bio=body.bio,
+        experience_years=body.experience_years,
+        skills=body.skills,
+        linkedin_url=body.linkedin_url,
+        github_url=body.github_url,
         request_ip=_get_client_ip(request),
         request_user_agent=request.headers.get("User-Agent"),
     )
