@@ -187,11 +187,16 @@ class CandidateService:
     def get_stats(self, user_id: int) -> CandidateStatsResponse:
         raw = self._repo.get_candidate_stats(user_id)
 
-        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
-        if raw["total_interviews"] == 0 and _mock_data_enabled():
+        # ── Mock-data fallback (when ENABLE_MOCK_DATA=true) ──
+        if _mock_data_enabled():
             mock = mock_data.mock_stats()
+            # If there's real data, merge total interviews to look realistic, otherwise use mock wholesale
+            total_interviews = raw.get("total_interviews", 0) if raw else 0
+            if total_interviews == 0:
+                total_interviews = mock["total_interviews"]
+                
             return CandidateStatsResponse(
-                total_interviews=mock["total_interviews"],
+                total_interviews=total_interviews,
                 average_score=mock["average_score"],
                 pass_rate=mock["pass_rate"],
                 total_practice_time_minutes=mock["total_practice_time_minutes"],
