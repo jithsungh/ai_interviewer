@@ -63,3 +63,23 @@ jobs:
 
       - name: Run unit tests
         run: pytest tests/unit -q --tb=short
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+
+          script: |
+            cd ~/ai_interviewer
+            
+            git pull origin main
+
+            echo "Updating backend"
+            source .venv/bin/activate
+            pip install -r requirements.txt
+            sudo systemctl restart interviewer-backend
