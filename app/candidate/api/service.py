@@ -4,9 +4,10 @@ Candidate Service
 Business logic layer for candidate-facing operations.
 Orchestrates repository calls and maps to response DTOs.
 
-Mock-data fallback: when no real data exists for a candidate,
-the service returns mock data from mock_data.py, preserving
-the exact response format expected by the frontend UI.
+Mock-data fallback: when ENABLE_MOCK_DATA is True and no real data
+exists for a candidate, the service returns mock data from mock_data.py,
+preserving the exact response format expected by the frontend UI.
+When ENABLE_MOCK_DATA is False (default), empty results are returned.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import logging
 import math
 from typing import Optional
 
+from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.candidate.api.contracts import (
@@ -25,13 +27,18 @@ from app.candidate.api.contracts import (
     CandidateSubmissionListResponse,
     CandidateWindowDTO,
     CandidateWindowListResponse,
+    DifficultyDistributionDTO,
     PaginationMeta,
     PracticeQuestionDTO,
     PracticeQuestionListResponse,
     PracticeSkillDTO,
+    PracticeTemplateDTO,
+    PracticeTemplateListResponse,
     ResumeDTO,
     ResumeListResponse,
+    ResumeUploadResponse,
     ScoreHistoryPoint,
+    SessionSummaryDTO,
     SkillBreakdownItem,
     StartPracticeResponse,
     SubmissionOrganizationDTO,
@@ -47,8 +54,17 @@ from app.candidate.api.contracts import (
 from app.candidate.api import mock_data
 from app.candidate.persistence.repository import CandidateQueryRepository
 from app.shared.errors import NotFoundError, ValidationError as AppValidationError
+from app.persistence.blob import upload_blob, BlobStorageError
 
 logger = logging.getLogger(__name__)
+
+
+def _mock_data_enabled() -> bool:
+    """Check if mock data fallback is enabled via feature flags."""
+    from app.config import feature_flags
+    if feature_flags is None:
+        return False
+    return feature_flags.ENABLE_MOCK_DATA
 
 
 class CandidateService:
@@ -74,8 +90,8 @@ class CandidateService:
             per_page=per_page,
         )
 
-        # ── Mock-data fallback ──
-        if total == 0:
+        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
+        if total == 0 and _mock_data_enabled():
             mock_rows = mock_data.mock_windows()
             return CandidateWindowListResponse(
                 data=[CandidateWindowDTO(**w) for w in mock_rows],
@@ -134,8 +150,8 @@ class CandidateService:
             status_filter=status,
         )
 
-        # ── Mock-data fallback ──
-        if total == 0:
+        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
+        if total == 0 and _mock_data_enabled():
             mock_rows = mock_data.mock_submissions_list()
             return CandidateSubmissionListResponse(
                 data=[CandidateSubmissionDTO(**s) for s in mock_rows],
@@ -171,8 +187,8 @@ class CandidateService:
     def get_stats(self, user_id: int) -> CandidateStatsResponse:
         raw = self._repo.get_candidate_stats(user_id)
 
-        # ── Mock-data fallback ──
-        if raw["total_interviews"] == 0:
+        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
+        if raw["total_interviews"] == 0 and _mock_data_enabled():
             mock = mock_data.mock_stats()
             return CandidateStatsResponse(
                 total_interviews=mock["total_interviews"],
@@ -217,10 +233,12 @@ class CandidateService:
     def get_profile(self, user_id: int) -> CandidateProfileResponse:
         profile = self._repo.get_candidate_profile(user_id)
 
-        # ── Mock-data fallback ──
+        # Profile is personal user data — never replaced with mock content.
         if profile is None:
-            mock = mock_data.mock_profile()
-            return CandidateProfileResponse(**mock)
+            raise NotFoundError(
+                resource_type="CandidateProfile",
+                resource_id=user_id,
+            )
 
         return CandidateProfileResponse(**profile)
 
@@ -266,8 +284,8 @@ class CandidateService:
             per_page=per_page,
         )
 
-        # ── Mock-data fallback ──
-        if total == 0:
+        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
+        if total == 0 and _mock_data_enabled():
             mock_skills = mock_data.mock_practice_skills()
             mock_questions = mock_data.mock_practice_questions()
             return PracticeQuestionListResponse(
@@ -283,28 +301,77 @@ class CandidateService:
         )
 
     # ────────────────────────────────────────────────────────────
-    # Gap 6: Start Practice
+    # Practice Templates (Interview Setup)
+    # ────────────────────────────────────────────────────────────
+
+    def list_practice_templates(self) -> PracticeTemplateListResponse:
+        """Return all active templates for the Interview Setup page."""
+        templates = self._repo.list_practice_templates()
+        return PracticeTemplateListResponse(
+            templates=[PracticeTemplateDTO(**t) for t in templates],
+        )
+
+    # ────────────────────────────────────────────────────────────
+    # Start Practice
     # ────────────────────────────────────────────────────────────
 
     def start_practice(
         self,
         user_id: int,
-        interview_type: str,
-        difficulty: str,
+        template_id: int,
+        experience_level: str,
+        target_company: Optional[str],
+        voice_interview: bool,
+        video_recording: bool,
+        ai_proctoring: bool,
         consent_accepted: bool,
     ) -> StartPracticeResponse:
         if not consent_accepted:
             raise AppValidationError("Consent is required to start a practice session")
 
-        submission = self._repo.create_practice_submission(
+        submission, template = self._repo.create_practice_submission(
             user_id=user_id,
-            interview_type=interview_type,
-            difficulty=difficulty,
+            template_id=template_id,
+            experience_level=experience_level,
+            target_company=target_company,
+            voice_interview=voice_interview,
+            video_recording=video_recording,
+            ai_proctoring=ai_proctoring,
         )
+
+        # Build session summary from template structure
+        ts = template.template_structure or {}
+        topics_section = (ts.get("sections") or {}).get("topics_assessment") or {}
+        topic_names = [t.get("topic_name", "") for t in (topics_section.get("topics") or [])]
+        coding_section = (ts.get("sections") or {}).get("coding_round") or {}
+
+        # Count difficulty distribution from coding problems
+        diff_dist = DifficultyDistributionDTO()
+        for prob in coding_section.get("problems", []):
+            d = prob.get("difficulty", "").lower()
+            if d == "easy":
+                diff_dist.easy += 1
+            elif d == "medium":
+                diff_dist.medium += 1
+            elif d == "hard":
+                diff_dist.hard += 1
+
+        session_summary = SessionSummaryDTO(
+            interview_type=template.name,
+            duration_minutes=template.total_estimated_time_minutes,
+            total_questions=ts.get("total_questions"),
+            experience_level=experience_level,
+            difficulty_distribution=diff_dist,
+            topics=topic_names,
+            adaptive=topics_section.get("difficulty_strategy", "dynamic") == "dynamic"
+                if topics_section else True,
+        )
+
         return StartPracticeResponse(
             submission_id=submission.id,
             status=submission.status,
             started_at=submission.started_at,
+            session_summary=session_summary,
         )
 
     # ────────────────────────────────────────────────────────────
@@ -321,15 +388,17 @@ class CandidateService:
             submission_id=submission_id,
         )
 
-        # ── Mock-data fallback ──
-        if detail is None:
+        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
+        if detail is None and _mock_data_enabled():
             mock = mock_data.mock_submission_detail(submission_id)
-            if mock is None:
-                raise NotFoundError(
-                    resource_type="InterviewSubmission",
-                    resource_id=submission_id,
-                )
-            return CandidateSubmissionDetailResponse(**mock)
+            if mock is not None:
+                return CandidateSubmissionDetailResponse(**mock)
+
+        if detail is None:
+            raise NotFoundError(
+                resource_type="InterviewSubmission",
+                resource_id=submission_id,
+            )
 
         return CandidateSubmissionDetailResponse(**detail)
 
@@ -340,8 +409,8 @@ class CandidateService:
     def get_resumes(self, user_id: int) -> ResumeListResponse:
         rows = self._repo.get_candidate_resumes(user_id)
 
-        # ── Mock-data fallback ──
-        if not rows:
+        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
+        if not rows and _mock_data_enabled():
             mock = mock_data.mock_resumes()
             return ResumeListResponse(
                 data=[ResumeDTO(**r) for r in mock],
@@ -350,6 +419,45 @@ class CandidateService:
         return ResumeListResponse(
             data=[ResumeDTO(**r) for r in rows],
         )
+
+    def upload_resume(
+        self,
+        user_id: int,
+        file: UploadFile,
+    ) -> ResumeUploadResponse:
+        _ALLOWED_TYPES = {
+            "application/pdf",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }
+        content_type = file.content_type or ""
+        if content_type not in _ALLOWED_TYPES:
+            raise AppValidationError(
+                "Only PDF and Word documents are accepted (pdf, doc, docx)"
+            )
+
+        from app.config.settings import AzureStorageSettings
+        try:
+            cfg = AzureStorageSettings()
+            container = cfg.azure_container_resumes
+        except Exception:
+            container = "candidate-resumes"
+
+        try:
+            result = upload_blob(
+                container_name=container,
+                data=file.file,
+                original_filename=file.filename or "resume",
+                content_type=content_type,
+                prefix=f"candidate_{user_id}",
+            )
+            file_url = result["url"]
+        except BlobStorageError as exc:
+            logger.error("Blob upload failed for user %s: %s", user_id, exc)
+            raise AppValidationError("File upload failed; please try again later") from exc
+
+        row = self._repo.create_resume(user_id=user_id, file_url=file_url)
+        return ResumeUploadResponse(**row)
 
     # ────────────────────────────────────────────────────────────
     # Helpers

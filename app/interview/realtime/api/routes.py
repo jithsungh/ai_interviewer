@@ -142,12 +142,12 @@ async def interview_websocket(
         await websocket.close(code=1008, reason="Candidate access required")
         return
 
-    candidate_id = identity.user_id
+    candidate_id = identity.candidate_id  # candidates.id, not users.id
 
     ws_logger = get_context_logger(
         connection_id=connection_id,
         submission_id=submission_id,
-        user_id=candidate_id,
+        user_id=identity.user_id,
     )
 
     # ──────────────────────────────────────────────────────────

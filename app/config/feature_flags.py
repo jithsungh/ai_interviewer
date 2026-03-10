@@ -28,6 +28,7 @@ class FeatureFlags:
     ENABLE_PRACTICE_MODE: bool
     ENABLE_HUMAN_OVERRIDE: bool
     ENABLE_RESUME_PARSING: bool
+    ENABLE_MOCK_DATA: bool
     
     @classmethod
     def from_settings(cls, settings: FeatureFlagsSettings) -> "FeatureFlags":
@@ -39,7 +40,8 @@ class FeatureFlags:
             ENABLE_CODE_EXECUTION=settings.enable_code_execution,
             ENABLE_PRACTICE_MODE=settings.enable_practice_mode,
             ENABLE_HUMAN_OVERRIDE=settings.enable_human_override,
-            ENABLE_RESUME_PARSING=settings.enable_resume_parsing
+            ENABLE_RESUME_PARSING=settings.enable_resume_parsing,
+            ENABLE_MOCK_DATA=settings.enable_mock_data
         )
 
 

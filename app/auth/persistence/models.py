@@ -10,10 +10,10 @@ from sqlalchemy import (
     ForeignKey, CheckConstraint, TIMESTAMP, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, INET
-from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 
-Base = declarative_base()
+from app.persistence.postgres.base import Base
 
 
 class User(Base):

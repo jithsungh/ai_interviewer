@@ -130,16 +130,17 @@ def validate_response_completeness(
                 message="response_code required for coding question",
                 question_type=question_type,
             )
-        metadata_code_id = None
-        if isinstance(content_metadata, dict):
-            metadata_code_id = content_metadata.get("code_submission_id")
-        else:
-            metadata_code_id = getattr(content_metadata, "code_submission_id", None)
-        if not metadata_code_id:
-            raise IncompleteResponseError(
-                message="code_submission_id required for coding question",
-                question_type=question_type,
-            )
+        # TODO: Re-enable code_submission_id validation when coding evaluation is ready
+        # metadata_code_id = None
+        # if isinstance(content_metadata, dict):
+        #     metadata_code_id = content_metadata.get("code_submission_id")
+        # else:
+        #     metadata_code_id = getattr(content_metadata, "code_submission_id", None)
+        # if not metadata_code_id:
+        #     raise IncompleteResponseError(
+        #         message="code_submission_id required for coding question",
+        #         question_type=question_type,
+        #     )
 
     else:
         raise IncompleteResponseError(

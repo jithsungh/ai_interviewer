@@ -69,6 +69,7 @@ class TestAuthenticateWebsocket:
             return {
                 "sub": 123,
                 "user_type": "candidate",
+                "candidate_id": 123,
                 "token_version": 1,
                 "iat": now,
                 "exp": now + 3600  # 1 hour from now

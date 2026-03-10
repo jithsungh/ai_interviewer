@@ -147,7 +147,7 @@ class CodeCompletionSignal(ExchangeCompletionSignal):
     Received from the coding module after sandbox execution.
     """
 
-    code_submission_id: int = Field(..., gt=0)
+    code_submission_id: Optional[int] = Field(None, gt=0)
     code: str = Field(..., min_length=1)
     language: str = Field(..., min_length=1)
     execution_status: str = Field(..., min_length=1)

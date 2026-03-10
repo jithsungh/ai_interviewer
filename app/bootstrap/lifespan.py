@@ -24,6 +24,10 @@ from app.persistence.qdrant import (
     init_qdrant_client,
     cleanup_qdrant,
 )
+from app.persistence.blob import (
+    init_blob_client,
+    cleanup_blob,
+)
 
 logger = get_context_logger(__name__)
 
@@ -105,6 +109,21 @@ async def lifespan(app: FastAPI):
                 metadata={"error": str(e)}
             )
         
+        # 5. Initialize Azure Blob Storage (optional)
+        if settings.azure_storage is not None:
+            logger.info("Initializing Azure Blob Storage...", event_type="startup.blob.begin")
+            try:
+                init_blob_client(settings.azure_storage)
+                logger.info("✓ Azure Blob Storage connected", event_type="startup.blob.complete")
+            except Exception as e:
+                logger.warning(
+                    f"⚠️  Azure Blob Storage connection failed: {e}",
+                    event_type="startup.blob.warning",
+                    metadata={"error": str(e)}
+                )
+        else:
+            logger.info("Azure Blob Storage not configured, skipping", event_type="startup.blob.skipped")
+        
         logger.info(
             "✅ Application startup complete",
             event_type="app.startup.complete",
@@ -135,7 +154,17 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down AI Interviewer Backend", event_type="app.shutdown.begin")
     
     try:
-        # 1. Close Qdrant
+        # 1. Close Azure Blob Storage
+        try:
+            cleanup_blob()
+            logger.info("✓ Azure Blob Storage disconnected", event_type="shutdown.blob.complete")
+        except Exception as e:
+            logger.warning(
+                f"⚠️  Azure Blob Storage disconnect warning: {e}",
+                event_type="shutdown.blob.warning"
+            )
+        
+        # 2. Close Qdrant
         try:
             cleanup_qdrant()
             logger.info("✓ Qdrant disconnected", event_type="shutdown.qdrant.complete")

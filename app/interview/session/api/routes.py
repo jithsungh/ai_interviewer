@@ -75,7 +75,7 @@ def start_interview(
     try:
         dto, _transitioned = svc.start_interview(
             submission_id=body.submission_id,
-            candidate_id=identity.user_id,
+            candidate_id=identity.candidate_id,
             consent_accepted=body.consent_accepted,
         )
     except StateTransitionError as exc:
@@ -118,7 +118,7 @@ def complete_interview(
     try:
         dto, _transitioned = svc.complete_interview(
             submission_id=body.submission_id,
-            candidate_id=identity.user_id,
+            candidate_id=identity.candidate_id,
         )
     except StateTransitionError as exc:
         raise ConflictError(str(exc))

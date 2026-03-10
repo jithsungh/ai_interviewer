@@ -103,56 +103,87 @@ class CandidateQueryRepository:
             .subquery()
         )
 
-        # Base query: windows visible to candidate
-        base_q = (
+        # Step 1: Get distinct visible window IDs with pagination
+        window_id_q = (
             self._db.query(
-                InterviewSubmissionWindowModel,
-                Organization.id.label("org_id"),
-                Organization.name.label("org_name"),
-                RoleModel.id.label("role_id"),
-                RoleModel.name.label("role_name"),
-                func.coalesce(sub_count.c.submission_count, 0).label("submission_count"),
-            )
-            .join(
-                Organization,
-                Organization.id == InterviewSubmissionWindowModel.organization_id,
+                InterviewSubmissionWindowModel.id,
             )
             .join(
                 WindowRoleTemplateModel,
                 WindowRoleTemplateModel.window_id == InterviewSubmissionWindowModel.id,
-            )
-            .join(
-                RoleModel,
-                RoleModel.id == WindowRoleTemplateModel.role_id,
             )
             .outerjoin(
                 sub_count,
                 sub_count.c.window_id == InterviewSubmissionWindowModel.id,
             )
             .filter(
-                # Global windows visible to all, or windows with existing submissions
                 (InterviewSubmissionWindowModel.scope == "global")
                 | (func.coalesce(sub_count.c.submission_count, 0) > 0)
             )
+            .distinct()
         )
 
-        total = base_q.distinct(InterviewSubmissionWindowModel.id).count()
+        total = window_id_q.count()
 
-        rows = (
-            base_q
-            .order_by(InterviewSubmissionWindowModel.start_time.desc())
+        window_ids = [
+            row[0]
+            for row in window_id_q
+            .order_by(InterviewSubmissionWindowModel.id.desc())
             .offset((page - 1) * per_page)
             .limit(per_page)
             .all()
+        ]
+
+        if not window_ids:
+            return [], total
+
+        # Step 2: Batch-fetch windows with org and submission counts (single query)
+        window_rows = (
+            self._db.query(
+                InterviewSubmissionWindowModel,
+                Organization.id.label("org_id"),
+                Organization.name.label("org_name"),
+                Organization.organization_type.label("org_type"),
+                func.coalesce(sub_count.c.submission_count, 0).label("submission_count"),
+            )
+            .join(
+                Organization,
+                Organization.id == InterviewSubmissionWindowModel.organization_id,
+            )
+            .outerjoin(
+                sub_count,
+                sub_count.c.window_id == InterviewSubmissionWindowModel.id,
+            )
+            .filter(InterviewSubmissionWindowModel.id.in_(window_ids))
+            .order_by(InterviewSubmissionWindowModel.start_time.desc())
+            .all()
         )
 
+        # Step 3: Batch-fetch all role-template mappings with joined role + template (single query)
+        wrt_rows = (
+            self._db.query(
+                WindowRoleTemplateModel,
+                RoleModel,
+                InterviewTemplateModel,
+            )
+            .join(RoleModel, RoleModel.id == WindowRoleTemplateModel.role_id)
+            .outerjoin(
+                InterviewTemplateModel,
+                InterviewTemplateModel.id == WindowRoleTemplateModel.template_id,
+            )
+            .filter(WindowRoleTemplateModel.window_id.in_(window_ids))
+            .all()
+        )
+
+        # Group role-templates by window_id
+        wrt_by_window: Dict[int, list] = {}
+        for wrt, role_obj, tmpl_obj in wrt_rows:
+            wrt_by_window.setdefault(wrt.window_id, []).append((wrt, role_obj, tmpl_obj))
+
+        # Step 4: Build results
         results = []
-        seen_windows = set()
-        for row in rows:
+        for row in window_rows:
             w = row[0]
-            if w.id in seen_windows:
-                continue
-            seen_windows.add(w.id)
 
             # Compute status
             if now < w.start_time:
@@ -162,24 +193,8 @@ class CandidateQueryRepository:
             else:
                 status = "open"
 
-            # Fetch all role-template mappings for this window
-            wrt_rows = (
-                self._db.query(WindowRoleTemplateModel)
-                .filter(WindowRoleTemplateModel.window_id == w.id)
-                .all()
-            )
             role_templates = []
-            for wrt in wrt_rows:
-                role_obj = (
-                    self._db.query(RoleModel)
-                    .filter(RoleModel.id == wrt.role_id)
-                    .first()
-                )
-                tmpl_obj = (
-                    self._db.query(InterviewTemplateModel)
-                    .filter(InterviewTemplateModel.id == wrt.template_id)
-                    .first()
-                )
+            for wrt, role_obj, tmpl_obj in wrt_by_window.get(w.id, []):
                 role_templates.append({
                     "id": wrt.id,
                     "window_id": wrt.window_id,
@@ -203,13 +218,6 @@ class CandidateQueryRepository:
                     } if tmpl_obj else {"id": wrt.template_id, "name": "Unknown"},
                 })
 
-            # Get organization type
-            org = (
-                self._db.query(Organization)
-                .filter(Organization.id == w.organization_id)
-                .first()
-            )
-
             results.append({
                 "id": w.id,
                 "name": w.name,
@@ -220,7 +228,7 @@ class CandidateQueryRepository:
                 "organization": {
                     "id": row.org_id,
                     "name": row.org_name,
-                    "organization_type": getattr(org, "organization_type", None) if org else None,
+                    "organization_type": row.org_type,
                 },
                 "role_templates": role_templates,
                 "max_allowed_submissions": w.max_allowed_submissions,
@@ -666,60 +674,155 @@ class CandidateQueryRepository:
         return skills_summary, paginated, total
 
     # ────────────────────────────────────────────────────────────
-    # Gap 6: Practice Submission Creation
+    # Practice Templates (Interview Setup)
+    # ────────────────────────────────────────────────────────────
+
+    _TEMPLATE_CATEGORY_MAP: Dict[str, str] = {
+        "DSA Fundamentals": "DSA",
+        "System Design": "SYSTEM DESIGN",
+        "Backend Engineering": "BACKEND",
+        "Frontend Development": "FRONTEND",
+        "Behavioral Interview": "BEHAVIORAL",
+        "DevOps & Cloud": "DEVOPS",
+    }
+
+    def list_practice_templates(self) -> List[Dict[str, Any]]:
+        """Return all active templates with parsed structure for the UI."""
+        templates = (
+            self._db.query(InterviewTemplateModel)
+            .filter(
+                InterviewTemplateModel.is_active == True,  # noqa: E712
+                InterviewTemplateModel.id.in_([1, 2, 3, 4, 5, 6]),
+            )
+            .order_by(InterviewTemplateModel.id)
+            .all()
+        )
+
+        result = []
+        for t in templates:
+            ts = t.template_structure or {}
+            sections_raw = ts.get("sections") or {}
+            topics_data = (sections_raw.get("topics_assessment") or {}).get("topics") or []
+            coding_data = sections_raw.get("coding_round") or {}
+
+            # Difficulty distribution from coding problems
+            diff_dist: Dict[str, int] = {"easy": 0, "medium": 0, "hard": 0}
+            for prob in coding_data.get("problems", []):
+                d = prob.get("difficulty", "").lower()
+                if d in diff_dist:
+                    diff_dist[d] += 1
+
+            sections = {
+                "resume_analysis": sections_raw.get("resume_analysis", {}).get("enabled", False),
+                "self_introduction": sections_raw.get("self_introduction", {}).get("enabled", False),
+                "topics_assessment": sections_raw.get("topics_assessment", {}).get("enabled", False),
+                "coding_round": coding_data.get("enabled", False),
+                "complexity_analysis": sections_raw.get("complexity_analysis", {}).get("enabled", False),
+                "behavioral": sections_raw.get("behavioral", {}).get("enabled", False),
+            }
+
+            category = self._TEMPLATE_CATEGORY_MAP.get(t.name, t.name.upper())
+
+            result.append({
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "category": category,
+                "total_estimated_time_minutes": t.total_estimated_time_minutes,
+                "total_questions": ts.get("total_questions"),
+                "target_level": ts.get("target_level"),
+                "topics": [
+                    {"topic_id": tp.get("topic_id", 0), "topic_name": tp.get("topic_name", ""), "weight": tp.get("weight")}
+                    for tp in topics_data
+                ],
+                "sections": sections,
+                "difficulty_distribution": diff_dist,
+                "is_active": t.is_active,
+            })
+
+        return result
+
+    # ────────────────────────────────────────────────────────────
+    # Practice Submission Creation
     # ────────────────────────────────────────────────────────────
 
     def create_practice_submission(
         self,
         user_id: int,
-        interview_type: str,
-        difficulty: str,
-    ) -> InterviewSubmissionModel:
+        template_id: int,
+        experience_level: str,
+        target_company: Optional[str],
+        voice_interview: bool,
+        video_recording: bool,
+        ai_proctoring: bool,
+    ) -> Tuple[InterviewSubmissionModel, InterviewTemplateModel]:
         """
-        Create ad-hoc practice submission without a real window.
-
-        Uses the practice window (id=0 or a special system window)
-        and auto-selects a role/template.
+        Create a practice submission using the specified template.
+        Returns (submission, template) for building the session summary.
         """
         candidate_id = self._resolve_candidate_id(user_id)
 
-        # Find or create practice window
+        # Validate template exists and is active
+        template = (
+            self._db.query(InterviewTemplateModel)
+            .filter(
+                InterviewTemplateModel.id == template_id,
+                InterviewTemplateModel.is_active == True,  # noqa: E712
+            )
+            .first()
+        )
+        if template is None:
+            raise ValueError(f"Template {template_id} not found or is inactive.")
+
+        # Find the practice window
         practice_window = (
             self._db.query(InterviewSubmissionWindowModel)
             .filter(InterviewSubmissionWindowModel.name == "__practice__")
             .first()
         )
-
         if practice_window is None:
             raise ValueError(
                 "Practice window not found. Run migration to create the __practice__ window."
             )
 
-        # Find a matching role-template mapping for the interview type
+        # Find a role mapping for this template in the practice window
         mapping = (
             self._db.query(WindowRoleTemplateModel)
-            .join(RoleModel, RoleModel.id == WindowRoleTemplateModel.role_id)
-            .filter(WindowRoleTemplateModel.window_id == practice_window.id)
+            .filter(
+                WindowRoleTemplateModel.window_id == practice_window.id,
+                WindowRoleTemplateModel.template_id == template_id,
+            )
             .first()
         )
 
-        if mapping is None:
-            # Fallback: use first available role and template
-            from app.admin.persistence.models import InterviewTemplateModel
-
-            role = self._db.query(RoleModel).first()
-            template = (
-                self._db.query(InterviewTemplateModel)
-                .filter(InterviewTemplateModel.is_active == True)  # noqa: E712
-                .first()
-            )
-            if not role or not template:
-                raise ValueError("No roles or templates available for practice mode.")
-            role_id = role.id
-            template_id = template.id
-        else:
+        if mapping is not None:
             role_id = mapping.role_id
-            template_id = mapping.template_id
+        else:
+            role = self._db.query(RoleModel).first()
+            if not role:
+                raise ValueError("No roles available for practice mode.")
+            role_id = role.id
+
+        # Build a proper TemplateSnapshot (required by the question sequencer
+        # and WebSocket event handler). The practice config is stored as an
+        # additional key (ignored by TemplateSnapshot validation).
+        practice_config = {
+            "experience_level": experience_level,
+            "target_company": target_company,
+            "voice_interview": voice_interview,
+            "video_recording": video_recording,
+            "ai_proctoring": ai_proctoring,
+            "practice_mode": True,
+        }
+
+        snapshot = self._build_practice_snapshot(template, practice_config)
+
+        # Validation: Ensure template has at least one question
+        if snapshot.get("total_questions", 0) == 0:
+            raise ValueError(
+                f"Cannot start practice session: Template '{template.name}' has no available questions. "
+                "Please ensure the database has active questions for the configured sections, or try a different template."
+            )
 
         submission = InterviewSubmissionModel(
             candidate_id=candidate_id,
@@ -730,11 +833,199 @@ class CandidateQueryRepository:
             status="in_progress",
             consent_captured=True,
             started_at=datetime.now(timezone.utc),
+            template_structure_snapshot=snapshot,
         )
         self._db.add(submission)
         self._db.flush()
 
-        return submission
+        return submission, template
+
+    def _build_practice_snapshot(
+        self,
+        template: InterviewTemplateModel,
+        practice_config: dict,
+    ) -> dict:
+        """
+        Build a dict that validates as ``TemplateSnapshot`` from a template's
+        structure JSONB, by querying and freezing actual question/problem IDs.
+
+        The ``practice_config`` is stored under an extra key so it is
+        available for display purposes; it is silently ignored by the
+        Pydantic TemplateSnapshot validator.
+
+        Sections resolved:
+        - ``topics_assessment`` → questions table (by topic_id join)
+        - ``coding_round``      → coding_problems table (by difficulty)
+        - ``behavioral``        → questions table (question_type='behavioral')
+        - AI-driven sections (resume_analysis, self_introduction,
+          complexity_analysis) are skipped because they have no static
+          question pool.
+
+        Raises:
+            ValueError: If the template yields no questions at all.
+        """
+        ts = template.template_structure or {}
+
+        # Handle both "sections wrapper" and flat template_structure formats
+        if "sections" in ts and isinstance(ts["sections"], dict):
+            sections_raw: dict = ts["sections"]
+        else:
+            # Flat format – the structure IS the sections dict
+            _non_section = {"scoring", "rules", "difficulty_adaptation",
+                            "total_questions", "interview_structure",
+                            "template_metadata", "section_sequence"}
+            sections_raw = {k: v for k, v in ts.items()
+                            if k not in _non_section and isinstance(v, dict)}
+
+        # Determine processing order
+        section_sequence: list = (
+            ts.get("interview_structure", {}).get("section_sequence")
+            or list(sections_raw.keys())
+        )
+
+        # AI-driven sections that have no static question pool
+        # Also includes coding_round which is disabled until fully implemented
+        _ai_driven = {"resume_analysis", "self_introduction", "complexity_analysis", "coding_round"}
+
+        snapshot_sections: List[Dict[str, Any]] = []
+
+        for key in section_sequence:
+            cfg = sections_raw.get(key)
+            if not cfg or not cfg.get("enabled", False):
+                continue
+            if key in _ai_driven:
+                continue
+
+            if key == "coding_round":
+                ids = self._sample_coding_problem_ids(cfg)
+                if ids:
+                    snapshot_sections.append({
+                        "section_name": "coding",
+                        "question_count": len(ids),
+                        "question_ids": ids,
+                    })
+
+            elif key == "topics_assessment":
+                ids = self._sample_topic_question_ids(cfg)
+                if ids:
+                    snapshot_sections.append({
+                        "section_name": "topics_assessment",
+                        "question_count": len(ids),
+                        "question_ids": ids,
+                    })
+
+            elif key == "behavioral":
+                count = cfg.get("question_count") or 3
+                ids = self._sample_questions_by_type("behavioral", count)
+                if ids:
+                    snapshot_sections.append({
+                        "section_name": "behavioral",
+                        "question_count": len(ids),
+                        "question_ids": ids,
+                    })
+
+            # Other unknown section keys: attempt generic technical questions
+            else:
+                count = cfg.get("question_count") or cfg.get("total_questions") or 0
+                if count > 0:
+                    ids = self._sample_questions_by_type("technical", count)
+                    if ids:
+                        snapshot_sections.append({
+                            "section_name": key,
+                            "question_count": len(ids),
+                            "question_ids": ids,
+                        })
+
+        total_questions = sum(s["question_count"] for s in snapshot_sections)
+
+        return {
+            "template_id": template.id,
+            "template_name": template.name,
+            "total_questions": total_questions,
+            "sections": snapshot_sections,
+            # Extra key — ignored by TemplateSnapshot, kept for auditing
+            "practice_config": practice_config,
+        }
+
+    def _sample_coding_problem_ids(self, cfg: dict) -> List[int]:
+        """Randomly sample ``total_problems`` IDs from coding_problems."""
+        count = cfg.get("total_problems") or 1
+        difficulty = cfg.get("difficulty")
+
+        sql = (
+            "SELECT id FROM coding_problems "
+            "WHERE is_active = true "
+            "AND pipeline_status = 'imported' "
+            + ("AND difficulty = :diff " if difficulty else "")
+            + "ORDER BY RANDOM() LIMIT :n"
+        )
+        params: Dict[str, Any] = {"n": count}
+        if difficulty:
+            params["diff"] = difficulty
+
+        rows = self._db.execute(text(sql), params).fetchall()
+
+        # Fallback: if 'imported' filter yields nothing, try without it
+        if not rows:
+            sql_fb = (
+                "SELECT id FROM coding_problems WHERE is_active = true "
+                + ("AND difficulty = :diff " if difficulty else "")
+                + "ORDER BY RANDOM() LIMIT :n"
+            )
+            rows = self._db.execute(text(sql_fb), params).fetchall()
+
+        return [r[0] for r in rows]
+
+    def _sample_topic_question_ids(self, cfg: dict) -> List[int]:
+        """
+        Randomly sample up to ``total_questions`` question IDs for a
+        topics_assessment section, filtered by the configured topic IDs.
+        """
+        total = cfg.get("total_questions") or 0
+        if total <= 0:
+            return []
+
+        topics = cfg.get("topics") or []
+        topic_ids = [t["topic_id"] for t in topics if "topic_id" in t]
+
+        if topic_ids:
+            placeholders = ", ".join(f":t{i}" for i in range(len(topic_ids)))
+            params: Dict[str, Any] = {"n": total}
+            for i, tid in enumerate(topic_ids):
+                params[f"t{i}"] = tid
+            rows = self._db.execute(
+                text(
+                    "SELECT q.id FROM questions q "
+                    "JOIN question_topics qt ON q.id = qt.question_id "
+                    f"WHERE qt.topic_id IN ({placeholders}) "
+                    "AND q.is_active = true "
+                    "GROUP BY q.id "
+                    "ORDER BY RANDOM() LIMIT :n"
+                ),
+                params,
+            ).fetchall()
+        else:
+            rows = self._db.execute(
+                text(
+                    "SELECT id FROM questions WHERE is_active = true "
+                    "ORDER BY RANDOM() LIMIT :n"
+                ),
+                {"n": total},
+            ).fetchall()
+
+        return [r[0] for r in rows]
+
+    def _sample_questions_by_type(self, question_type: str, count: int) -> List[int]:
+        """Randomly sample ``count`` question IDs matching ``question_type``."""
+        rows = self._db.execute(
+            text(
+                "SELECT id FROM questions "
+                "WHERE question_type = :qtype AND is_active = true "
+                "ORDER BY RANDOM() LIMIT :n"
+            ),
+            {"qtype": question_type, "n": count},
+        ).fetchall()
+        return [r[0] for r in rows]
 
     # ────────────────────────────────────────────────────────────
     # Submission Detail (full nested view)
@@ -1055,6 +1346,26 @@ class CandidateQueryRepository:
             }
             for r in rows
         ]
+
+    def create_resume(self, user_id: int, file_url: str) -> Dict[str, Any]:
+        """Insert a new resume row and return it."""
+        candidate_id = self._resolve_candidate_id(user_id)
+        now = datetime.now(timezone.utc)
+        row = self._db.execute(
+            text(
+                "INSERT INTO resumes (candidate_id, file_url, uploaded_at, created_at) "
+                "VALUES (:cid, :url, :now, :now) "
+                "RETURNING id, candidate_id, file_url, uploaded_at, created_at"
+            ),
+            {"cid": candidate_id, "url": file_url, "now": now},
+        ).fetchone()
+        return {
+            "id": row[0],
+            "candidate_id": row[1],
+            "file_url": row[2],
+            "uploaded_at": self._iso(row[3]),
+            "created_at": self._iso(row[4]),
+        }
 
     # ────────────────────────────────────────────────────────────
     # Helpers

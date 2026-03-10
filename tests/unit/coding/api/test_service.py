@@ -37,6 +37,7 @@ def _make_identity(
     return IdentityContext(
         user_id=user_id,
         user_type=UserType(user_type),
+        candidate_id=user_id if user_type == "candidate" else None,
         organization_id=organization_id,
         admin_role=AdminRole(admin_role) if admin_role else None,
         token_version=1,

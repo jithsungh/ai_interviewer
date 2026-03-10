@@ -49,6 +49,9 @@ python-dateutil==2.8.2
 httpx==0.26.0  # Used for LLM provider API calls with timeout control
 aiofiles==23.2.1
 
+# Azure Blob Storage
+azure-storage-blob==12.25.1
+
 # Logging & Monitoring
 structlog==24.1.0
 python-json-logger==2.0.7

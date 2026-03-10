@@ -418,27 +418,81 @@ class PracticeQuestionListResponse(BaseModel):
 # ════════════════════════════════════════════════════════════════════════
 
 
+class PracticeTemplateSectionDTO(BaseModel):
+    """Which sections are enabled in a template."""
+    resume_analysis: bool = False
+    self_introduction: bool = False
+    topics_assessment: bool = False
+    coding_round: bool = False
+    complexity_analysis: bool = False
+    behavioral: bool = False
+
+
+class PracticeTemplateTopicDTO(BaseModel):
+    topic_id: int
+    topic_name: str
+    weight: Optional[int] = None
+
+
+class PracticeTemplateDTO(BaseModel):
+    """A template card shown on the Interview Setup page."""
+    id: int
+    name: str
+    description: Optional[str] = None
+    category: str  # short label: DSA, SYSTEM DESIGN, BACKEND, etc.
+    total_estimated_time_minutes: Optional[int] = None
+    total_questions: Optional[int] = None
+    target_level: Optional[str] = None
+    topics: List[PracticeTemplateTopicDTO] = Field(default_factory=list)
+    sections: Optional[PracticeTemplateSectionDTO] = None
+    difficulty_distribution: Optional[Dict[str, int]] = None
+    is_active: bool = True
+
+
+class PracticeTemplateListResponse(BaseModel):
+    templates: List[PracticeTemplateDTO] = Field(default_factory=list)
+
+
 class StartPracticeRequest(BaseModel):
-    interview_type: str = Field(
-        ...,
-        description="Type of practice interview (e.g. 'dsa', 'behavioral', 'system_design')",
-        max_length=50,
+    template_id: int = Field(..., gt=0, description="ID of the interview template to use")
+    experience_level: str = Field(
+        default="mid_level",
+        description="Experience level: fresher, junior, mid_level, senior, lead",
+        max_length=20,
     )
-    difficulty: str = Field(
-        default="medium",
-        description="Difficulty level: easy, medium, hard",
-        max_length=10,
+    target_company: Optional[str] = Field(
+        None,
+        description="Optional target company style (e.g. 'FAANG Style', 'Startup')",
+        max_length=100,
     )
-    consent_accepted: bool = Field(
-        ...,
-        description="Candidate consent for practice session",
-    )
+    voice_interview: bool = Field(default=True, description="Enable voice interview")
+    video_recording: bool = Field(default=False, description="Enable video recording")
+    ai_proctoring: bool = Field(default=False, description="Enable AI proctoring")
+    consent_accepted: bool = Field(..., description="Candidate consent for practice session")
+
+
+class DifficultyDistributionDTO(BaseModel):
+    easy: int = 0
+    medium: int = 0
+    hard: int = 0
+
+
+class SessionSummaryDTO(BaseModel):
+    """Session summary shown on the right side of Interview Setup."""
+    interview_type: str
+    duration_minutes: Optional[int] = None
+    total_questions: Optional[int] = None
+    experience_level: str
+    difficulty_distribution: Optional[DifficultyDistributionDTO] = None
+    topics: List[str] = Field(default_factory=list)
+    adaptive: bool = True
 
 
 class StartPracticeResponse(BaseModel):
     submission_id: int
     status: str
     started_at: datetime
+    session_summary: Optional[SessionSummaryDTO] = None
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -458,3 +512,11 @@ class ResumeDTO(BaseModel):
 
 class ResumeListResponse(BaseModel):
     data: List[ResumeDTO] = Field(default_factory=list)
+
+
+class ResumeUploadResponse(BaseModel):
+    id: int
+    candidate_id: int
+    file_url: str
+    uploaded_at: Optional[str] = None
+    created_at: Optional[str] = None

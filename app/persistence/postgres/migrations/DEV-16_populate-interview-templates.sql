@@ -53,7 +53,7 @@ VALUES
       },
 
       "self_introduction": {
-        "enabled": true,
+        "enabled": false,
         "weight": 0
       },
 
@@ -80,7 +80,7 @@ VALUES
       },
 
       "coding_round": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 4,
         "max_duration_minutes": 45,
         "weight": 50,
@@ -190,7 +190,7 @@ VALUES
       },
 
       "self_introduction": {
-        "enabled": true,
+        "enabled": false,
         "weight": 0
       },
 
@@ -238,7 +238,7 @@ VALUES
       },
 
       "coding_round": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 2,
         "max_duration_minutes": 30,
         "weight": 25,
@@ -369,7 +369,7 @@ VALUES
       },
 
       "self_introduction": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 1,
         "max_duration_seconds": 120,
         "weight": 5,
@@ -424,7 +424,7 @@ VALUES
       },
 
       "coding_round": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 3,
         "max_duration_minutes": 35,
         "weight": 35,
@@ -570,7 +570,7 @@ VALUES
       },
 
       "self_introduction": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 1,
         "max_duration_seconds": 120,
         "weight": 5,
@@ -625,7 +625,7 @@ VALUES
       },
 
       "coding_round": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 4,
         "max_duration_minutes": 35,
         "weight": 30,
@@ -771,7 +771,7 @@ VALUES
       },
 
       "self_introduction": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 1,
         "max_duration_seconds": 180,
         "weight": 15,
@@ -788,7 +788,7 @@ VALUES
       },
 
       "coding_round": {
-        "enabled": true,
+        "enabled": false,
         "weight": 0
       },
 
@@ -899,7 +899,7 @@ VALUES
       },
 
       "self_introduction": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 1,
         "max_duration_seconds": 120,
         "weight": 5,
@@ -954,7 +954,7 @@ VALUES
       },
 
       "coding_round": {
-        "enabled": true,
+        "enabled": false,
         "question_count": 2,
         "max_duration_minutes": 20,
         "weight": 25,
