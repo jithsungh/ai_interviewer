@@ -123,7 +123,7 @@ def require_candidate(identity: IdentityContext = Depends(get_identity)) -> Iden
         @app.get("/api/candidate/submissions")
         async def my_submissions(identity: IdentityContext = Depends(require_candidate)):
             # Identity is guaranteed to be candidate
-            candidate_id = identity.user_id
+            candidate_id = identity.candidate_id  # Use candidate_id, not user_id
             ...
     """
     if not identity.is_candidate():

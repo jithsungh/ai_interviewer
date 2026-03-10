@@ -599,7 +599,7 @@ def _authorize_evaluation_access(
         raise NotFoundError(
             resource_type="Evaluation", resource_id=evaluation.id
         )
-    if row.candidate_id != identity.user_id:
+    if row.candidate_id != identity.candidate_id:
         # Return 404 instead of 403 to avoid leaking evaluation existence
         raise NotFoundError(
             resource_type="Evaluation", resource_id=evaluation.id
@@ -630,7 +630,7 @@ def _authorize_exchange_access(
         raise NotFoundError(
             resource_type="Exchange", resource_id=exchange_id
         )
-    if row.candidate_id != identity.user_id:
+    if row.candidate_id != identity.candidate_id:
         # Return 404 instead of 403 to avoid leaking exchange existence
         raise NotFoundError(
             resource_type="Exchange", resource_id=exchange_id
@@ -657,7 +657,7 @@ def _authorize_submission_access(
         raise NotFoundError(
             resource_type="Submission", resource_id=submission_id
         )
-    if row.candidate_id != identity.user_id:
+    if row.candidate_id != identity.candidate_id:
         # Return 404 instead of 403 to avoid leaking submission existence
         raise NotFoundError(
             resource_type="Submission", resource_id=submission_id

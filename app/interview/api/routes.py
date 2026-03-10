@@ -52,7 +52,7 @@ def _resolve_candidate_id(identity) -> Optional[int]:
     Admins can access any submission; candidates are scoped to their own.
     """
     if identity.user_type.value == "candidate":
-        return identity.user_id
+        return identity.candidate_id  # candidates.id, not users.id
     return None
 
 

@@ -110,12 +110,12 @@ def enforce_candidate_scope(
         )
     
     # Candidate can only access their own resources
-    # For candidates, user_id == candidate_id (they are the same)
-    if identity.user_id != resource_candidate_id:
+    # identity.candidate_id is from candidates table, resource_candidate_id is also candidates.id
+    if identity.candidate_id != resource_candidate_id:
         raise AuthorizationError(
             message=f"Cannot access resources belonging to candidate {resource_candidate_id}",
             metadata={
-                "user_id": identity.user_id,
+                "candidate_id": identity.candidate_id,
                 "resource_candidate_id": resource_candidate_id
             }
         )

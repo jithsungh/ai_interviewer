@@ -191,7 +191,7 @@ def get_submission_exchanges(
     svc = InterviewApiService(db=db)
     return svc.list_exchanges(
         submission_id=submission_id,
-        candidate_id=identity.user_id,  # Enforce candidate ownership
+        candidate_id=identity.candidate_id,  # Enforce candidate ownership
         section=section,
         include_responses=include_responses,
     )
@@ -221,7 +221,7 @@ async def get_submission_results(
     # Verify ownership by candidate
     submission = db.query(InterviewSubmissionModel).filter(
         InterviewSubmissionModel.id == submission_id,
-        InterviewSubmissionModel.candidate_id == identity.user_id,
+        InterviewSubmissionModel.candidate_id == identity.candidate_id,
     ).first()
     
     if not submission:

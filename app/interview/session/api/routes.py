@@ -98,7 +98,7 @@ def get_session_status(
     """Return full session detail with exchanges."""
     svc = _build_service(db)
     # Admins can see any submission; candidates only their own.
-    candidate_id = identity.user_id if identity.user_type.value == "candidate" else None
+    candidate_id = identity.candidate_id if identity.user_type.value == "candidate" else None
     return svc.get_session_status(submission_id=submission_id, candidate_id=candidate_id)
 
 
