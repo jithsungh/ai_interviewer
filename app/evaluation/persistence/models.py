@@ -278,3 +278,14 @@ class SupplementaryReportModel(Base):
             f"submission={self.interview_submission_id} "
             f"type={self.report_type}>"
         )
+
+
+class AIModel(Base):
+    """
+    Minimal ORM model for the global ``models`` table to satisfy
+    SQLAlchemy's foreign key metadata dependencies during flush.
+    """
+    __tablename__ = "models"
+    __table_args__ = ({"extend_existing": True},)
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)

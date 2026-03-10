@@ -436,6 +436,9 @@ async def generate_report(
                 extra={"exchange_id": exchange_id, "submission_id": submission_id},
             )
         except Exception as e:
+            db.rollback()
+            import traceback
+            traceback.print_exc()
             logger.warning(
                 "Failed to evaluate exchange, skipping",
                 extra={"exchange_id": exchange_id, "error": str(e)},
@@ -460,10 +463,26 @@ async def generate_report(
     # Fetch and return the result
     result_model = result_repo.get_current_by_submission(submission_id)
     if result_model is None:
-        raise NotFoundError(
-            resource_type="InterviewResult",
-            resource_id=submission_id,
+        logger.warning(
+            "No InterviewResult found after aggregation attempt. Creating fallback result.",
+            extra={"submission_id": submission_id},
         )
+        empty_result = result_repo.create(
+            interview_submission_id=submission_id,
+            final_score=0.0,
+            normalized_score=0.0,
+            result_status="completed",
+            recommendation="none",
+            scoring_version="1.0",
+            rubric_snapshot=None,
+            template_weight_snapshot=None,
+            section_scores=None,
+            strengths=None,
+            weaknesses=None,
+            summary_notes="Interview completed but evaluation/aggregation failed. Check rubric configuration.",
+            generated_by="system",
+        )
+        return InterviewResultResponse.from_model(empty_result)
 
     return InterviewResultResponse.from_model(result_model)
 
