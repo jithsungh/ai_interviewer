@@ -5,6 +5,9 @@ Handles startup and shutdown events for infrastructure connections.
 Ensures proper initialization order and graceful cleanup.
 """
 
+import asyncio
+import os
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
@@ -28,6 +31,8 @@ from app.persistence.blob import (
     init_blob_client,
     cleanup_blob,
 )
+from app.persistence.postgres.session import get_session_factory
+from app.interview.session.expiry.service import SubmissionExpiryService
 
 logger = get_context_logger(__name__)
 
@@ -67,6 +72,8 @@ async def lifespan(app: FastAPI):
         metadata={"environment": settings.app.app_env}
     )
     
+    expiry_worker_task = None
+
     try:
         # 1. Logging already initialized (imported at module level)
         logger.info("✓ Logging configured", event_type="startup.logging.complete")
@@ -123,6 +130,53 @@ async def lifespan(app: FastAPI):
                 )
         else:
             logger.info("Azure Blob Storage not configured, skipping", event_type="startup.blob.skipped")
+
+        expiry_worker_enabled = os.getenv("INTERVIEW_EXPIRY_WORKER_ENABLED", "false").lower() == "true"
+        expiry_worker_interval = int(os.getenv("INTERVIEW_EXPIRY_WORKER_INTERVAL_SECONDS", "60"))
+        expiry_worker_batch = int(os.getenv("INTERVIEW_EXPIRY_WORKER_BATCH_SIZE", "500"))
+
+        if expiry_worker_enabled:
+            async def _expiry_worker_loop() -> None:
+                while True:
+                    await asyncio.sleep(expiry_worker_interval)
+                    db = get_session_factory()()
+                    try:
+                        svc = SubmissionExpiryService(db)
+                        expired = svc.expire_overdue_submissions(
+                            actor="system:expiry_worker",
+                            limit=expiry_worker_batch,
+                        )
+                        db.commit()
+                        if expired > 0:
+                            logger.info(
+                                "Expiry worker processed overdue submissions",
+                                event_type="expiry_worker.tick",
+                                metadata={"expired_count": expired},
+                            )
+                    except Exception:
+                        db.rollback()
+                        logger.error(
+                            "Expiry worker tick failed",
+                            event_type="expiry_worker.error",
+                            exc_info=True,
+                        )
+                    finally:
+                        db.close()
+
+            expiry_worker_task = asyncio.create_task(_expiry_worker_loop())
+            logger.info(
+                "✓ Interview expiry worker started",
+                event_type="startup.expiry_worker.complete",
+                metadata={
+                    "interval_seconds": expiry_worker_interval,
+                    "batch_size": expiry_worker_batch,
+                },
+            )
+        else:
+            logger.info(
+                "Interview expiry worker disabled",
+                event_type="startup.expiry_worker.skipped",
+            )
         
         logger.info(
             "✅ Application startup complete",
@@ -154,6 +208,16 @@ async def lifespan(app: FastAPI):
     logger.info("🛑 Shutting down AI Interviewer Backend", event_type="app.shutdown.begin")
     
     try:
+        if expiry_worker_task is not None:
+            expiry_worker_task.cancel()
+            try:
+                await expiry_worker_task
+            except asyncio.CancelledError:
+                logger.info(
+                    "✓ Interview expiry worker stopped",
+                    event_type="shutdown.expiry_worker.complete",
+                )
+
         # 1. Close Azure Blob Storage
         try:
             cleanup_blob()

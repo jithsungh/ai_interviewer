@@ -9,9 +9,16 @@ Design:
 - Sensible defaults for development
 - Threshold validation to prevent misconfiguration
 - No business logic
+- LLM_MODEL_REPORT_GENERATION env var provides dynamic model override
 """
 
+import os
 from typing import Optional
+from dotenv import load_dotenv
+
+# Ensure .env is loaded so os.getenv() can read LLM_MODEL_* vars
+load_dotenv()
+
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -74,7 +81,7 @@ class AggregationConfig(BaseSettings):
         description="Temperature for summary generation",
     )
     summary_max_tokens: int = Field(
-        default=1500,
+        default=900,
         gt=0,
         description="Max tokens for summary response",
     )
@@ -83,6 +90,26 @@ class AggregationConfig(BaseSettings):
         ge=10,
         le=120,
         description="Timeout for summary LLM call",
+    )
+    summary_max_exchanges_in_prompt: int = Field(
+        default=12,
+        gt=0,
+        description="Maximum exchange rows included in summary prompt",
+    )
+    summary_max_question_chars: int = Field(
+        default=180,
+        gt=0,
+        description="Max question chars per exchange in summary prompt",
+    )
+    summary_max_response_chars: int = Field(
+        default=320,
+        gt=0,
+        description="Max response chars per exchange in summary prompt",
+    )
+    summary_max_dimension_scores_per_exchange: int = Field(
+        default=4,
+        gt=0,
+        description="Maximum dimension score items per exchange in summary prompt",
     )
 
     # ── Score Precision ────────────────────────────────────────────────
@@ -138,13 +165,31 @@ _config: Optional[AggregationConfig] = None
 
 def get_aggregation_config() -> AggregationConfig:
     """
-    Get aggregation configuration singleton.
+    Get aggregation configuration.
 
-    Creates instance on first call, returns cached instance thereafter.
+    Returns cached singleton but always applies fresh LLM_MODEL_REPORT_GENERATION override.
+    This allows .env changes to take effect without app restart.
     """
+    from app.shared.observability import get_context_logger
+    logger = get_context_logger(__name__)
+    
     global _config
     if _config is None:
         _config = AggregationConfig()
+    
+    # Always check for env var override (allows dynamic config changes)
+    load_dotenv(override=True)  # Re-read .env on each call
+    llm_model_report = os.getenv("LLM_MODEL_REPORT_GENERATION")
+    if llm_model_report and llm_model_report != _config.summary_model:
+        logger.info(
+            "Updating summary model from env var",
+            extra={
+                "old_model": _config.summary_model,
+                "new_model": llm_model_report,
+            },
+        )
+        _config.summary_model = llm_model_report
+    
     return _config
 
 

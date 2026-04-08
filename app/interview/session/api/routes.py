@@ -27,6 +27,8 @@ from app.interview.session.api.service import SessionService
 from app.interview.session.contracts.schemas import (
     CancelInterviewRequest,
     CompleteInterviewRequest,
+    ExpireOverdueRequest,
+    ExpireOverdueResponse,
     InterviewSessionDetailDTO,
     InterviewSessionDTO,
     ReviewInterviewRequest,
@@ -174,3 +176,23 @@ def review_interview(
         raise ConflictError(str(exc))
 
     return dto
+
+
+@router.post(
+    "/expire-overdue",
+    response_model=ExpireOverdueResponse,
+    summary="Expire overdue interviews (admin)",
+    status_code=200,
+)
+def expire_overdue_interviews(
+    body: ExpireOverdueRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity=Depends(require_admin),
+):
+    """Admin-only: expire stale in-progress submissions whose schedule has ended."""
+    svc = _build_service(db)
+    expired_count = svc.expire_overdue_submissions(
+        actor=f"admin:{identity.user_id}",
+        limit=body.limit,
+    )
+    return ExpireOverdueResponse(expired_count=expired_count, limit=body.limit)

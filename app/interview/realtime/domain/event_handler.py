@@ -193,8 +193,18 @@ class RealtimeEventHandler:
         Returns:
             QuestionPayloadEvent dict, or InterviewCompletedEvent if no more questions.
         """
-        # Get next question from orchestration
-        next_q = self._coordinator.get_next_question(self._submission_id)
+        try:
+            # Get next question from orchestration
+            next_q = self._coordinator.get_next_question(self._submission_id)
+        except InterviewNotActiveError:
+            submission = self._submission_repo.get_by_id(self._submission_id)
+            if submission and submission.status in (
+                SubmissionStatus.COMPLETED.value,
+                SubmissionStatus.EXPIRED.value,
+                SubmissionStatus.REVIEWED.value,
+            ):
+                return self._build_interview_completed(submission)
+            raise
 
         if next_q is None:
             # All questions answered — send interview_completed
@@ -567,19 +577,41 @@ class RealtimeEventHandler:
         remaining = int((end - now).total_seconds())
         return max(remaining, 0)
 
-    def _build_interview_completed(self) -> Dict[str, Any]:
+    def _build_interview_completed(
+        self,
+        submission: Optional[InterviewSubmissionModel] = None,
+    ) -> Dict[str, Any]:
         """Build InterviewCompletedEvent for current submission."""
-        submission = self._submission_repo.get_by_id(self._submission_id)
+        if submission is None:
+            submission = self._submission_repo.get_by_id(self._submission_id)
+
         total_q = self._get_total_questions(submission) if submission else 0
         exchange_count = (
             len(submission.exchanges)
             if submission and submission.exchanges
             else 0
         )
+
+        completion_reason = "all_questions_answered"
+        submitted_at = _now_iso()
+
+        if submission is not None:
+            if submission.status == SubmissionStatus.COMPLETED.value:
+                completion_reason = "submitted"
+            elif submission.status == SubmissionStatus.EXPIRED.value:
+                completion_reason = "expired"
+            elif submission.status == SubmissionStatus.CANCELLED.value:
+                completion_reason = "cancelled"
+            elif submission.status == SubmissionStatus.REVIEWED.value:
+                completion_reason = "reviewed"
+
+            if submission.submitted_at:
+                submitted_at = submission.submitted_at.isoformat()
+
         return InterviewCompletedEvent(
             submission_id=self._submission_id,
-            completion_reason="all_questions_answered",
-            submitted_at=_now_iso(),
+            completion_reason=completion_reason,
+            submitted_at=submitted_at,
             exchanges_completed=exchange_count,
             total_questions=total_q,
         ).model_dump()

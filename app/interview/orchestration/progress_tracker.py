@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.interview.orchestration.contracts import ProgressUpdate
 from app.interview.session.persistence.models import InterviewSubmissionModel
-from app.shared.errors import NotFoundError
+from app.shared.errors import ConflictError, NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ class ProgressTracker:
     def __init__(self, db: Session, redis) -> None:
         self._db = db
         self._redis = redis
+        self._max_optimistic_retries = 3
 
     def update_progress(
         self,
@@ -73,6 +74,10 @@ class ProgressTracker:
         )
         is_complete = sequence_order >= total_questions
 
+        auto_completed = False
+        if is_complete:
+            auto_completed = self._auto_complete_submission(submission_id)
+
         progress = ProgressUpdate(
             submission_id=submission_id,
             current_sequence=sequence_order,
@@ -82,7 +87,10 @@ class ProgressTracker:
         )
 
         # Step 3: Update Redis
-        self._update_redis_progress(progress)
+        self._update_redis_progress(
+            progress,
+            status_override="completed" if auto_completed else None,
+        )
 
         logger.info(
             "Progress updated",
@@ -92,6 +100,7 @@ class ProgressTracker:
                 "total_questions": total_questions,
                 "progress_percentage": progress.progress_percentage,
                 "is_complete": is_complete,
+                "auto_completed": auto_completed,
             },
         )
 
@@ -175,39 +184,63 @@ class ProgressTracker:
 
         Uses UPDATE...WHERE to ensure we only advance (never regress).
         """
-        sql = text(
-            "UPDATE interview_submissions "
-            "SET current_exchange_sequence = :seq, updated_at = now() "
-            "WHERE id = :sid AND current_exchange_sequence < :seq "
-            "RETURNING id"
-        )
-        result = self._db.execute(
-            sql, {"seq": sequence_order, "sid": submission_id}
-        )
-        row = result.fetchone()
+        for _ in range(self._max_optimistic_retries):
+            current = self._db.execute(
+                text(
+                    "SELECT current_exchange_sequence, version "
+                    "FROM interview_submissions "
+                    "WHERE id = :sid"
+                ),
+                {"sid": submission_id},
+            ).fetchone()
 
-        if row is None:
-            # Either submission doesn't exist or sequence already >= seq
-            sub = (
-                self._db.query(InterviewSubmissionModel)
-                .filter(InterviewSubmissionModel.id == submission_id)
-                .first()
-            )
-            if sub is None:
+            if current is None:
                 raise NotFoundError(
                     resource_type="Submission", resource_id=submission_id
                 )
-            # Otherwise: idempotent (sequence already at or past this value)
-            logger.debug(
-                "Progress already at or past sequence",
-                extra={
-                    "submission_id": submission_id,
-                    "requested_sequence": sequence_order,
-                    "current_sequence": sub.current_exchange_sequence,
+
+            current_sequence = current[0] or 0
+            current_version = current[1]
+
+            if current_sequence >= sequence_order:
+                logger.debug(
+                    "Progress already at or past sequence",
+                    extra={
+                        "submission_id": submission_id,
+                        "requested_sequence": sequence_order,
+                        "current_sequence": current_sequence,
+                    },
+                )
+                return
+
+            sql = text(
+                "UPDATE interview_submissions "
+                "SET current_exchange_sequence = :seq, updated_at = now(), version = version + 1 "
+                "WHERE id = :sid AND current_exchange_sequence < :seq AND version = :expected_version "
+                "RETURNING id"
+            )
+            result = self._db.execute(
+                sql,
+                {
+                    "seq": sequence_order,
+                    "sid": submission_id,
+                    "expected_version": current_version,
                 },
             )
+            row = result.fetchone()
+            if row is not None:
+                return
 
-    def _update_redis_progress(self, progress: ProgressUpdate) -> None:
+        raise ConflictError(
+            "Submission progress update conflicted with concurrent changes; retry",
+            metadata={"submission_id": submission_id, "sequence_order": sequence_order},
+        )
+
+    def _update_redis_progress(
+        self,
+        progress: ProgressUpdate,
+        status_override: Optional[str] = None,
+    ) -> None:
         """
         Update Redis session snapshot with progress data.
 
@@ -227,6 +260,8 @@ class ProgressTracker:
             session_data["total_questions"] = progress.total_questions
             session_data["progress_percentage"] = progress.progress_percentage
             session_data["is_complete"] = progress.is_complete
+            if status_override is not None:
+                session_data["status"] = status_override
 
             self._redis.set(
                 key,
@@ -238,3 +273,63 @@ class ProgressTracker:
                 "Failed to update progress in Redis",
                 exc_info=True,
             )
+
+    def _auto_complete_submission(self, submission_id: int) -> bool:
+        """
+        Auto-transition in_progress -> completed for final exchange.
+
+        Must run inside the same DB transaction as exchange creation/progress update.
+        """
+        for _ in range(self._max_optimistic_retries):
+            current = self._db.execute(
+                text(
+                    "SELECT status, version "
+                    "FROM interview_submissions "
+                    "WHERE id = :sid"
+                ),
+                {"sid": submission_id},
+            ).fetchone()
+
+            if current is None:
+                raise NotFoundError(resource_type="Submission", resource_id=submission_id)
+
+            status = current[0]
+            version = current[1]
+
+            if status in ("completed", "reviewed", "expired", "cancelled"):
+                return False
+
+            if status != "in_progress":
+                return False
+
+            self._db.execute(
+                text("SELECT set_config('app.actor', :actor, true)"),
+                {"actor": "system:auto_complete"},
+            )
+
+            result = self._db.execute(
+                text(
+                    "UPDATE interview_submissions "
+                    "SET status = 'completed', "
+                    "    submitted_at = COALESCE(submitted_at, now()), "
+                    "    updated_at = now(), "
+                    "    version = version + 1 "
+                    "WHERE id = :sid "
+                    "  AND status = 'in_progress' "
+                    "  AND version = :expected_version "
+                    "RETURNING id"
+                ),
+                {"sid": submission_id, "expected_version": version},
+            )
+            row = result.fetchone()
+            if row is not None:
+                logger.info(
+                    "Submission auto-completed after final exchange",
+                    extra={"submission_id": submission_id},
+                )
+                return True
+
+        raise ConflictError(
+            "Submission auto-complete conflicted with concurrent changes; retry",
+            metadata={"submission_id": submission_id},
+        )

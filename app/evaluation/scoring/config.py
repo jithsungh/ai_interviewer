@@ -12,9 +12,14 @@ Design:
 """
 
 from typing import Optional
+import os
 
+from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Ensure .env is loaded so os.getenv() can read LLM_MODEL_* vars
+load_dotenv()
 
 
 class ScoringConfig(BaseSettings):
@@ -44,7 +49,7 @@ class ScoringConfig(BaseSettings):
         description="Low temperature for consistent scoring"
     )
     evaluation_max_tokens: int = Field(
-        default=2000,
+        default=900,
         gt=0,
         description="Max tokens for evaluation response"
     )
@@ -59,6 +64,37 @@ class ScoringConfig(BaseSettings):
         ge=1,
         le=5,
         description="Max retries on evaluation failure"
+    )
+
+    # Prompt Size Controls (to keep requests compact/stateless)
+    evaluation_include_transcript: bool = Field(
+        default=False,
+        description="Include transcript excerpt in scoring prompt"
+    )
+    evaluation_max_question_chars: int = Field(
+        default=700,
+        gt=0,
+        description="Max question characters sent to LLM"
+    )
+    evaluation_max_answer_chars: int = Field(
+        default=2500,
+        gt=0,
+        description="Max answer characters sent to LLM"
+    )
+    evaluation_max_transcript_chars: int = Field(
+        default=900,
+        gt=0,
+        description="Max transcript characters sent to LLM"
+    )
+    evaluation_max_dimension_description_chars: int = Field(
+        default=250,
+        gt=0,
+        description="Max description chars per dimension"
+    )
+    evaluation_max_dimension_criteria_chars: int = Field(
+        default=300,
+        gt=0,
+        description="Max criteria chars per dimension"
     )
     
     # Retry Settings
@@ -132,13 +168,31 @@ _config: Optional[ScoringConfig] = None
 
 def get_scoring_config() -> ScoringConfig:
     """
-    Get scoring configuration singleton.
+    Get scoring configuration.
     
-    Creates instance on first call, returns cached instance thereafter.
+    Returns cached singleton but always applies fresh LLM_MODEL_EVALUATION override.
+    This allows .env changes to take effect without app restart.
     """
+    from app.shared.observability import get_context_logger
+    logger = get_context_logger(__name__)
+    
     global _config
     if _config is None:
         _config = ScoringConfig()
+    
+    # Always check for env var override (allows dynamic config changes)
+    load_dotenv(override=True)  # Re-read .env on each call
+    llm_model_eval = os.getenv("LLM_MODEL_EVALUATION")
+    if llm_model_eval and llm_model_eval != _config.evaluation_model:
+        logger.info(
+            "Updating evaluation model from env var",
+            extra={
+                "old_model": _config.evaluation_model,
+                "new_model": llm_model_eval,
+            },
+        )
+        _config.evaluation_model = llm_model_eval
+    
     return _config
 
 

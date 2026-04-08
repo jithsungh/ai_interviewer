@@ -68,6 +68,19 @@ class ReviewInterviewRequest(BaseModel):
     }
 
 
+class ExpireOverdueRequest(BaseModel):
+    """Body for POST /sessions/expire-overdue (admin only)."""
+
+    limit: int = Field(500, ge=1, le=5000, description="Max submissions to expire in this run")
+
+
+class ExpireOverdueResponse(BaseModel):
+    """Result for expiry processing run."""
+
+    expired_count: int
+    limit: int
+
+
 # ════════════════════════════════════════════════════════════════════════
 # Response / DTO schemas
 # ════════════════════════════════════════════════════════════════════════
@@ -97,6 +110,7 @@ class InterviewSessionDTO(BaseModel):
     consent_captured: bool
     started_at: Optional[datetime] = None
     submitted_at: Optional[datetime] = None
+    version: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -113,6 +127,7 @@ class InterviewSessionDTO(BaseModel):
             consent_captured=model.consent_captured,
             started_at=getattr(model, "started_at", None),
             submitted_at=getattr(model, "submitted_at", None),
+            version=getattr(model, "version", None),
             created_at=getattr(model, "created_at", None),
             updated_at=getattr(model, "updated_at", None),
         )

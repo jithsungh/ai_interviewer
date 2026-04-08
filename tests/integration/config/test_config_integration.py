@@ -305,6 +305,7 @@ class TestConfigUsagePatterns:
         "DATABASE_URL": "postgresql+asyncpg://user:pass@localhost/db",
         "REDIS_URL": "redis://localhost:6379/0",
         "QDRANT_URL": "http://localhost:6333",
+        "DEFAULT_LLM_PROVIDER": "groq",
         "GROQ_API_KEY": "test-key",
         "JWT_SECRET_KEY": "test-secret",
     }, clear=True)

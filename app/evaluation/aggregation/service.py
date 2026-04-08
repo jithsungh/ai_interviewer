@@ -168,7 +168,10 @@ class AggregationService:
         submission_row = self._fetch_submission(submission_id)
 
         # Step 2: Check existing result
-        self._check_existing_result(submission_id, force_reaggregate)
+        existing_current_result = self._check_existing_result(
+            submission_id,
+            force_reaggregate,
+        )
 
         # Step 3: Fetch exchanges and evaluations
         exchanges = self._fetch_exchanges(submission_id)
@@ -245,7 +248,11 @@ class AggregationService:
             model_id=None,
         )
 
-        self._persist_result(result_data, proctoring_risk)
+        self._persist_result(
+            result_data,
+            proctoring_risk,
+            replace_existing_result_id=(existing_current_result.id if existing_current_result else None),
+        )
 
         logger.info(
             "Aggregation complete",
@@ -489,9 +496,70 @@ class AggregationService:
         if sections:
             logger.warning(
                 "No section_weights in scoring_configuration — using equal weights",
-                extra={"template_id": template_id},
+                extra={
+                    "template_id": template_id,
+                    "sections_count": len(sections),
+                    "scoring_configuration_present": isinstance(scoring_config, dict),
+                },
             )
-            return {s.get("section_name", f"section_{i}"): 1 for i, s in enumerate(sections)}
+
+            derived_weights: Dict[str, int] = {}
+            for i, section in enumerate(sections):
+                section_name: Optional[str] = None
+
+                if isinstance(section, dict):
+                    section_name = section.get("section_name") or section.get("name")
+                elif isinstance(section, str):
+                    section_name = section.strip()
+
+                if not section_name:
+                    section_name = f"section_{i}"
+
+                if section_name not in derived_weights:
+                    derived_weights[section_name] = 1
+
+            if derived_weights:
+                # Self-heal: persist derived equal weights so this warning doesn't repeat
+                try:
+                    structure.setdefault("scoring_configuration", {})
+                    structure["scoring_configuration"]["section_weights"] = derived_weights
+                    self._db.execute(
+                        text(
+                            "UPDATE interview_templates "
+                            "SET template_structure = CAST(:template_structure AS jsonb), "
+                            "    updated_at = now() "
+                            "WHERE id = :template_id"
+                        ),
+                        {
+                            "template_id": template_id,
+                            "template_structure": json.dumps(structure),
+                        },
+                    )
+                    self._db.flush()
+                    logger.info(
+                        "Persisted derived section_weights into template_structure",
+                        extra={
+                            "template_id": template_id,
+                            "derived_sections": list(derived_weights.keys()),
+                        },
+                    )
+                except Exception as persist_error:
+                    logger.warning(
+                        "Failed to persist derived section_weights; continuing with in-memory weights",
+                        extra={
+                            "template_id": template_id,
+                            "error": str(persist_error),
+                        },
+                    )
+                return derived_weights
+
+        logger.error(
+            "Unable to resolve section weights from template_structure",
+            extra={
+                "template_id": template_id,
+                "template_structure_keys": list(structure.keys()) if isinstance(structure, dict) else None,
+            },
+        )
 
         raise TemplateWeightsNotFoundError(
             template_id=template_id,
@@ -603,9 +671,11 @@ class AggregationService:
     # ── Internal: Validation ───────────────────────────────────────────
 
     def _check_existing_result(
-        self, submission_id: int, force_reaggregate: bool
-    ) -> None:
-        """Check for existing current result and handle versioning."""
+        self,
+        submission_id: int,
+        force_reaggregate: bool,
+    ) -> Optional[InterviewResult]:
+        """Check for existing current result and return it when re-aggregation is allowed."""
         existing = (
             self._db.query(InterviewResult)
             .filter(
@@ -619,20 +689,21 @@ class AggregationService:
 
         if existing:
             if force_reaggregate:
-                existing.is_current = False
-                self._db.flush()
                 logger.info(
-                    "Marked existing result as non-current (versioning)",
+                    "Existing current result will be replaced after successful aggregation",
                     extra={
-                        "old_result_id": existing.id,
+                        "existing_result_id": existing.id,
                         "submission_id": submission_id,
                     },
                 )
+                return existing
             else:
                 raise AggregationAlreadyExistsError(
                     submission_id=submission_id,
                     existing_result_id=existing.id,
                 )
+
+        return None
 
     def _verify_completeness(
         self,
@@ -657,6 +728,7 @@ class AggregationService:
         self,
         data: InterviewResultData,
         proctoring_risk: Optional[ProctoringRiskDTO],
+        replace_existing_result_id: Optional[int] = None,
     ) -> InterviewResult:
         """Persist interview result and optional proctoring report."""
         # Serialize section_scores for JSONB storage
@@ -668,35 +740,80 @@ class AggregationService:
         strengths_text = json.dumps(data.strengths) if data.strengths else None
         weaknesses_text = json.dumps(data.weaknesses) if data.weaknesses else None
 
-        result = InterviewResult(
-            interview_submission_id=data.interview_submission_id,
-            final_score=data.final_score,
-            normalized_score=data.normalized_score,
-            result_status=data.result_status,
-            recommendation=data.recommendation,
-            scoring_version=data.scoring_version,
-            rubric_snapshot=data.rubric_snapshot,
-            template_weight_snapshot=data.template_weight_snapshot,
-            section_scores=section_scores_json,
-            strengths=strengths_text,
-            weaknesses=weaknesses_text,
-            summary_notes=data.summary_notes or None,
-            generated_by=data.generated_by,
-            model_id=data.model_id,
-            is_current=True,
-            computed_at=datetime.now(timezone.utc),
-        )
+        if replace_existing_result_id is not None:
+            existing = self._db.get(InterviewResult, replace_existing_result_id)
+            if existing is not None and existing.is_current:
+                existing.is_current = False
+                self._db.flush()
 
+        def build_result(scoring_version: str) -> InterviewResult:
+            return InterviewResult(
+                interview_submission_id=data.interview_submission_id,
+                final_score=data.final_score,
+                normalized_score=data.normalized_score,
+                result_status=data.result_status,
+                recommendation=data.recommendation,
+                scoring_version=scoring_version,
+                rubric_snapshot=data.rubric_snapshot,
+                template_weight_snapshot=data.template_weight_snapshot,
+                section_scores=section_scores_json,
+                strengths=strengths_text,
+                weaknesses=weaknesses_text,
+                summary_notes=data.summary_notes or None,
+                generated_by=data.generated_by,
+                model_id=data.model_id,
+                is_current=True,
+                computed_at=datetime.now(timezone.utc),
+            )
+
+        result = build_result(data.scoring_version)
         self._db.add(result)
 
         try:
             self._db.flush()
         except IntegrityError as e:
             self._db.rollback()
-            raise AggregationError(
-                message=f"Failed to persist interview result: {e}",
-                error_code="RESULT_PERSIST_ERROR",
-            ) from e
+            err_text = str(e).lower()
+            is_duplicate_scoring_version = (
+                "interview_results_interview_submission_id_scoring_version_key" in err_text
+                or "duplicate key value violates unique constraint" in err_text
+            )
+
+            if not is_duplicate_scoring_version:
+                raise AggregationError(
+                    message=f"Failed to persist interview result: {e}",
+                    error_code="RESULT_PERSIST_ERROR",
+                ) from e
+
+            fallback_version = f"{data.scoring_version}-fallback-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
+            logger.warning(
+                "Duplicate scoring_version detected, retrying with fallback version",
+                extra={
+                    "submission_id": data.interview_submission_id,
+                    "old_scoring_version": data.scoring_version,
+                    "new_scoring_version": fallback_version,
+                },
+            )
+
+            data.scoring_version = fallback_version
+
+            if replace_existing_result_id is not None:
+                existing = self._db.get(InterviewResult, replace_existing_result_id)
+                if existing is not None and existing.is_current:
+                    existing.is_current = False
+                    self._db.flush()
+
+            result = build_result(data.scoring_version)
+            self._db.add(result)
+
+            try:
+                self._db.flush()
+            except IntegrityError as e2:
+                self._db.rollback()
+                raise AggregationError(
+                    message=f"Failed to persist interview result after scoring_version fallback: {e2}",
+                    error_code="RESULT_PERSIST_ERROR",
+                ) from e2
 
         # Optional: Persist proctoring supplementary report
         if proctoring_risk and proctoring_risk.overall_risk in ("high", "critical"):

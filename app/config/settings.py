@@ -169,12 +169,13 @@ class LLMSettings(BaseSettings):
         extra="ignore"
     )
     
-    default_llm_provider: Literal["openai", "anthropic", "groq"] = Field(default="groq", env="DEFAULT_LLM_PROVIDER")
+    default_llm_provider: Literal["openai", "anthropic", "groq", "gemini"] = Field(default="groq", env="DEFAULT_LLM_PROVIDER")
     
     # API Keys
     openai_api_key: Optional[str] = Field(default=None, env="OPENAI_API_KEY")
     anthropic_api_key: Optional[str] = Field(default=None, env="ANTHROPIC_API_KEY")
     groq_api_key: Optional[str] = Field(default=None, env="GROQ_API_KEY")
+    gemini_api_key: Optional[str] = Field(default=None, env="GEMINI_API_KEY")
     
     # Self-hosted Embedding Service
     embedding_model_url: str = Field(default="http://localhost:8080", env="EMBEDDING_MODEL_URL")
@@ -182,10 +183,10 @@ class LLMSettings(BaseSettings):
     embedding_timeout_seconds: int = Field(default=30, env="EMBEDDING_TIMEOUT_SECONDS")
     
     # Model routing by use case
-    llm_model_question_generation: str = Field(default="gpt-oss-120b", env="LLM_MODEL_QUESTION_GENERATION")
-    llm_model_evaluation: str = Field(default="gpt-oss-120b", env="LLM_MODEL_EVALUATION")
-    llm_model_resume_parsing: str = Field(default="gpt-oss-120b", env="LLM_MODEL_RESUME_PARSING")
-    llm_model_report_generation: str = Field(default="gpt-oss-120b", env="LLM_MODEL_REPORT_GENERATION")
+    llm_model_question_generation: str = Field(default="qwen/qwen3-32b", env="LLM_MODEL_QUESTION_GENERATION")
+    llm_model_evaluation: str = Field(default="qwen/qwen3-32b", env="LLM_MODEL_EVALUATION")
+    llm_model_resume_parsing: str = Field(default="qwen/qwen3-32b", env="LLM_MODEL_RESUME_PARSING")
+    llm_model_report_generation: str = Field(default="qwen/qwen3-32b", env="LLM_MODEL_REPORT_GENERATION")
     
     # Model parameters
     llm_temperature: float = Field(default=0.7, env="LLM_TEMPERATURE")
@@ -200,6 +201,8 @@ class LLMSettings(BaseSettings):
             raise ValueError("ANTHROPIC_API_KEY required when DEFAULT_LLM_PROVIDER=anthropic")
         if self.default_llm_provider == "groq" and not self.groq_api_key:
             raise ValueError("GROQ_API_KEY required when DEFAULT_LLM_PROVIDER=groq")
+        if self.default_llm_provider == "gemini" and not self.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY required when DEFAULT_LLM_PROVIDER=gemini")
         return self
 
 

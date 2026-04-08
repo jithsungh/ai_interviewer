@@ -68,42 +68,24 @@ class ExchangeDetail:
 # ── Prompt Templates ───────────────────────────────────────────────────
 
 REPORT_SYSTEM_PROMPT = (
-    "You are a senior technical interview assessor generating comprehensive post-interview reports.\n\n"
-    "## Your Role\n"
-    "Analyze the complete interview transcript — every question, response, and per-dimension evaluation —\n"
-    "and produce a structured JSON report with actionable insights.\n\n"
-    "## Hard Constraints (Non-Negotiable)\n"
-    "1. Base EVERY strength/weakness on concrete evidence from the interview exchanges.\n"
-    "2. Do NOT invent or assume skills that were not demonstrated.\n"
-    "3. Strengths and weaknesses MUST cite specific question numbers or topics.\n"
-    "4. The narrative summary MUST be professional, encouraging yet honest.\n"
-    "5. Return ONLY valid JSON matching the schema below. No markdown, no preamble.\n\n"
-    "## Report Quality Standards\n"
-    "- Strengths: Identify 3–5 specific technical or behavioral strengths. Each must reference\n"
-    "  an exchange or pattern observed across exchanges.\n"
-    "- Weaknesses: Identify 3–5 concrete areas for improvement. Each must reference specific gaps\n"
-    "  or errors from the exchanges.\n"
-    "- Summary: Write 2–3 paragraphs covering overall impression, standout moments, and growth areas.\n"
-    "  Tone: constructive, data-driven, professional.\n\n"
-    "## Output Format\n"
-    "Return ONLY valid JSON matching the schema below."
+    "You are an interview report evaluator. Treat each request as stateless and only use provided data. "
+    "Do not invent facts. Return valid JSON only with strengths, weaknesses, and summary_notes."
 )
 
-REPORT_USER_PROMPT_TEMPLATE = """## Interview Report Generation
+REPORT_USER_PROMPT_TEMPLATE = """Generate a concise interview report from this data.
 
-### Overall Performance
-- Normalized Score: {normalized_score}/100
-- Recommendation: {recommendation}
-- Total Exchanges: {total_exchanges}
+SCORE: {normalized_score}/100
+RECOMMENDATION: {recommendation}
+EXCHANGES: {total_exchanges}
 
-### Section Performance Breakdown
+SECTIONS:
 {section_breakdown}
 
-### Per-Exchange Details
+EXCHANGE DETAILS:
 {exchange_details}
 
-### Required Output Schema
-{{"strengths": ["<strength 1 — cite specific question/topic>", "..."], "weaknesses": ["<weakness 1 — cite specific question/topic>", "..."], "summary_notes": "<2-3 paragraph comprehensive narrative summary>"}}"""
+Return JSON only:
+{{"strengths":["..."],"weaknesses":["..."],"summary_notes":"..."}}"""
 
 
 class SummaryGenerator:
@@ -194,7 +176,13 @@ class SummaryGenerator:
                         sum(s.exchanges_evaluated for s in section_scores)
                     ),
                     "section_breakdown": self._format_section_breakdown(section_scores),
-                    "exchange_details": self._format_exchange_details(exchange_details),
+                    "exchange_details": self._format_exchange_details(
+                        exchange_details,
+                        max_exchanges=self._config.summary_max_exchanges_in_prompt,
+                        max_question_chars=self._config.summary_max_question_chars,
+                        max_response_chars=self._config.summary_max_response_chars,
+                        max_dimensions=self._config.summary_max_dimension_scores_per_exchange,
+                    ),
                 }
 
                 rendered = prompt_service.get_rendered_prompt(
@@ -253,7 +241,13 @@ class SummaryGenerator:
         """Build the enriched summary generation prompt."""
         section_breakdown = self._format_section_breakdown(section_scores)
         total_exchanges = sum(s.exchanges_evaluated for s in section_scores)
-        exchange_details_text = self._format_exchange_details(exchange_details)
+        exchange_details_text = self._format_exchange_details(
+            exchange_details,
+            max_exchanges=self._config.summary_max_exchanges_in_prompt,
+            max_question_chars=self._config.summary_max_question_chars,
+            max_response_chars=self._config.summary_max_response_chars,
+            max_dimensions=self._config.summary_max_dimension_scores_per_exchange,
+        )
 
         return REPORT_USER_PROMPT_TEMPLATE.format(
             section_breakdown=section_breakdown,
@@ -286,31 +280,41 @@ class SummaryGenerator:
     @staticmethod
     def _format_exchange_details(
         exchange_details: Optional[List[ExchangeDetail]],
+        max_exchanges: int = 12,
+        max_question_chars: int = 180,
+        max_response_chars: int = 320,
+        max_dimensions: int = 4,
     ) -> str:
         """Format per-exchange Q&A data for the prompt."""
         if not exchange_details:
             return "No per-exchange detail available."
 
         lines = []
-        for ex in exchange_details:
+        limited_exchanges = exchange_details[:max_exchanges]
+        for ex in limited_exchanges:
             dim_text = ""
             if ex.dimension_scores:
                 dims = [
                     f"  - {d.get('dimension_name', '?')}: {d.get('score', 0)}/{d.get('max_score', 10)}"
-                    for d in ex.dimension_scores
+                    for d in ex.dimension_scores[:max_dimensions]
                 ]
                 dim_text = "\n" + "\n".join(dims)
 
-            response_preview = (ex.response_text or "No response")[:500]
-            if ex.response_text and len(ex.response_text) > 500:
+            response_preview = (ex.response_text or "No response")[:max_response_chars]
+            if ex.response_text and len(ex.response_text) > max_response_chars:
                 response_preview += "... [truncated]"
 
             lines.append(
-                f"#### Q{ex.sequence_order} [{ex.section_name}] (Difficulty: {ex.difficulty or 'N/A'})\n"
-                f"**Question:** {ex.question_text[:300]}\n"
-                f"**Response:** {response_preview}\n"
-                f"**Score:** {ex.total_score or 'N/A'}%"
+                f"Q{ex.sequence_order} [{ex.section_name}] diff={ex.difficulty or 'N/A'}\n"
+                f"Question: {ex.question_text[:max_question_chars]}\n"
+                f"Response: {response_preview}\n"
+                f"Score: {ex.total_score or 'N/A'}%"
                 f"{dim_text}"
+            )
+
+        if len(exchange_details) > max_exchanges:
+            lines.append(
+                f"... {len(exchange_details) - max_exchanges} more exchanges omitted for prompt size control"
             )
 
         return "\n\n".join(lines)

@@ -135,19 +135,33 @@ class RaceResolver:
             LockAcquisitionError: If lock cannot be acquired.
             Any exceptions from create_fn.
         """
-        with self.acquire_exchange_lock(submission_id, sequence_order):
-            # Idempotent check: exchange may already exist
+        try:
+            with self.acquire_exchange_lock(submission_id, sequence_order):
+                # Idempotent check: exchange may already exist
+                existing = self.check_exchange_exists(submission_id, sequence_order)
+                if existing is not None:
+                    logger.info(
+                        "Exchange already exists (race resolved: idempotent)",
+                        extra={
+                            "submission_id": submission_id,
+                            "sequence_order": sequence_order,
+                            "exchange_id": existing.id,
+                        },
+                    )
+                    return existing
+
+                # Create exchange (caller provides creation logic)
+                return create_fn()
+        except LockAcquisitionError:
+            logger.warning(
+                "Exchange lock acquisition failed; falling back to DB constraints",
+                extra={
+                    "submission_id": submission_id,
+                    "sequence_order": sequence_order,
+                },
+                exc_info=True,
+            )
             existing = self.check_exchange_exists(submission_id, sequence_order)
             if existing is not None:
-                logger.info(
-                    "Exchange already exists (race resolved: idempotent)",
-                    extra={
-                        "submission_id": submission_id,
-                        "sequence_order": sequence_order,
-                        "exchange_id": existing.id,
-                    },
-                )
                 return existing
-
-            # Create exchange (caller provides creation logic)
             return create_fn()

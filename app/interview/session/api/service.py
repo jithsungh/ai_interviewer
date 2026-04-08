@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Optional, Tuple
 
@@ -23,7 +24,12 @@ from app.interview.session.domain.state_machine import (
     SubmissionStatus,
 )
 from app.interview.session.persistence.repository import SubmissionRepository
-from app.persistence.redis.locks import acquire_lock, create_session_lock_key
+from app.interview.session.expiry.service import SubmissionExpiryService
+from app.persistence.redis.locks import (
+    LockAcquisitionError,
+    acquire_lock,
+    create_session_lock_key,
+)
 from app.shared.errors import ValidationError as AppValidationError
 
 logger = logging.getLogger(__name__)
@@ -61,9 +67,11 @@ class SessionService:
             raise AppValidationError("Candidate consent is required to start the interview")
 
         lock_key = create_session_lock_key(submission_id)
-        with acquire_lock(lock_key, client=self._redis):
+        with self._optional_session_lock(lock_key):
             sub, transitioned = self._repo.transition_to_in_progress(
-                submission_id, candidate_id
+                submission_id,
+                candidate_id,
+                actor=f"candidate:{candidate_id}",
             )
 
         self._sync_redis(sub)
@@ -77,9 +85,12 @@ class SessionService:
     ) -> Tuple[InterviewSessionDTO, bool]:
         """in_progress → completed."""
         lock_key = create_session_lock_key(submission_id)
-        with acquire_lock(lock_key, client=self._redis):
+        actor = f"candidate:{candidate_id}" if candidate_id is not None else "system:complete"
+        with self._optional_session_lock(lock_key):
             sub, transitioned = self._repo.transition_to_completed(
-                submission_id, candidate_id
+                submission_id,
+                candidate_id,
+                actor=actor,
             )
 
         self._sync_redis(sub)
@@ -92,8 +103,11 @@ class SessionService:
     ) -> Tuple[InterviewSessionDTO, bool]:
         """in_progress → expired (system-initiated)."""
         lock_key = create_session_lock_key(submission_id)
-        with acquire_lock(lock_key, client=self._redis):
-            sub, transitioned = self._repo.transition_to_expired(submission_id)
+        with self._optional_session_lock(lock_key):
+            sub, transitioned = self._repo.transition_to_expired(
+                submission_id,
+                actor="system:expiry",
+            )
 
         self._sync_redis(sub)
         dto = InterviewSessionDTO.from_model(sub)
@@ -107,8 +121,11 @@ class SessionService:
     ) -> Tuple[InterviewSessionDTO, bool]:
         """pending|in_progress → cancelled (admin only)."""
         lock_key = create_session_lock_key(submission_id)
-        with acquire_lock(lock_key, client=self._redis):
-            sub, transitioned = self._repo.transition_to_cancelled(submission_id)
+        with self._optional_session_lock(lock_key):
+            sub, transitioned = self._repo.transition_to_cancelled(
+                submission_id,
+                actor=f"admin:{admin_id}",
+            )
 
         if transitioned:
             logger.info(
@@ -132,8 +149,11 @@ class SessionService:
     ) -> Tuple[InterviewSessionDTO, bool]:
         """completed|expired|cancelled → reviewed (admin only)."""
         lock_key = create_session_lock_key(submission_id)
-        with acquire_lock(lock_key, client=self._redis):
-            sub, transitioned = self._repo.transition_to_reviewed(submission_id)
+        with self._optional_session_lock(lock_key):
+            sub, transitioned = self._repo.transition_to_reviewed(
+                submission_id,
+                actor=f"admin:{admin_id}",
+            )
 
         if transitioned:
             logger.info(
@@ -171,6 +191,16 @@ class SessionService:
 
         return InterviewSessionDetailDTO.from_model(sub)
 
+    def expire_overdue_submissions(
+        self,
+        *,
+        actor: str,
+        limit: int = 500,
+    ) -> int:
+        """Bulk expire in-progress submissions whose scheduled_end has passed."""
+        expiry_service = SubmissionExpiryService(self._db)
+        return expiry_service.expire_overdue_submissions(actor=actor, limit=limit)
+
     # ────────────────────────────────────────────────────────────
     # Redis sync
     # ────────────────────────────────────────────────────────────
@@ -189,6 +219,7 @@ class SessionService:
                 "updated_at": (
                     sub.updated_at.isoformat() if getattr(sub, "updated_at", None) else None
                 ),
+                "version": getattr(sub, "version", None),
             },
             default=str,
         )
@@ -196,3 +227,22 @@ class SessionService:
             self._redis.set(key, payload, ex=_SESSION_TTL_SECONDS)
         except Exception:
             logger.warning("Failed to sync session to Redis", exc_info=True)
+
+    @contextmanager
+    def _optional_session_lock(self, lock_key: str):
+        """
+        Best-effort lock wrapper.
+
+        DB constraints + optimistic versioning remain the source of correctness,
+        so lock acquisition failure degrades gracefully instead of failing the request.
+        """
+        try:
+            with acquire_lock(lock_key, client=self._redis):
+                yield
+        except LockAcquisitionError:
+            logger.warning(
+                "Session lock acquisition failed; proceeding with DB-enforced concurrency",
+                extra={"lock_key": lock_key},
+                exc_info=True,
+            )
+            yield

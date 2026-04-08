@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
@@ -31,6 +32,7 @@ from app.ai.llm.errors import (
     LLMRateLimitError,
     LLMSchemaValidationError,
     LLMTimeoutError,
+    LLMModelNotFoundError,
 )
 from app.evaluation.scoring.config import get_scoring_config
 from app.evaluation.scoring.contracts import (
@@ -53,31 +55,32 @@ class AIScorer:
     """
     
     # Default prompt template (used if PromptService not available)
-    DEFAULT_SYSTEM_PROMPT = """You are an expert interviewer evaluating candidate responses.
-Your task is to score the response against each rubric dimension objectively and consistently.
-Be fair, balanced, and provide clear justification for each score."""
+    DEFAULT_SYSTEM_PROMPT = (
+        "You are an interview evaluator. Treat each request as fully stateless and self-contained. "
+        "Score each rubric dimension objectively and return JSON only."
+    )
 
-    DEFAULT_USER_PROMPT_TEMPLATE = """Evaluate the following candidate response:
+    DEFAULT_USER_PROMPT_TEMPLATE = """Evaluate this single exchange.
 
-**Question:**
+QUESTION:
 {question_content}
 
-**Candidate's Answer:**
+ANSWER:
 {answer_content}
 
 {transcript_section}
 
-**Rubric Dimensions to Evaluate:**
+RUBRIC DIMENSIONS:
 {dimensions_text}
 
-**Instructions:**
-1. Evaluate the response against EACH dimension separately
-2. Assign a score between 0 and the max_score for each dimension
-3. Provide concise justification for each score (minimum 10 characters)
-4. Be consistent and objective
+RULES:
+- Score every dimension from 0 to max_score
+- Use exact dimension_name values from input
+- Keep each justification concise (>=10 chars)
+- Return valid JSON only
 
-**Output Format (JSON):**
-{{"dimension_scores": [{{"dimension_name": "...", "score": X.X, "justification": "..."}}], "overall_comment": "..."}}"""
+OUTPUT JSON:
+{{"dimension_scores":[{{"dimension_name":"...","score":0,"justification":"..."}}],"overall_comment":"..."}}"""
 
     def __init__(
         self,
@@ -144,7 +147,7 @@ Be fair, balanced, and provide clear justification for each score."""
                     model_id=model
                 )
                 
-            except (LLMTimeoutError, LLMRateLimitError, LLMProviderError) as e:
+            except (LLMTimeoutError, LLMRateLimitError) as e:
                 last_error = e
                 delay = self._calculate_retry_delay(attempt)
                 logger.warning(
@@ -156,6 +159,41 @@ Be fair, balanced, and provide clear justification for each score."""
                     }
                 )
                 await asyncio.sleep(delay)
+
+            except LLMModelNotFoundError as e:
+                logger.error(
+                    "AI scoring failed due to invalid/unavailable model configuration",
+                    extra={"error": str(e), "model": model}
+                )
+                raise AIEvaluationError(
+                    message=str(e),
+                    provider=self._provider.get_provider_name(),
+                    retries_attempted=attempt + 1,
+                )
+
+            except LLMProviderError as e:
+                if getattr(e, "retryable", False):
+                    last_error = e
+                    delay = self._calculate_retry_delay(attempt)
+                    logger.warning(
+                        f"AI scoring attempt {attempt + 1} failed, retrying",
+                        extra={
+                            "error": str(e),
+                            "retry_delay": delay,
+                            "model": model
+                        }
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "AI scoring failed with non-retryable provider error",
+                        extra={"error": str(e), "model": model}
+                    )
+                    raise AIEvaluationError(
+                        message=str(e),
+                        provider=self._provider.get_provider_name(),
+                        retries_attempted=attempt + 1,
+                    )
                 
             except LLMSchemaValidationError as e:
                 last_error = e
@@ -181,18 +219,31 @@ Be fair, balanced, and provide clear justification for each score."""
         transcript: Optional[str]
     ) -> str:
         """Build evaluation prompt."""
+        question_text = self._truncate_text(
+            text=question_content,
+            max_chars=self._config.evaluation_max_question_chars,
+        )
+        answer_text = self._truncate_text(
+            text=answer_content,
+            max_chars=self._config.evaluation_max_answer_chars,
+        )
+
         # Format dimensions
         dimensions_text = self._format_dimensions(dimensions)
         
         # Format transcript section
         transcript_section = ""
-        if transcript:
-            transcript_section = f"\n**Audio Transcript:**\n{transcript}\n"
+        if transcript and self._config.evaluation_include_transcript:
+            transcript_excerpt = self._truncate_text(
+                text=transcript,
+                max_chars=self._config.evaluation_max_transcript_chars,
+            )
+            transcript_section = f"TRANSCRIPT (optional excerpt):\n{transcript_excerpt}"
         
         # Build prompt from template
         prompt = self.DEFAULT_USER_PROMPT_TEMPLATE.format(
-            question_content=question_content,
-            answer_content=answer_content,
+            question_content=question_text,
+            answer_content=answer_text,
             transcript_section=transcript_section,
             dimensions_text=dimensions_text
         )
@@ -203,13 +254,31 @@ Be fair, balanced, and provide clear justification for each score."""
         """Format dimensions for prompt."""
         lines = []
         for dim in dimensions:
-            line = f"- **{dim.dimension_name}** (max score: {dim.max_score}, weight: {dim.weight})"
+            line = f"- {dim.dimension_name} | max={dim.max_score} | weight={dim.weight}"
             if dim.description:
-                line += f"\n  Description: {dim.description}"
+                description = self._truncate_text(
+                    text=dim.description,
+                    max_chars=self._config.evaluation_max_dimension_description_chars,
+                )
+                line += f"\n  description: {description}"
             if dim.scoring_criteria:
-                line += f"\n  Criteria: {dim.scoring_criteria}"
+                criteria = self._truncate_text(
+                    text=dim.scoring_criteria,
+                    max_chars=self._config.evaluation_max_dimension_criteria_chars,
+                )
+                line += f"\n  criteria: {criteria}"
             lines.append(line)
         return "\n".join(lines)
+
+    @staticmethod
+    def _truncate_text(text: Optional[str], max_chars: int) -> str:
+        """Trim text to bounded size for prompt efficiency."""
+        if not text:
+            return ""
+        cleaned = text.strip()
+        if max_chars <= 0 or len(cleaned) <= max_chars:
+            return cleaned
+        return f"{cleaned[:max_chars]}... [truncated]"
     
     async def _call_llm(
         self,
@@ -233,9 +302,23 @@ Be fair, balanced, and provide clear justification for each score."""
         response = await self._provider.generate_structured(request)
         
         if not response.success:
+            if response.error and response.error.type == "rate_limit":
+                raise LLMRateLimitError(
+                    provider=self._provider.get_provider_name(),
+                    message=response.error.message,
+                )
+            if response.error and not response.error.retryable and response.error.message:
+                error_message = response.error.message.lower()
+                if "not found" in error_message or "not supported for generatecontent" in error_message:
+                    raise LLMModelNotFoundError(
+                        provider=self._provider.get_provider_name(),
+                        model_id=model,
+                        message=response.error.message,
+                    )
             raise LLMProviderError(
                 provider=self._provider.get_provider_name(),
-                message=response.error.message if response.error else "Unknown error"
+                message=response.error.message if response.error else "Unknown error",
+                retryable=response.error.retryable if response.error else False,
             )
         
         # Parse JSON response
@@ -272,23 +355,34 @@ Be fair, balanced, and provide clear justification for each score."""
         if not overall_comment:
             overall_comment = "Evaluation completed."
         
-        # Build dimension lookup
-        dimension_lookup = {d.dimension_name.lower(): d for d in dimensions}
+        # Build dimension lookup with normalized keys
+        dimension_lookup = {
+            self._normalize_dimension_key(d.dimension_name): d for d in dimensions
+        }
         
         # Validate and convert scores
         validated_scores: List[DimensionScoreResult] = []
         found_dimensions = set()
+        unmatched_scores: List[Dict[str, Any]] = []
         
         for score_data in dimension_scores_raw:
             dim_name = score_data.get("dimension_name", "")
             score_value = score_data.get("score", 0)
             justification = score_data.get("justification", "")
             
-            # Find matching dimension (case-insensitive)
-            dim_key = dim_name.lower()
+            # Find matching dimension (normalized)
+            dim_key = self._normalize_dimension_key(dim_name)
             if dim_key not in dimension_lookup:
                 logger.warning(
                     f"AI returned unknown dimension: {dim_name}",
+                    extra={"dimension_name": dim_name}
+                )
+                unmatched_scores.append(score_data)
+                continue
+
+            if dim_key in found_dimensions:
+                logger.warning(
+                    "AI returned duplicate dimension score; keeping first",
                     extra={"dimension_name": dim_name}
                 )
                 continue
@@ -325,6 +419,44 @@ Be fair, balanced, and provide clear justification for each score."""
                 score=score_decimal,
                 justification=justification.strip()
             ))
+
+        # Positional fallback: map unmatched AI scores to still-missing dimensions
+        if unmatched_scores:
+            missing_keys_in_order = [
+                self._normalize_dimension_key(d.dimension_name)
+                for d in dimensions
+                if self._normalize_dimension_key(d.dimension_name) not in found_dimensions
+            ]
+            for score_data, dim_key in zip(unmatched_scores, missing_keys_in_order):
+                dimension = dimension_lookup[dim_key]
+                score_value = score_data.get("score", 0)
+                justification = score_data.get("justification", "")
+
+                score_decimal = Decimal(str(score_value))
+                if score_decimal < 0:
+                    score_decimal = Decimal("0")
+                if score_decimal > dimension.max_score:
+                    score_decimal = dimension.max_score
+
+                if not justification or len(justification.strip()) < self._config.min_justification_length:
+                    justification = f"Score of {score_decimal} assigned for {dimension.dimension_name}."
+
+                validated_scores.append(DimensionScoreResult(
+                    dimension_name=dimension.dimension_name,
+                    score=score_decimal,
+                    justification=justification.strip()
+                ))
+                found_dimensions.add(dim_key)
+
+                logger.info(
+                    "Applied positional fallback for dimension mapping",
+                    extra={"mapped_dimension": dimension.dimension_name}
+                )
+
+        if not found_dimensions:
+            raise LLMSchemaValidationError(
+                message="AI response dimensions could not be mapped to rubric dimensions"
+            )
         
         # Check for missing dimensions
         missing = set(dimension_lookup.keys()) - found_dimensions
@@ -347,6 +479,14 @@ Be fair, balanced, and provide clear justification for each score."""
             overall_comment=overall_comment,
             model_id=None  # Set by caller
         )
+
+    @staticmethod
+    def _normalize_dimension_key(name: str) -> str:
+        """Normalize dimension names for tolerant matching."""
+        if not name:
+            return ""
+        lowered = name.strip().lower()
+        return re.sub(r"[^a-z0-9]+", "", lowered)
     
     def _calculate_retry_delay(self, attempt: int) -> float:
         """Calculate exponential backoff delay."""

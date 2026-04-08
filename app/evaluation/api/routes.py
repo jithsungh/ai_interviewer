@@ -75,6 +75,39 @@ router = APIRouter()
 logger = get_context_logger(__name__)
 
 
+def _fallback_scoring_version() -> str:
+    now = datetime.now(timezone.utc)
+    return f"fallback-{now.strftime('%Y%m%d%H%M%S%f')}"
+
+
+def _should_rescore_existing_evaluation(db: Session, evaluation_id: int) -> bool:
+    """Detect stale/low-quality AI evaluations that should be regenerated."""
+    row = db.execute(
+        text(
+            "SELECT "
+            "  COUNT(*) AS total_dims, "
+            "  COALESCE(SUM(CASE WHEN score > 0 THEN 1 ELSE 0 END), 0) AS non_zero_dims, "
+            "  COALESCE(SUM(CASE WHEN justification ILIKE '%defaulting to 0%' THEN 1 ELSE 0 END), 0) AS defaulted_dims "
+            "FROM evaluation_dimension_scores "
+            "WHERE evaluation_id = :eid"
+        ),
+        {"eid": evaluation_id},
+    ).first()
+
+    if row is None:
+        return True
+
+    total_dims = int(row.total_dims or 0)
+    non_zero_dims = int(row.non_zero_dims or 0)
+    defaulted_dims = int(row.defaulted_dims or 0)
+
+    if total_dims == 0:
+        return True
+
+    # All-zero with synthetic fallback justifications is considered stale.
+    return non_zero_dims == 0 and defaulted_dims > 0
+
+
 # ---------------------------------------------------------------------------
 # 1. POST /evaluate
 # ---------------------------------------------------------------------------
@@ -377,7 +410,16 @@ async def generate_report(
     result_repo = build_result_repository(db)
     existing = result_repo.get_current_by_submission(submission_id)
     if existing and not request.force_regenerate:
-        return InterviewResultResponse.from_model(existing)
+        if existing.final_score is None or existing.normalized_score is None:
+            logger.warning(
+                "Existing result is incomplete; regenerating report",
+                extra={
+                    "submission_id": submission_id,
+                    "result_id": existing.id,
+                },
+            )
+        else:
+            return InterviewResultResponse.from_model(existing)
 
     # Step 1: Evaluate all exchanges that don't have final evaluations
     exchange_rows = db.execute(
@@ -399,7 +441,7 @@ async def generate_report(
             normalized_score=0.0,
             result_status="completed",
             recommendation="none",
-            scoring_version="1.0",
+            scoring_version=_fallback_scoring_version(),
             rubric_snapshot=None,
             template_weight_snapshot=None,
             section_scores=None,
@@ -414,21 +456,34 @@ async def generate_report(
 
     scoring_service = ScoringService(db=db)
     evaluated_count = 0
+    failed_exchange_ids: List[int] = []
 
     for row in exchange_rows:
         exchange_id = row.id
+        force_rescore_for_exchange = request.force_regenerate
+
         # Check if already has a final evaluation
         eval_repo = build_evaluation_repository(db)
         existing_eval = eval_repo.get_final_by_exchange(exchange_id)
         if existing_eval and not request.force_regenerate:
-            evaluated_count += 1
-            continue
+            if _should_rescore_existing_evaluation(db, existing_eval.id):
+                logger.warning(
+                    "Existing evaluation appears stale/zeroed; rescoring",
+                    extra={
+                        "exchange_id": exchange_id,
+                        "evaluation_id": existing_eval.id,
+                    },
+                )
+                force_rescore_for_exchange = True
+            else:
+                evaluated_count += 1
+                continue
 
         try:
             await scoring_service.score_exchange(
                 interview_exchange_id=exchange_id,
                 evaluator_type=EvaluatorType.AI,
-                force_rescore=request.force_regenerate,
+                force_rescore=force_rescore_for_exchange,
             )
             evaluated_count += 1
             logger.info(
@@ -439,10 +494,19 @@ async def generate_report(
             db.rollback()
             import traceback
             traceback.print_exc()
+            failed_exchange_ids.append(exchange_id)
             logger.warning(
                 "Failed to evaluate exchange, skipping",
                 extra={"exchange_id": exchange_id, "error": str(e)},
             )
+
+    if evaluated_count == 0:
+        raise ValidationError(
+            message=(
+                "Unable to generate report: all exchange evaluations failed. "
+                f"submission_id={submission_id}, failed_exchanges={failed_exchange_ids}"
+            )
+        )
 
     # Step 2: Aggregate into interview result
     from app.evaluation.aggregation.service import AggregationService
@@ -455,34 +519,26 @@ async def generate_report(
             force_reaggregate=request.force_regenerate,
         )
     except Exception as e:
-        logger.warning(
-            "Aggregation failed, returning partial result",
+        logger.error(
+            "Aggregation failed during generate-report",
             extra={"submission_id": submission_id, "error": str(e)},
+        )
+        raise ValidationError(
+            message=(
+                "Unable to generate report: aggregation failed after evaluation. "
+                f"submission_id={submission_id}, error={e}"
+            )
         )
 
     # Fetch and return the result
     result_model = result_repo.get_current_by_submission(submission_id)
     if result_model is None:
-        logger.warning(
-            "No InterviewResult found after aggregation attempt. Creating fallback result.",
-            extra={"submission_id": submission_id},
+        raise ValidationError(
+            message=(
+                "Unable to generate report: aggregation did not persist a current result. "
+                f"submission_id={submission_id}"
+            )
         )
-        empty_result = result_repo.create(
-            interview_submission_id=submission_id,
-            final_score=0.0,
-            normalized_score=0.0,
-            result_status="completed",
-            recommendation="none",
-            scoring_version="1.0",
-            rubric_snapshot=None,
-            template_weight_snapshot=None,
-            section_scores=None,
-            strengths=None,
-            weaknesses=None,
-            summary_notes="Interview completed but evaluation/aggregation failed. Check rubric configuration.",
-            generated_by="system",
-        )
-        return InterviewResultResponse.from_model(empty_result)
 
     return InterviewResultResponse.from_model(result_model)
 

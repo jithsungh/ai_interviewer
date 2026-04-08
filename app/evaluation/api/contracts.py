@@ -261,9 +261,13 @@ class InterviewResultResponse(_EvalBase):
         return cls(
             result_id=model.id,
             interview_submission_id=model.interview_submission_id,
-            final_score=float(model.final_score) if model.final_score else None,
+            final_score=(
+                float(model.final_score) if model.final_score is not None else None
+            ),
             normalized_score=(
-                float(model.normalized_score) if model.normalized_score else None
+                float(model.normalized_score)
+                if model.normalized_score is not None
+                else None
             ),
             result_status=model.result_status,
             recommendation=model.recommendation,

@@ -184,6 +184,18 @@ class ScoringService:
         
         # Step 3: Fetch exchange data
         exchange_data = self._fetch_exchange_data(interview_exchange_id)
+
+        logger.info(
+            "Scoring exchange context prepared",
+            extra={
+                "exchange_id": interview_exchange_id,
+                "question_type": exchange_data.question_type,
+                "question_length": len(exchange_data.question_content or ""),
+                "answer_length": len(exchange_data.answer_content or ""),
+                "transcript_length": len(exchange_data.transcript or ""),
+                "dimensions_count": len(dimensions),
+            },
+        )
         
         # Step 4: Score based on evaluator type
         score_result = await self._perform_scoring(
@@ -273,11 +285,19 @@ class ScoringService:
         query = text("""
             SELECT 
                 ie.id AS exchange_id,
-                ie.question_snapshot->>'content' AS question_content,
-                ie.question_snapshot->>'type' AS question_type,
-                ie.answer_content,
-                ie.audio_transcript
+                ie.question_text AS question_content,
+                COALESCE(
+                    ie.content_metadata->>'question_type',
+                    CASE
+                        WHEN ie.coding_problem_id IS NOT NULL THEN 'coding'
+                        ELSE 'technical'
+                    END
+                ) AS question_type,
+                COALESCE(NULLIF(ie.response_text, ''), NULLIF(ie.response_code, ''), '') AS answer_content,
+                aa.transcript AS audio_transcript
             FROM interview_exchanges ie
+            LEFT JOIN audio_analytics aa
+                ON aa.interview_exchange_id = ie.id
             WHERE ie.id = :exchange_id
         """)
         
@@ -286,13 +306,25 @@ class ScoringService:
         if not result:
             raise ExchangeNotFoundError(exchange_id=exchange_id)
         
-        return ExchangeDataDTO(
+        exchange_data = ExchangeDataDTO(
             exchange_id=result.exchange_id,
             question_content=result.question_content or "",
             question_type=result.question_type,
             answer_content=result.answer_content or "",
             transcript=result.audio_transcript
         )
+
+        if len(exchange_data.answer_content.strip()) < 30:
+            logger.warning(
+                "Exchange answer content is very short; score may be near zero",
+                extra={
+                    "exchange_id": exchange_id,
+                    "answer_length": len(exchange_data.answer_content),
+                    "answer_preview": exchange_data.answer_content[:120],
+                },
+            )
+
+        return exchange_data
     
     async def _perform_scoring(
         self,
@@ -390,7 +422,7 @@ class ScoringService:
             explanation=score_result.overall_comment,
             is_final=True,
             evaluated_by=evaluated_by,
-            model_id=score_result.model_id,
+            model_id=None,
             scoring_version=self.SCORING_VERSION
         )
         

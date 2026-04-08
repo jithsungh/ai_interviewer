@@ -289,3 +289,10 @@ class AIModel(Base):
     __table_args__ = ({"extend_existing": True},)
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    provider = Column(Text, nullable=False)
+    name = Column(Text, nullable=False)
+    model_type = Column(Text, nullable=False)
+    version = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True)

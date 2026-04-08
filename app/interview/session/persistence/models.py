@@ -46,6 +46,7 @@ class InterviewSubmissionModel(Base):
     scheduled_end = Column(DateTime(timezone=True), nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     submitted_at = Column(DateTime(timezone=True), nullable=True)
+    version = Column(Integer, nullable=False, server_default=text("1"))
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=text("now()"))
 
