@@ -884,14 +884,29 @@ class CandidateQueryRepository:
         )
 
         # AI-driven sections that have no static question pool
-        # Also includes coding_round which is disabled until fully implemented
-        _ai_driven = {"resume_analysis", "self_introduction", "complexity_analysis", "coding_round"}
+        # (coding_round is skipped until fully implemented in realtime flow)
+        _ai_driven = {"resume_analysis", "complexity_analysis", "coding_round"}
 
         snapshot_sections: List[Dict[str, Any]] = []
+
+        # Always attempt self-introduction first when enabled
+        self_intro_cfg = sections_raw.get("self_introduction") or {}
+        if self_intro_cfg.get("enabled", False):
+            self_intro_ids = self._sample_self_introduction_question_ids(
+                count=self_intro_cfg.get("question_count") or 1
+            )
+            if self_intro_ids:
+                snapshot_sections.append({
+                    "section_name": "self_introduction",
+                    "question_count": len(self_intro_ids),
+                    "question_ids": self_intro_ids,
+                })
 
         for key in section_sequence:
             cfg = sections_raw.get(key)
             if not cfg or not cfg.get("enabled", False):
+                continue
+            if key == "self_introduction":
                 continue
             if key in _ai_driven:
                 continue
@@ -1021,11 +1036,42 @@ class CandidateQueryRepository:
             text(
                 "SELECT id FROM questions "
                 "WHERE question_type = :qtype AND is_active = true "
+                "AND COALESCE(source_type, '') <> 'self_intro_preset' "
                 "ORDER BY RANDOM() LIMIT :n"
             ),
             {"qtype": question_type, "n": count},
         ).fetchall()
         return [r[0] for r in rows]
+
+    def _sample_self_introduction_question_ids(self, count: int = 1) -> List[int]:
+        """Sample self-introduction preset questions from DB-maintained pool."""
+        if count <= 0:
+            return []
+
+        rows = self._db.execute(
+            text(
+                "SELECT id FROM questions "
+                "WHERE question_type = 'behavioral' "
+                "AND is_active = true "
+                "AND source_type = 'self_intro_preset' "
+                "ORDER BY RANDOM() LIMIT :n"
+            ),
+            {"n": count},
+        ).fetchall()
+
+        if rows:
+            return [r[0] for r in rows]
+
+        # Fallback for environments where preset seed migration has not run yet
+        fallback = self._db.execute(
+            text(
+                "SELECT id FROM questions "
+                "WHERE question_type = 'behavioral' AND is_active = true "
+                "ORDER BY RANDOM() LIMIT :n"
+            ),
+            {"n": count},
+        ).fetchall()
+        return [r[0] for r in fallback]
 
     # ────────────────────────────────────────────────────────────
     # Submission Detail (full nested view)

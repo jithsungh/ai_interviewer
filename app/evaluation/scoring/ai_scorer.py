@@ -56,11 +56,15 @@ class AIScorer:
     
     # Default prompt template (used if PromptService not available)
     DEFAULT_SYSTEM_PROMPT = (
-        "You are an interview evaluator. Treat each request as fully stateless and self-contained. "
-        "Score each rubric dimension objectively and return JSON only."
+        "You are a strict interview evaluator. Treat each request as stateless and self-contained. "
+        "Use only provided evidence. Do not invent missing details. Return JSON only."
     )
 
     DEFAULT_USER_PROMPT_TEMPLATE = """Evaluate this single exchange.
+
+METADATA:
+- answer_length_chars: {answer_length_chars}
+- transcript_included: {transcript_included}
 
 QUESTION:
 {question_content}
@@ -76,7 +80,11 @@ RUBRIC DIMENSIONS:
 RULES:
 - Score every dimension from 0 to max_score
 - Use exact dimension_name values from input
-- Keep each justification concise (>=10 chars)
+- Justification must cite concrete evidence from QUESTION/ANSWER/TRANSCRIPT
+- Keep each justification concise (10-240 chars)
+- Do not repeat the same sentence across dimensions
+- If answer_length_chars > 0, do not claim "no response provided"
+- Use 0 only when evidence is absent/incorrect for that specific dimension
 - Return valid JSON only
 
 OUTPUT JSON:
@@ -149,7 +157,7 @@ OUTPUT JSON:
                 
             except (LLMTimeoutError, LLMRateLimitError) as e:
                 last_error = e
-                delay = self._calculate_retry_delay(attempt)
+                delay = self._calculate_retry_delay(attempt, error=e)
                 logger.warning(
                     f"AI scoring attempt {attempt + 1} failed, retrying",
                     extra={
@@ -174,7 +182,7 @@ OUTPUT JSON:
             except LLMProviderError as e:
                 if getattr(e, "retryable", False):
                     last_error = e
-                    delay = self._calculate_retry_delay(attempt)
+                    delay = self._calculate_retry_delay(attempt, error=e)
                     logger.warning(
                         f"AI scoring attempt {attempt + 1} failed, retrying",
                         extra={
@@ -233,15 +241,19 @@ OUTPUT JSON:
         
         # Format transcript section
         transcript_section = ""
+        transcript_included = "false"
         if transcript and self._config.evaluation_include_transcript:
             transcript_excerpt = self._truncate_text(
                 text=transcript,
                 max_chars=self._config.evaluation_max_transcript_chars,
             )
             transcript_section = f"TRANSCRIPT (optional excerpt):\n{transcript_excerpt}"
+            transcript_included = "true"
         
         # Build prompt from template
         prompt = self.DEFAULT_USER_PROMPT_TEMPLATE.format(
+            answer_length_chars=len(answer_text),
+            transcript_included=transcript_included,
             question_content=question_text,
             answer_content=answer_text,
             transcript_section=transcript_section,
@@ -488,12 +500,31 @@ OUTPUT JSON:
         lowered = name.strip().lower()
         return re.sub(r"[^a-z0-9]+", "", lowered)
     
-    def _calculate_retry_delay(self, attempt: int) -> float:
-        """Calculate exponential backoff delay."""
+    def _calculate_retry_delay(self, attempt: int, error: Optional[Exception] = None) -> float:
+        """Calculate retry delay with provider hint support for rate limits."""
+        provider_hint = self._extract_retry_after_seconds(error) if error else None
+        if provider_hint is not None:
+            return min(provider_hint, self._config.retry_max_delay_seconds)
+
         base = self._config.retry_base_delay_seconds
         max_delay = self._config.retry_max_delay_seconds
         delay = base * (2 ** attempt)
         return min(delay, max_delay)
+
+    @staticmethod
+    def _extract_retry_after_seconds(error: Exception) -> Optional[float]:
+        """Extract retry-after seconds from provider rate-limit messages."""
+        message = str(error)
+        match = re.search(r"try again in\s+([0-9]*\.?[0-9]+)\s*(ms|s)", message, re.IGNORECASE)
+        if not match:
+            return None
+
+        value = float(match.group(1))
+        unit = match.group(2).lower()
+        seconds = value / 1000.0 if unit == "ms" else value
+
+        # Add tiny cushion to reduce re-hit probability at window boundary.
+        return max(0.2, seconds + 0.25)
 
 
 async def score_with_ai(

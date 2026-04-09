@@ -81,7 +81,7 @@ class AggregationConfig(BaseSettings):
         description="Temperature for summary generation",
     )
     summary_max_tokens: int = Field(
-        default=900,
+        default=1300,
         gt=0,
         description="Max tokens for summary response",
     )

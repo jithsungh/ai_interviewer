@@ -49,7 +49,7 @@ class ScoringConfig(BaseSettings):
         description="Low temperature for consistent scoring"
     )
     evaluation_max_tokens: int = Field(
-        default=900,
+        default=1000,
         gt=0,
         description="Max tokens for evaluation response"
     )
@@ -72,12 +72,12 @@ class ScoringConfig(BaseSettings):
         description="Include transcript excerpt in scoring prompt"
     )
     evaluation_max_question_chars: int = Field(
-        default=700,
+        default=550,
         gt=0,
         description="Max question characters sent to LLM"
     )
     evaluation_max_answer_chars: int = Field(
-        default=2500,
+        default=1800,
         gt=0,
         description="Max answer characters sent to LLM"
     )
@@ -92,7 +92,7 @@ class ScoringConfig(BaseSettings):
         description="Max description chars per dimension"
     )
     evaluation_max_dimension_criteria_chars: int = Field(
-        default=300,
+        default=220,
         gt=0,
         description="Max criteria chars per dimension"
     )
