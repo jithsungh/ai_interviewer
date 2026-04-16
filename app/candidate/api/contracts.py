@@ -532,6 +532,82 @@ class PracticeQuestionListResponse(BaseModel):
 
 
 # ════════════════════════════════════════════════════════════════════════
+# Interview Prep Flashcards
+# ════════════════════════════════════════════════════════════════════════
+
+
+class PracticeFlashcardDTO(BaseModel):
+    source_question_id: int
+    topic: str
+    difficulty: str
+    question: str
+    answer: str
+    tags: List[str] = Field(default_factory=list)
+    hint: Optional[str] = None
+
+
+class GeneratePracticeFlashcardsRequest(BaseModel):
+    role: str = Field(..., min_length=2, max_length=120)
+    industry: str = Field(..., min_length=2, max_length=120)
+    question_type: Optional[str] = Field(None, max_length=30)
+    difficulty: Optional[str] = Field(None, max_length=20)
+    card_count: int = Field(10, ge=1, le=20)
+    use_cached: bool = Field(default=True)
+
+
+class PracticeFlashcardDeckResponse(BaseModel):
+    deck_id: int
+    candidate_id: int
+    role: str
+    industry: str
+    question_type: Optional[str] = None
+    difficulty: Optional[str] = None
+    card_count: int
+    source_question_ids: List[int] = Field(default_factory=list)
+    flashcards: List[PracticeFlashcardDTO] = Field(default_factory=list)
+    bookmarked_indices: List[int] = Field(default_factory=list)
+    mastered_indices: List[int] = Field(default_factory=list)
+    current_card_index: int = 0
+    progress_percent: int = 0
+    is_active: bool = True
+    generation_source: str = "db"
+    model_provider: Optional[str] = None
+    model_name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PracticeFlashcardDeckSummaryDTO(BaseModel):
+    deck_id: int
+    role: str
+    industry: str
+    question_type: Optional[str] = None
+    difficulty: Optional[str] = None
+    card_count: int
+    current_card_index: int = 0
+    progress_percent: int = 0
+    is_active: bool = True
+    generation_source: str = "db"
+    created_at: datetime
+    updated_at: datetime
+
+
+class PracticeFlashcardDeckHistoryResponse(BaseModel):
+    data: List[PracticeFlashcardDeckSummaryDTO] = Field(default_factory=list)
+    pagination: PaginationMeta
+
+
+class PracticeFlashcardDeckActiveResponse(BaseModel):
+    deck: Optional[PracticeFlashcardDeckResponse] = None
+
+
+class UpdatePracticeFlashcardDeckProgressRequest(BaseModel):
+    current_card_index: int = Field(0, ge=0)
+    mastered_indices: List[int] = Field(default_factory=list)
+    bookmarked_indices: List[int] = Field(default_factory=list)
+
+
+# ════════════════════════════════════════════════════════════════════════
 # Gap 6: Start Practice Session
 # ════════════════════════════════════════════════════════════════════════
 

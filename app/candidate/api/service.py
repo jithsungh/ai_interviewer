@@ -39,9 +39,16 @@ from app.candidate.api.contracts import (
     GenerateCareerInsightsRequest,
     GenerateCareerInsightsResponse,
     GenerateCareerRoadmapRequest,
+    GeneratePracticeFlashcardsRequest,
     PaginationMeta,
     PracticeQuestionDTO,
     PracticeQuestionListResponse,
+    PracticeFlashcardDeckActiveResponse,
+    PracticeFlashcardDeckHistoryResponse,
+    PracticeFlashcardDeckResponse,
+    PracticeFlashcardDeckSummaryDTO,
+    PracticeFlashcardDTO,
+    UpdatePracticeFlashcardDeckProgressRequest,
     PracticeSkillDTO,
     PracticeTemplateDTO,
     PracticeTemplateListResponse,
@@ -66,6 +73,7 @@ from app.candidate.api.contracts import (
 )
 from app.candidate.api import mock_data
 from app.candidate.api.career_path_generator import CareerPathGenerator
+from app.candidate.api.practice_prep_generator import PracticePrepGenerator
 from app.candidate.persistence.repository import CandidateQueryRepository
 from app.shared.errors import NotFoundError, ValidationError as AppValidationError
 from app.persistence.blob import upload_blob, BlobStorageError
@@ -88,6 +96,7 @@ class CandidateService:
         self._db = db
         self._repo = CandidateQueryRepository(db)
         self._career_generator = CareerPathGenerator()
+        self._practice_generator = PracticePrepGenerator()
 
     # ────────────────────────────────────────────────────────────
     # Gap 1: Windows
@@ -452,6 +461,67 @@ class CandidateService:
             updated_at=row["updated_at"],
         )
 
+    def _to_practice_deck_response(self, row: dict) -> PracticeFlashcardDeckResponse:
+        mapped_cards: list[PracticeFlashcardDTO] = []
+        for card in (row.get("flashcards") or []):
+            if not isinstance(card, dict):
+                continue
+            source_question_id = card.get("source_question_id")
+            if source_question_id is None:
+                source_question_id = card.get("sourceQuestionId")
+            if source_question_id is None:
+                continue
+
+            mapped_cards.append(
+                PracticeFlashcardDTO(
+                    source_question_id=int(source_question_id),
+                    topic=str(card.get("topic") or "").strip(),
+                    difficulty=str(card.get("difficulty") or "Medium").strip(),
+                    question=str(card.get("question") or "").strip(),
+                    answer=str(card.get("answer") or "").strip(),
+                    tags=[str(tag).strip() for tag in (card.get("tags") or []) if str(tag).strip()],
+                    hint=(str(card.get("hint")).strip() if card.get("hint") is not None else None),
+                )
+            )
+
+        return PracticeFlashcardDeckResponse(
+            deck_id=row["deck_id"],
+            candidate_id=row["candidate_id"],
+            role=row["role"],
+            industry=row["industry"],
+            question_type=row.get("question_type"),
+            difficulty=row.get("difficulty"),
+            card_count=row.get("card_count") or len(row.get("flashcards") or []),
+            source_question_ids=[int(x) for x in (row.get("source_question_ids") or [])],
+            flashcards=mapped_cards,
+            bookmarked_indices=[int(x) for x in (row.get("bookmarked_indices") or [])],
+            mastered_indices=[int(x) for x in (row.get("mastered_indices") or [])],
+            current_card_index=row.get("current_card_index") or 0,
+            progress_percent=row.get("progress_percent") or 0,
+            is_active=bool(row.get("is_active", True)),
+            generation_source=row.get("generation_source") or "db",
+            model_provider=row.get("model_provider"),
+            model_name=row.get("model_name"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    def _to_practice_deck_summary(self, row: dict) -> dict:
+        return {
+            "deck_id": row["deck_id"],
+            "role": row["role"],
+            "industry": row["industry"],
+            "question_type": row.get("question_type"),
+            "difficulty": row.get("difficulty"),
+            "card_count": row.get("card_count") or len(row.get("flashcards") or []),
+            "current_card_index": row.get("current_card_index") or 0,
+            "progress_percent": row.get("progress_percent") or 0,
+            "is_active": bool(row.get("is_active", True)),
+            "generation_source": row.get("generation_source") or "db",
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
     # ────────────────────────────────────────────────────────────
     # Gap 5: Practice Questions
     # ────────────────────────────────────────────────────────────
@@ -474,21 +544,103 @@ class CandidateService:
             per_page=per_page,
         )
 
-        # ── Mock-data fallback (only when ENABLE_MOCK_DATA=true) ──
-        if total == 0 and _mock_data_enabled():
-            mock_skills = mock_data.mock_practice_skills()
-            mock_questions = mock_data.mock_practice_questions()
-            return PracticeQuestionListResponse(
-                skills=[PracticeSkillDTO(**s) for s in mock_skills],
-                questions=[PracticeQuestionDTO(**q) for q in mock_questions],
-                pagination=self._paginate(1, per_page, len(mock_questions)),
-            )
-
         return PracticeQuestionListResponse(
             skills=[PracticeSkillDTO(**s) for s in skills_summary],
             questions=[PracticeQuestionDTO(**q) for q in questions],
             pagination=self._paginate(page, per_page, total),
         )
+
+    def generate_practice_flashcards(
+        self,
+        user_id: int,
+        role: str,
+        industry: str,
+        card_count: int = 10,
+        question_type: Optional[str] = None,
+        difficulty: Optional[str] = None,
+        use_cached: bool = True,
+    ) -> PracticeFlashcardDeckResponse:
+        if use_cached:
+            active = self._repo.get_active_practice_deck(user_id)
+            if active and active.get("role") == role and active.get("industry") == industry:
+                if question_type is None or active.get("question_type") == question_type:
+                    if difficulty is None or active.get("difficulty") == difficulty:
+                        if active.get("card_count") == card_count:
+                            return self._to_practice_deck_response(active)
+
+        question_pool = self._repo.get_practice_question_pool(
+            user_id,
+            question_type=question_type,
+            difficulty=difficulty,
+            limit=max(card_count * 2, card_count),
+        )
+        if not question_pool:
+            raise AppValidationError("No practice questions are available for the selected filters")
+
+        flashcards, source, provider, model_name = self._practice_generator.generate_flashcards(
+            role=role,
+            industry=industry,
+            source_questions=question_pool,
+            card_count=card_count,
+            question_type=question_type,
+            difficulty=difficulty,
+        )
+
+        source_question_ids = [int(card["sourceQuestionId"]) for card in flashcards]
+        deck = self._repo.create_active_practice_deck(
+            user_id,
+            role=role,
+            industry=industry,
+            question_type=question_type,
+            difficulty=difficulty,
+            source_question_ids=source_question_ids,
+            flashcards=flashcards,
+            generation_source=source,
+            model_provider=provider,
+            model_name=model_name,
+        )
+        return self._to_practice_deck_response(deck)
+
+    def get_active_practice_deck(self, user_id: int) -> PracticeFlashcardDeckActiveResponse:
+        deck = self._repo.get_active_practice_deck(user_id)
+        return PracticeFlashcardDeckActiveResponse(
+            deck=self._to_practice_deck_response(deck) if deck else None,
+        )
+
+    def get_practice_deck(self, user_id: int, deck_id: int) -> PracticeFlashcardDeckResponse:
+        deck = self._repo.get_practice_deck_by_id(user_id, deck_id)
+        if deck is None:
+            raise NotFoundError(resource_type="PracticeDeck", resource_id=deck_id)
+        return self._to_practice_deck_response(deck)
+
+    def list_practice_deck_history(
+        self,
+        user_id: int,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> PracticeFlashcardDeckHistoryResponse:
+        rows, total = self._repo.list_practice_deck_history(user_id, page=page, per_page=per_page)
+        return PracticeFlashcardDeckHistoryResponse(
+            data=[PracticeFlashcardDeckSummaryDTO(**self._to_practice_deck_summary(row)) for row in rows],
+            pagination=self._paginate(page, per_page, total),
+        )
+
+    def update_practice_deck_progress(
+        self,
+        user_id: int,
+        deck_id: int,
+        body: UpdatePracticeFlashcardDeckProgressRequest,
+    ) -> PracticeFlashcardDeckResponse:
+        updated = self._repo.update_practice_deck_progress(
+            user_id,
+            deck_id,
+            current_card_index=body.current_card_index,
+            mastered_indices=body.mastered_indices,
+            bookmarked_indices=body.bookmarked_indices,
+        )
+        if updated is None:
+            raise NotFoundError(resource_type="PracticeDeck", resource_id=deck_id)
+        return self._to_practice_deck_response(updated)
 
     # ────────────────────────────────────────────────────────────
     # Practice Templates (Interview Setup)

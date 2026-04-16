@@ -165,6 +165,11 @@ class Candidate(Base):
         back_populates="candidate",
         cascade="all, delete-orphan",
     )
+    practice_deck_runs = relationship(
+        "CandidatePracticeDeckRun",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+    )
 
 
 class CandidateSettings(Base):
@@ -279,6 +284,51 @@ class CandidateCareerRoadmap(Base):
     )
 
     candidate = relationship("Candidate", back_populates="career_roadmaps")
+
+
+class CandidatePracticeDeckRun(Base):
+    """
+    Persisted interview prep flashcard decks generated for a candidate.
+
+    Maps to: public.candidate_practice_deck_runs
+    """
+
+    __tablename__ = 'candidate_practice_deck_runs'
+    model_config = ConfigDict(protected_namespaces=())
+
+    id = Column(BigInteger, primary_key=True)
+    candidate_id = Column(
+        BigInteger,
+        ForeignKey('candidates.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    role = Column(Text, nullable=False)
+    industry = Column(Text, nullable=False)
+    question_type = Column(String(30), nullable=True)
+    difficulty = Column(String(20), nullable=True)
+    source_question_ids = Column(JSONB, nullable=False, default=list)
+    flashcards = Column(JSONB, nullable=False, default=list)
+    bookmarked_indices = Column(JSONB, nullable=False, default=list)
+    mastered_indices = Column(JSONB, nullable=False, default=list)
+    current_card_index = Column(Integer, nullable=False, default=0)
+    progress_percent = Column(Integer, nullable=False, default=0)
+    is_active = Column(Boolean, nullable=False, default=True)
+    generation_source = Column(String(20), nullable=False, default='db')
+    model_provider = Column(String(50), nullable=True)
+    model_name = Column(String(100), nullable=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+        onupdate=datetime.now(timezone.utc),
+    )
+
+    candidate = relationship("Candidate", back_populates="practice_deck_runs")
 
 
 class RefreshToken(Base):

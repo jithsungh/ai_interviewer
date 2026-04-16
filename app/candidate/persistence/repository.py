@@ -29,6 +29,7 @@ from app.auth.persistence.models import (
     Candidate,
     CandidateCareerInsightRun,
     CandidateCareerRoadmap,
+    CandidatePracticeDeckRun,
     CandidateSettings,
     Organization,
     User,
@@ -837,6 +838,31 @@ class CandidateQueryRepository:
             "updated_at": row.updated_at,
         }
 
+    @staticmethod
+    def _map_practice_deck(row: CandidatePracticeDeckRun) -> Dict[str, Any]:
+        cards = row.flashcards or []
+        return {
+            "deck_id": row.id,
+            "candidate_id": row.candidate_id,
+            "role": row.role,
+            "industry": row.industry,
+            "question_type": row.question_type,
+            "difficulty": row.difficulty,
+            "card_count": len(cards),
+            "source_question_ids": row.source_question_ids or [],
+            "flashcards": cards,
+            "bookmarked_indices": row.bookmarked_indices or [],
+            "mastered_indices": row.mastered_indices or [],
+            "current_card_index": row.current_card_index or 0,
+            "progress_percent": row.progress_percent or 0,
+            "is_active": bool(row.is_active),
+            "generation_source": row.generation_source,
+            "model_provider": row.model_provider,
+            "model_name": row.model_name,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
+
     # ────────────────────────────────────────────────────────────
     # Gap 5: Practice Questions
     # ────────────────────────────────────────────────────────────
@@ -968,6 +994,192 @@ class CandidateQueryRepository:
         paginated = questions[start:end]
 
         return skills_summary, paginated, total
+
+    def get_practice_question_pool(
+        self,
+        user_id: int,
+        *,
+        question_type: Optional[str] = None,
+        difficulty: Optional[str] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Return raw question rows for interview prep deck generation."""
+        candidate_id = self._resolve_candidate_id(user_id)
+
+        completed_question_ids = set(
+            r[0]
+            for r in self._db.query(InterviewExchangeModel.question_id)
+            .join(
+                InterviewSubmissionModel,
+                InterviewSubmissionModel.id == InterviewExchangeModel.interview_submission_id,
+            )
+            .filter(
+                InterviewSubmissionModel.candidate_id == candidate_id,
+                InterviewExchangeModel.question_id.isnot(None),
+                InterviewExchangeModel.response_text.isnot(None),
+            )
+            .all()
+        )
+
+        q_query = (
+            self._db.query(QuestionModel)
+            .filter(
+                QuestionModel.is_active == True,  # noqa: E712
+                QuestionModel.scope.in_(["public", "organization"]),
+            )
+        )
+        if question_type:
+            q_query = q_query.filter(QuestionModel.question_type == question_type)
+        if difficulty:
+            q_query = q_query.filter(QuestionModel.difficulty == difficulty)
+
+        rows = (
+            q_query
+            .order_by(func.random())
+            .limit(limit)
+            .all()
+        )
+
+        return [
+            {
+                "id": q.id,
+                "question_text": q.question_text,
+                "answer_text": q.answer_text,
+                "question_type": q.question_type,
+                "difficulty": q.difficulty,
+                "estimated_time_minutes": getattr(q, "estimated_time_minutes", None),
+                "completed": q.id in completed_question_ids,
+            }
+            for q in rows
+        ]
+
+    def get_active_practice_deck(self, user_id: int) -> Optional[Dict[str, Any]]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        row = (
+            self._db.query(CandidatePracticeDeckRun)
+            .filter(
+                CandidatePracticeDeckRun.candidate_id == candidate_id,
+                CandidatePracticeDeckRun.is_active == True,  # noqa: E712
+            )
+            .order_by(CandidatePracticeDeckRun.updated_at.desc())
+            .first()
+        )
+        if row is None:
+            return None
+        return self._map_practice_deck(row)
+
+    def get_practice_deck_by_id(self, user_id: int, deck_id: int) -> Optional[Dict[str, Any]]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        row = (
+            self._db.query(CandidatePracticeDeckRun)
+            .filter(
+                CandidatePracticeDeckRun.id == deck_id,
+                CandidatePracticeDeckRun.candidate_id == candidate_id,
+            )
+            .first()
+        )
+        if row is None:
+            return None
+        return self._map_practice_deck(row)
+
+    def list_practice_deck_history(
+        self,
+        user_id: int,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        base_q = (
+            self._db.query(CandidatePracticeDeckRun)
+            .filter(CandidatePracticeDeckRun.candidate_id == candidate_id)
+        )
+        total = base_q.count()
+        rows = (
+            base_q
+            .order_by(CandidatePracticeDeckRun.created_at.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
+        return [self._map_practice_deck(row) for row in rows], total
+
+    def create_active_practice_deck(
+        self,
+        user_id: int,
+        *,
+        role: str,
+        industry: str,
+        question_type: Optional[str],
+        difficulty: Optional[str],
+        source_question_ids: List[int],
+        flashcards: List[Dict[str, Any]],
+        generation_source: str,
+        model_provider: Optional[str],
+        model_name: Optional[str],
+    ) -> Dict[str, Any]:
+        candidate_id = self._resolve_candidate_id(user_id)
+
+        self._db.query(CandidatePracticeDeckRun).filter(
+            CandidatePracticeDeckRun.candidate_id == candidate_id,
+            CandidatePracticeDeckRun.is_active == True,  # noqa: E712
+        ).update({"is_active": False}, synchronize_session=False)
+
+        deck = CandidatePracticeDeckRun(
+            candidate_id=candidate_id,
+            role=role,
+            industry=industry,
+            question_type=question_type,
+            difficulty=difficulty,
+            source_question_ids=source_question_ids,
+            flashcards=flashcards,
+            bookmarked_indices=[],
+            mastered_indices=[],
+            current_card_index=0,
+            progress_percent=0,
+            is_active=True,
+            generation_source=generation_source,
+            model_provider=model_provider,
+            model_name=model_name,
+        )
+        self._db.add(deck)
+        self._db.flush()
+        return self._map_practice_deck(deck)
+
+    def update_practice_deck_progress(
+        self,
+        user_id: int,
+        deck_id: int,
+        *,
+        current_card_index: int,
+        mastered_indices: List[int],
+        bookmarked_indices: List[int],
+    ) -> Optional[Dict[str, Any]]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        deck = (
+            self._db.query(CandidatePracticeDeckRun)
+            .filter(
+                CandidatePracticeDeckRun.id == deck_id,
+                CandidatePracticeDeckRun.candidate_id == candidate_id,
+            )
+            .first()
+        )
+        if deck is None:
+            return None
+
+        flashcards = deck.flashcards or []
+        card_count = len(flashcards) if isinstance(flashcards, list) and flashcards else 0
+        mastered_clean = sorted({int(i) for i in mastered_indices if int(i) >= 0})
+        bookmarked_clean = sorted({int(i) for i in bookmarked_indices if int(i) >= 0})
+        current_index = max(0, current_card_index)
+        progress = int(round((len(mastered_clean) / card_count) * 100)) if card_count > 0 else 0
+
+        deck.current_card_index = current_index
+        deck.mastered_indices = mastered_clean
+        deck.bookmarked_indices = bookmarked_clean
+        deck.progress_percent = min(max(progress, 0), 100)
+        deck.updated_at = datetime.now(timezone.utc)
+        self._db.flush()
+        return self._map_practice_deck(deck)
 
     # ────────────────────────────────────────────────────────────
     # Practice Templates (Interview Setup)

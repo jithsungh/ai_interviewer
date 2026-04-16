@@ -45,11 +45,16 @@ from app.candidate.api.contracts import (
     GenerateCareerInsightsResponse,
     GenerateCareerRoadmapRequest,
     PracticeQuestionListResponse,
+    PracticeFlashcardDeckActiveResponse,
+    PracticeFlashcardDeckHistoryResponse,
+    PracticeFlashcardDeckResponse,
+    GeneratePracticeFlashcardsRequest,
     PracticeTemplateListResponse,
     ResumeListResponse,
     ResumeUploadResponse,
     StartPracticeRequest,
     StartPracticeResponse,
+    UpdatePracticeFlashcardDeckProgressRequest,
     UpdateCareerRoadmapProgressRequest,
     UpdateCandidateProfileRequest,
     UpdateCandidateSettingsRequest,
@@ -545,6 +550,90 @@ def start_practice(
         ai_proctoring=body.ai_proctoring,
         consent_accepted=body.consent_accepted,
     )
+
+
+@router.post(
+    "/practice/decks/generate",
+    response_model=PracticeFlashcardDeckResponse,
+    summary="Generate an AI-backed interview prep flashcard deck",
+    status_code=201,
+)
+def generate_practice_deck(
+    body: GeneratePracticeFlashcardsRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> PracticeFlashcardDeckResponse:
+    svc = _build_service(db)
+    return svc.generate_practice_flashcards(
+        user_id=identity.user_id,
+        role=body.role,
+        industry=body.industry,
+        card_count=body.card_count,
+        question_type=body.question_type,
+        difficulty=body.difficulty,
+        use_cached=body.use_cached,
+    )
+
+
+@router.get(
+    "/practice/decks/active",
+    response_model=PracticeFlashcardDeckActiveResponse,
+    summary="Get the active interview prep flashcard deck",
+    status_code=200,
+)
+def get_active_practice_deck(
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> PracticeFlashcardDeckActiveResponse:
+    svc = _build_service(db)
+    return svc.get_active_practice_deck(user_id=identity.user_id)
+
+
+@router.get(
+    "/practice/decks/history",
+    response_model=PracticeFlashcardDeckHistoryResponse,
+    summary="List saved interview prep flashcard decks",
+    status_code=200,
+)
+def list_practice_decks(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> PracticeFlashcardDeckHistoryResponse:
+    svc = _build_service(db)
+    return svc.list_practice_deck_history(user_id=identity.user_id, page=page, per_page=per_page)
+
+
+@router.get(
+    "/practice/decks/{deck_id}",
+    response_model=PracticeFlashcardDeckResponse,
+    summary="Get a saved interview prep flashcard deck by ID",
+    status_code=200,
+)
+def get_practice_deck(
+    deck_id: int,
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> PracticeFlashcardDeckResponse:
+    svc = _build_service(db)
+    return svc.get_practice_deck(user_id=identity.user_id, deck_id=deck_id)
+
+
+@router.put(
+    "/practice/decks/{deck_id}/progress",
+    response_model=PracticeFlashcardDeckResponse,
+    summary="Update interview prep deck progress",
+    status_code=200,
+)
+def update_practice_deck_progress(
+    deck_id: int,
+    body: UpdatePracticeFlashcardDeckProgressRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> PracticeFlashcardDeckResponse:
+    svc = _build_service(db)
+    return svc.update_practice_deck_progress(user_id=identity.user_id, deck_id=deck_id, body=body)
 
 
 # ────────────────────────────────────────────────────────────
