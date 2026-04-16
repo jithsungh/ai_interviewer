@@ -20,7 +20,15 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from app.candidate.api.contracts import (
+    CareerRoadmapActiveResponse,
+    CareerRoadmapHistoryResponse,
+    CareerRoadmapResponse,
+    CareerRoadmapStepDTO,
     CandidateProfileResponse,
+    CandidatePrivacyPreferences,
+    CandidateNotificationPreferences,
+    CandidateSettingsResponse,
+    CandidateUiPreferences,
     CandidateStatsResponse,
     CandidateSubmissionDTO,
     CandidateSubmissionDetailResponse,
@@ -28,6 +36,9 @@ from app.candidate.api.contracts import (
     CandidateWindowDTO,
     CandidateWindowListResponse,
     DifficultyDistributionDTO,
+    GenerateCareerInsightsRequest,
+    GenerateCareerInsightsResponse,
+    GenerateCareerRoadmapRequest,
     PaginationMeta,
     PracticeQuestionDTO,
     PracticeQuestionListResponse,
@@ -45,13 +56,16 @@ from app.candidate.api.contracts import (
     SubmissionRoleDTO,
     SubmissionTemplateDTO,
     SubmissionWindowDTO,
+    UpdateCareerRoadmapProgressRequest,
     UpdateCandidateProfileRequest,
+    UpdateCandidateSettingsRequest,
     WindowOrganizationDTO,
     WindowRoleDTO,
     WindowRoleTemplateDTO,
     WindowTemplateDTO,
 )
 from app.candidate.api import mock_data
+from app.candidate.api.career_path_generator import CareerPathGenerator
 from app.candidate.persistence.repository import CandidateQueryRepository
 from app.shared.errors import NotFoundError, ValidationError as AppValidationError
 from app.persistence.blob import upload_blob, BlobStorageError
@@ -73,6 +87,7 @@ class CandidateService:
     def __init__(self, db: Session) -> None:
         self._db = db
         self._repo = CandidateQueryRepository(db)
+        self._career_generator = CareerPathGenerator()
 
     # ────────────────────────────────────────────────────────────
     # Gap 1: Windows
@@ -266,6 +281,176 @@ class CandidateService:
                 resource_id=user_id,
             )
         return CandidateProfileResponse(**result)
+
+    # ────────────────────────────────────────────────────────────
+    # Candidate Settings
+    # ────────────────────────────────────────────────────────────
+
+    def get_candidate_settings(self, user_id: int) -> CandidateSettingsResponse:
+        result = self._repo.get_candidate_settings(user_id=user_id)
+        if result is None:
+            raise NotFoundError(resource_type="Candidate", resource_id=user_id)
+        return CandidateSettingsResponse(
+            candidate_id=result["candidate_id"],
+            notification_preferences=CandidateNotificationPreferences(**result["notification_preferences"]),
+            privacy_preferences=CandidatePrivacyPreferences(**result["privacy_preferences"]),
+            ui_preferences=CandidateUiPreferences(**(result.get("ui_preferences") or {})),
+            created_at=result.get("created_at"),
+            updated_at=result.get("updated_at"),
+        )
+
+    def update_candidate_settings(
+        self,
+        user_id: int,
+        body: UpdateCandidateSettingsRequest,
+    ) -> CandidateSettingsResponse:
+        updates = {
+            "notification_preferences": body.notification_preferences.model_dump(exclude_unset=True) if body.notification_preferences else None,
+            "privacy_preferences": body.privacy_preferences.model_dump(exclude_unset=True) if body.privacy_preferences else None,
+            "ui_preferences": body.ui_preferences.model_dump(exclude_unset=True) if body.ui_preferences else None,
+        }
+        result = self._repo.update_candidate_settings(user_id=user_id, updates=updates)
+        if result is None:
+            raise NotFoundError(resource_type="Candidate", resource_id=user_id)
+        return CandidateSettingsResponse(
+            candidate_id=result["candidate_id"],
+            notification_preferences=CandidateNotificationPreferences(**result["notification_preferences"]),
+            privacy_preferences=CandidatePrivacyPreferences(**result["privacy_preferences"]),
+            ui_preferences=CandidateUiPreferences(**(result.get("ui_preferences") or {})),
+            created_at=result.get("created_at"),
+            updated_at=result.get("updated_at"),
+        )
+
+    # ────────────────────────────────────────────────────────────
+    # Career Path
+    # ────────────────────────────────────────────────────────────
+
+    def generate_career_insights(
+        self,
+        user_id: int,
+        body: GenerateCareerInsightsRequest,
+    ) -> GenerateCareerInsightsResponse:
+        if body.use_cached:
+            cached = self._repo.get_latest_career_insight_run(
+                user_id=user_id,
+                industry=body.industry,
+                seniority=body.seniority,
+            )
+            if cached is not None:
+                return GenerateCareerInsightsResponse(
+                    run_id=cached["run_id"],
+                    industry=cached["industry"],
+                    seniority=cached["seniority"],
+                    generation_source=cached["generation_source"],
+                    model_provider=cached.get("model_provider"),
+                    model_name=cached.get("model_name"),
+                    insights=cached.get("insights", []),
+                    created_at=cached["created_at"],
+                )
+
+        insights, source, provider, model_name = self._career_generator.generate_market_insights(
+            industry=body.industry,
+            seniority=body.seniority,
+        )
+        result = self._repo.create_career_insight_run(
+            user_id=user_id,
+            industry=body.industry,
+            seniority=body.seniority,
+            insights=insights,
+            generation_source=source,
+            model_provider=provider,
+            model_name=model_name,
+        )
+
+        return GenerateCareerInsightsResponse(
+            run_id=result["run_id"],
+            industry=result["industry"],
+            seniority=result["seniority"],
+            generation_source=result["generation_source"],
+            model_provider=result.get("model_provider"),
+            model_name=result.get("model_name"),
+            insights=result.get("insights", []),
+            created_at=result["created_at"],
+        )
+
+    def generate_career_roadmap(
+        self,
+        user_id: int,
+        body: GenerateCareerRoadmapRequest,
+    ) -> CareerRoadmapResponse:
+        steps, source, provider, model_name = self._career_generator.generate_role_roadmap(
+            role=body.role,
+            industry=body.industry,
+        )
+        result = self._repo.create_active_career_roadmap(
+            user_id=user_id,
+            industry=body.industry,
+            target_role=body.role,
+            steps=steps,
+            generation_source=source,
+            model_provider=provider,
+            model_name=model_name,
+            insight_run_id=body.insight_run_id,
+            selected_insight=body.selected_insight.model_dump() if body.selected_insight else None,
+        )
+        return self._to_career_roadmap_response(result)
+
+    def get_active_career_roadmap(self, user_id: int) -> CareerRoadmapActiveResponse:
+        result = self._repo.get_active_career_roadmap(user_id=user_id)
+        if result is None:
+            return CareerRoadmapActiveResponse(roadmap=None)
+        return CareerRoadmapActiveResponse(roadmap=self._to_career_roadmap_response(result))
+
+    def list_career_roadmap_history(
+        self,
+        user_id: int,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> CareerRoadmapHistoryResponse:
+        rows, total = self._repo.list_career_roadmap_history(
+            user_id=user_id,
+            page=page,
+            per_page=per_page,
+        )
+        return CareerRoadmapHistoryResponse(
+            data=[self._to_career_roadmap_response(row) for row in rows],
+            pagination=self._paginate(page, per_page, total),
+        )
+
+    def update_career_roadmap_progress(
+        self,
+        user_id: int,
+        roadmap_id: int,
+        body: UpdateCareerRoadmapProgressRequest,
+    ) -> CareerRoadmapResponse:
+        result = self._repo.update_career_roadmap_progress(
+            user_id=user_id,
+            roadmap_id=roadmap_id,
+            completed_levels=body.completed_levels,
+            current_level=body.current_level,
+        )
+        if result is None:
+            raise NotFoundError(resource_type="CareerRoadmap", resource_id=roadmap_id)
+        return self._to_career_roadmap_response(result)
+
+    def _to_career_roadmap_response(self, row: dict) -> CareerRoadmapResponse:
+        return CareerRoadmapResponse(
+            roadmap_id=row["roadmap_id"],
+            candidate_id=row["candidate_id"],
+            insight_run_id=row.get("insight_run_id"),
+            industry=row["industry"],
+            target_role=row["target_role"],
+            selected_insight=row.get("selected_insight"),
+            steps=[CareerRoadmapStepDTO(**step) for step in (row.get("steps") or [])],
+            completed_levels=row.get("completed_levels") or [],
+            current_level=row.get("current_level") or 1,
+            is_active=bool(row.get("is_active", True)),
+            generation_source=row.get("generation_source") or "fallback",
+            model_provider=row.get("model_provider"),
+            model_name=row.get("model_name"),
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
 
     # ────────────────────────────────────────────────────────────
     # Gap 5: Practice Questions

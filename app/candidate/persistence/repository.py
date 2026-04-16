@@ -25,7 +25,14 @@ from app.admin.persistence.models import (
     TopicModel,
     WindowRoleTemplateModel,
 )
-from app.auth.persistence.models import Candidate, Organization, User
+from app.auth.persistence.models import (
+    Candidate,
+    CandidateCareerInsightRun,
+    CandidateCareerRoadmap,
+    CandidateSettings,
+    Organization,
+    User,
+)
 from app.audio.persistence.models import AudioAnalyticsModel
 from app.coding.persistence.models import CodeSubmissionModel, CodeExecutionResultModel
 from app.evaluation.persistence.models import (
@@ -540,6 +547,295 @@ class CandidateQueryRepository:
 
         self._db.flush()
         return self.get_candidate_profile(user_id)
+
+    # ────────────────────────────────────────────────────────────
+    # Candidate Settings
+    # ────────────────────────────────────────────────────────────
+
+    def get_candidate_settings(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get persistent settings for a candidate, creating defaults if needed."""
+        candidate = (
+            self._db.query(Candidate)
+            .filter(Candidate.user_id == user_id)
+            .first()
+        )
+        if candidate is None:
+            return None
+
+        settings = (
+            self._db.query(CandidateSettings)
+            .filter(CandidateSettings.candidate_id == candidate.id)
+            .first()
+        )
+
+        if settings is None:
+            settings = CandidateSettings(
+                candidate_id=candidate.id,
+                notification_preferences={
+                    "email": True,
+                    "interview": True,
+                    "reports": True,
+                    "marketing": False,
+                },
+                privacy_preferences={
+                    "profileVisible": True,
+                    "shareResults": False,
+                    "allowAnalytics": True,
+                },
+                ui_preferences={"theme": "system"},
+            )
+            self._db.add(settings)
+            self._db.flush()
+
+        return {
+            "candidate_id": settings.candidate_id,
+            "notification_preferences": settings.notification_preferences or {},
+            "privacy_preferences": settings.privacy_preferences or {},
+            "ui_preferences": settings.ui_preferences or {},
+            "created_at": settings.created_at,
+            "updated_at": settings.updated_at,
+        }
+
+    def update_candidate_settings(
+        self,
+        user_id: int,
+        updates: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Create or update candidate settings."""
+        candidate = (
+            self._db.query(Candidate)
+            .filter(Candidate.user_id == user_id)
+            .first()
+        )
+        if candidate is None:
+            return None
+
+        settings = (
+            self._db.query(CandidateSettings)
+            .filter(CandidateSettings.candidate_id == candidate.id)
+            .first()
+        )
+        if settings is None:
+            settings = CandidateSettings(candidate_id=candidate.id)
+            self._db.add(settings)
+
+        if updates.get("notification_preferences") is not None:
+            existing = settings.notification_preferences or {}
+            settings.notification_preferences = {**existing, **updates["notification_preferences"]}
+
+        if updates.get("privacy_preferences") is not None:
+            existing = settings.privacy_preferences or {}
+            settings.privacy_preferences = {**existing, **updates["privacy_preferences"]}
+
+        if updates.get("ui_preferences") is not None:
+            existing = settings.ui_preferences or {}
+            settings.ui_preferences = {**existing, **updates["ui_preferences"]}
+
+        self._db.flush()
+        return self.get_candidate_settings(user_id)
+
+    # ────────────────────────────────────────────────────────────
+    # Career Path
+    # ────────────────────────────────────────────────────────────
+
+    def get_latest_career_insight_run(
+        self,
+        user_id: int,
+        industry: str,
+        seniority: str,
+    ) -> Optional[Dict[str, Any]]:
+        candidate_id = self._resolve_candidate_id(user_id)
+
+        row = (
+            self._db.query(CandidateCareerInsightRun)
+            .filter(
+                CandidateCareerInsightRun.candidate_id == candidate_id,
+                CandidateCareerInsightRun.industry == industry,
+                CandidateCareerInsightRun.seniority == seniority,
+            )
+            .order_by(CandidateCareerInsightRun.created_at.desc())
+            .first()
+        )
+        if row is None:
+            return None
+
+        return {
+            "run_id": row.id,
+            "candidate_id": row.candidate_id,
+            "industry": row.industry,
+            "seniority": row.seniority,
+            "insights": row.insights or [],
+            "generation_source": row.generation_source,
+            "model_provider": row.model_provider,
+            "model_name": row.model_name,
+            "created_at": row.created_at,
+        }
+
+    def create_career_insight_run(
+        self,
+        user_id: int,
+        industry: str,
+        seniority: str,
+        insights: List[Dict[str, Any]],
+        generation_source: str,
+        model_provider: Optional[str],
+        model_name: Optional[str],
+    ) -> Dict[str, Any]:
+        candidate_id = self._resolve_candidate_id(user_id)
+
+        row = CandidateCareerInsightRun(
+            candidate_id=candidate_id,
+            industry=industry,
+            seniority=seniority,
+            insights=insights,
+            generation_source=generation_source,
+            model_provider=model_provider,
+            model_name=model_name,
+        )
+        self._db.add(row)
+        self._db.flush()
+
+        return {
+            "run_id": row.id,
+            "candidate_id": row.candidate_id,
+            "industry": row.industry,
+            "seniority": row.seniority,
+            "insights": row.insights or [],
+            "generation_source": row.generation_source,
+            "model_provider": row.model_provider,
+            "model_name": row.model_name,
+            "created_at": row.created_at,
+        }
+
+    def create_active_career_roadmap(
+        self,
+        user_id: int,
+        industry: str,
+        target_role: str,
+        steps: List[Dict[str, Any]],
+        generation_source: str,
+        model_provider: Optional[str],
+        model_name: Optional[str],
+        insight_run_id: Optional[int] = None,
+        selected_insight: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        candidate_id = self._resolve_candidate_id(user_id)
+
+        (
+            self._db.query(CandidateCareerRoadmap)
+            .filter(
+                CandidateCareerRoadmap.candidate_id == candidate_id,
+                CandidateCareerRoadmap.is_active == True,  # noqa: E712
+            )
+            .update({"is_active": False}, synchronize_session="fetch")
+        )
+
+        row = CandidateCareerRoadmap(
+            candidate_id=candidate_id,
+            insight_run_id=insight_run_id,
+            industry=industry,
+            target_role=target_role,
+            selected_insight=selected_insight,
+            steps=steps,
+            completed_levels=[],
+            current_level=1,
+            is_active=True,
+            generation_source=generation_source,
+            model_provider=model_provider,
+            model_name=model_name,
+        )
+        self._db.add(row)
+        self._db.flush()
+
+        return self._map_career_roadmap(row)
+
+    def get_active_career_roadmap(self, user_id: int) -> Optional[Dict[str, Any]]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        row = (
+            self._db.query(CandidateCareerRoadmap)
+            .filter(
+                CandidateCareerRoadmap.candidate_id == candidate_id,
+                CandidateCareerRoadmap.is_active == True,  # noqa: E712
+            )
+            .order_by(CandidateCareerRoadmap.updated_at.desc())
+            .first()
+        )
+        if row is None:
+            return None
+        return self._map_career_roadmap(row)
+
+    def list_career_roadmap_history(
+        self,
+        user_id: int,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        base_q = self._db.query(CandidateCareerRoadmap).filter(
+            CandidateCareerRoadmap.candidate_id == candidate_id
+        )
+
+        total = base_q.count()
+        rows = (
+            base_q
+            .order_by(CandidateCareerRoadmap.created_at.desc())
+            .offset((page - 1) * per_page)
+            .limit(per_page)
+            .all()
+        )
+        return [self._map_career_roadmap(row) for row in rows], total
+
+    def update_career_roadmap_progress(
+        self,
+        user_id: int,
+        roadmap_id: int,
+        completed_levels: List[int],
+        current_level: Optional[int],
+    ) -> Optional[Dict[str, Any]]:
+        candidate_id = self._resolve_candidate_id(user_id)
+        row = (
+            self._db.query(CandidateCareerRoadmap)
+            .filter(
+                CandidateCareerRoadmap.id == roadmap_id,
+                CandidateCareerRoadmap.candidate_id == candidate_id,
+            )
+            .first()
+        )
+        if row is None:
+            return None
+
+        normalized_levels = sorted({int(level) for level in completed_levels if 1 <= int(level) <= 4})
+        row.completed_levels = normalized_levels
+
+        if current_level is not None:
+            row.current_level = max(1, min(4, int(current_level)))
+        elif normalized_levels:
+            row.current_level = max(1, min(4, max(normalized_levels) + 1))
+        else:
+            row.current_level = 1
+
+        self._db.flush()
+        return self._map_career_roadmap(row)
+
+    @staticmethod
+    def _map_career_roadmap(row: CandidateCareerRoadmap) -> Dict[str, Any]:
+        return {
+            "roadmap_id": row.id,
+            "candidate_id": row.candidate_id,
+            "insight_run_id": row.insight_run_id,
+            "industry": row.industry,
+            "target_role": row.target_role,
+            "selected_insight": row.selected_insight,
+            "steps": row.steps or [],
+            "completed_levels": row.completed_levels or [],
+            "current_level": row.current_level or 1,
+            "is_active": bool(row.is_active),
+            "generation_source": row.generation_source,
+            "model_provider": row.model_provider,
+            "model_name": row.model_name,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+        }
 
     # ────────────────────────────────────────────────────────────
     # Gap 5: Practice Questions

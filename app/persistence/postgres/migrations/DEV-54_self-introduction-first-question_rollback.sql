@@ -9,9 +9,8 @@
 
 -- ============================================================================
 -- PART 1: Remove seeded preset questions
--- ============================================================================
+plan for resume upload, analysis , proper results, feedback and ATS scoring plan all backend development - api, prompt template, based on target role and uploaded resume etc.., frontend development,  DB migrations if required
 
-DELETE FROM public.questions
 WHERE source_type = 'self_intro_preset';
 
 -- ============================================================================

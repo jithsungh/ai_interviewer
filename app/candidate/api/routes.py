@@ -32,18 +32,27 @@ from app.bootstrap.dependencies import (
     require_candidate,
 )
 from app.candidate.api.contracts import (
+    CareerRoadmapActiveResponse,
+    CareerRoadmapHistoryResponse,
+    CareerRoadmapResponse,
     CandidateProfileResponse,
+    CandidateSettingsResponse,
     CandidateStatsResponse,
     CandidateSubmissionDetailResponse,
     CandidateSubmissionListResponse,
     CandidateWindowListResponse,
+    GenerateCareerInsightsRequest,
+    GenerateCareerInsightsResponse,
+    GenerateCareerRoadmapRequest,
     PracticeQuestionListResponse,
     PracticeTemplateListResponse,
     ResumeListResponse,
     ResumeUploadResponse,
     StartPracticeRequest,
     StartPracticeResponse,
+    UpdateCareerRoadmapProgressRequest,
     UpdateCandidateProfileRequest,
+    UpdateCandidateSettingsRequest,
 )
 from app.candidate.api.service import CandidateService
 from app.shared.auth_context import IdentityContext
@@ -317,6 +326,126 @@ def update_profile(
 # ────────────────────────────────────────────────────────────
 # Gap 5: Practice Question Listing
 # ────────────────────────────────────────────────────────────
+
+
+# ────────────────────────────────────────────────────────────
+# Gap 4b: Candidate Settings
+# ────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/settings",
+    response_model=CandidateSettingsResponse,
+    summary="Get candidate settings",
+    status_code=200,
+)
+def get_settings(
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CandidateSettingsResponse:
+    """Get the candidate's persisted notification/privacy/UI settings."""
+    svc = _build_service(db)
+    return svc.get_candidate_settings(user_id=identity.user_id)
+
+
+@router.put(
+    "/settings",
+    response_model=CandidateSettingsResponse,
+    summary="Update candidate settings",
+    status_code=200,
+)
+def update_settings(
+    body: UpdateCandidateSettingsRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CandidateSettingsResponse:
+    """Update the candidate's persisted notification/privacy/UI settings."""
+    svc = _build_service(db)
+    return svc.update_candidate_settings(user_id=identity.user_id, body=body)
+
+
+@router.post(
+    "/career-path/insights/generate",
+    response_model=GenerateCareerInsightsResponse,
+    summary="Generate and persist career market insights",
+    status_code=200,
+)
+def generate_career_insights(
+    body: GenerateCareerInsightsRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> GenerateCareerInsightsResponse:
+    svc = _build_service(db)
+    return svc.generate_career_insights(user_id=identity.user_id, body=body)
+
+
+@router.post(
+    "/career-path/roadmap/generate",
+    response_model=CareerRoadmapResponse,
+    summary="Generate and persist active career roadmap",
+    status_code=200,
+)
+def generate_career_roadmap(
+    body: GenerateCareerRoadmapRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CareerRoadmapResponse:
+    svc = _build_service(db)
+    return svc.generate_career_roadmap(user_id=identity.user_id, body=body)
+
+
+@router.get(
+    "/career-path/roadmap/active",
+    response_model=CareerRoadmapActiveResponse,
+    summary="Get candidate's active career roadmap",
+    status_code=200,
+)
+def get_active_career_roadmap(
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CareerRoadmapActiveResponse:
+    svc = _build_service(db)
+    return svc.get_active_career_roadmap(user_id=identity.user_id)
+
+
+@router.get(
+    "/career-path/roadmap/history",
+    response_model=CareerRoadmapHistoryResponse,
+    summary="List candidate roadmap history",
+    status_code=200,
+)
+def list_career_roadmap_history(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db_session),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CareerRoadmapHistoryResponse:
+    svc = _build_service(db)
+    return svc.list_career_roadmap_history(
+        user_id=identity.user_id,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.put(
+    "/career-path/roadmap/{roadmap_id}/progress",
+    response_model=CareerRoadmapResponse,
+    summary="Update candidate roadmap completion progress",
+    status_code=200,
+)
+def update_career_roadmap_progress(
+    roadmap_id: int,
+    body: UpdateCareerRoadmapProgressRequest,
+    db: Session = Depends(get_db_session_with_commit),
+    identity: IdentityContext = Depends(require_candidate),
+) -> CareerRoadmapResponse:
+    svc = _build_service(db)
+    return svc.update_career_roadmap_progress(
+        user_id=identity.user_id,
+        roadmap_id=roadmap_id,
+        body=body,
+    )
 
 
 @router.get(

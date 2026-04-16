@@ -6,12 +6,13 @@ These map directly to database tables.
 """
 
 from sqlalchemy import (
-    Column, BigInteger, String, Text, DateTime, Integer,
+    Column, BigInteger, String, Text, DateTime, Integer, Boolean,
     ForeignKey, CheckConstraint, TIMESTAMP, text
 )
 from sqlalchemy.dialects.postgresql import JSONB, INET
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
+from pydantic import ConfigDict
 
 from app.persistence.postgres.base import Base
 
@@ -148,6 +149,136 @@ class Candidate(Base):
     
     # Relationships
     user = relationship("User", back_populates="candidates")
+    settings = relationship(
+        "CandidateSettings",
+        back_populates="candidate",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+    career_insight_runs = relationship(
+        "CandidateCareerInsightRun",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+    )
+    career_roadmaps = relationship(
+        "CandidateCareerRoadmap",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+    )
+
+
+class CandidateSettings(Base):
+    """
+    Candidate settings table - persistent notification/privacy/UI preferences.
+
+    Maps to: public.candidate_settings
+    """
+    __tablename__ = 'candidate_settings'
+
+    candidate_id = Column(
+        BigInteger,
+        ForeignKey('candidates.id', ondelete='CASCADE'),
+        primary_key=True,
+    )
+    notification_preferences = Column(JSONB, nullable=False, default=dict)
+    privacy_preferences = Column(JSONB, nullable=False, default=dict)
+    ui_preferences = Column(JSONB, nullable=False, default=dict)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+        onupdate=datetime.now(timezone.utc),
+    )
+
+    candidate = relationship("Candidate", back_populates="settings")
+
+
+class CandidateCareerInsightRun(Base):
+    """
+    Persisted market insight generations for candidate career path planning.
+
+    Maps to: public.candidate_career_insight_runs
+    """
+
+    __tablename__ = 'candidate_career_insight_runs'
+    model_config = ConfigDict(protected_namespaces=())
+
+    id = Column(BigInteger, primary_key=True)
+    candidate_id = Column(
+        BigInteger,
+        ForeignKey('candidates.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    industry = Column(Text, nullable=False)
+    seniority = Column(String(30), nullable=False)
+    insights = Column(JSONB, nullable=False, default=list)
+    generation_source = Column(String(20), nullable=False, default='fallback')
+    model_provider = Column(String(50), nullable=True)
+    model_name = Column(String(100), nullable=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+        onupdate=datetime.now(timezone.utc),
+    )
+
+    candidate = relationship("Candidate", back_populates="career_insight_runs")
+
+
+class CandidateCareerRoadmap(Base):
+    """
+    Persisted career roadmaps generated for a candidate.
+
+    Maps to: public.candidate_career_roadmaps
+    """
+
+    __tablename__ = 'candidate_career_roadmaps'
+    model_config = ConfigDict(protected_namespaces=())
+
+    id = Column(BigInteger, primary_key=True)
+    candidate_id = Column(
+        BigInteger,
+        ForeignKey('candidates.id', ondelete='CASCADE'),
+        nullable=False,
+    )
+    insight_run_id = Column(
+        BigInteger,
+        ForeignKey('candidate_career_insight_runs.id', ondelete='SET NULL'),
+        nullable=True,
+    )
+    industry = Column(Text, nullable=False)
+    target_role = Column(Text, nullable=False)
+    selected_insight = Column(JSONB, nullable=True)
+    steps = Column(JSONB, nullable=False, default=list)
+    completed_levels = Column(JSONB, nullable=False, default=list)
+    current_level = Column(Integer, nullable=False, default=1)
+    is_active = Column(Boolean, nullable=False, default=True)
+    generation_source = Column(String(20), nullable=False, default='fallback')
+    model_provider = Column(String(50), nullable=True)
+    model_name = Column(String(100), nullable=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+        onupdate=datetime.now(timezone.utc),
+    )
+
+    candidate = relationship("Candidate", back_populates="career_roadmaps")
 
 
 class RefreshToken(Base):

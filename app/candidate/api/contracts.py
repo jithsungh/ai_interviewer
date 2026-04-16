@@ -384,6 +384,124 @@ class UpdateCandidateProfileRequest(BaseModel):
 
 
 # ════════════════════════════════════════════════════════════════════════
+# Gap 4b: Candidate Settings
+# ════════════════════════════════════════════════════════════════════════
+
+
+class CandidateNotificationPreferences(BaseModel):
+    email: bool = True
+    interview: bool = True
+    reports: bool = True
+    marketing: bool = False
+
+
+class CandidatePrivacyPreferences(BaseModel):
+    profileVisible: bool = True
+    shareResults: bool = False
+    allowAnalytics: bool = True
+
+
+class CandidateUiPreferences(BaseModel):
+    theme: str = "system"
+
+
+class CandidateSettingsResponse(BaseModel):
+    candidate_id: int
+    notification_preferences: CandidateNotificationPreferences
+    privacy_preferences: CandidatePrivacyPreferences
+    ui_preferences: CandidateUiPreferences = Field(default_factory=CandidateUiPreferences)
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class UpdateCandidateSettingsRequest(BaseModel):
+    notification_preferences: Optional[CandidateNotificationPreferences] = None
+    privacy_preferences: Optional[CandidatePrivacyPreferences] = None
+    ui_preferences: Optional[CandidateUiPreferences] = None
+
+
+# ════════════════════════════════════════════════════════════════════════
+# Career Path
+# ════════════════════════════════════════════════════════════════════════
+
+
+class CareerMarketInsightDTO(BaseModel):
+    role: str
+    industryTag: str
+    icon: str
+    skills: List[str] = Field(default_factory=list)
+    minPackage: int
+    maxPackage: int
+    growth: int
+    trend: str
+
+
+class GenerateCareerInsightsRequest(BaseModel):
+    industry: str = Field(..., min_length=2, max_length=120)
+    seniority: str = Field(..., min_length=2, max_length=30)
+    use_cached: bool = Field(default=True)
+
+
+class GenerateCareerInsightsResponse(BaseModel):
+    run_id: int
+    industry: str
+    seniority: str
+    generation_source: str
+    model_provider: Optional[str] = None
+    model_name: Optional[str] = None
+    insights: List[CareerMarketInsightDTO] = Field(default_factory=list)
+    created_at: datetime
+
+
+class CareerRoadmapStepDTO(BaseModel):
+    level: int
+    levelLabel: str
+    roleTitle: str
+    requiredCourses: List[str] = Field(default_factory=list)
+    keyLearning: str
+    certification: str
+
+
+class GenerateCareerRoadmapRequest(BaseModel):
+    role: str = Field(..., min_length=2, max_length=200)
+    industry: str = Field(..., min_length=2, max_length=120)
+    insight_run_id: Optional[int] = Field(default=None, gt=0)
+    selected_insight: Optional[CareerMarketInsightDTO] = None
+
+
+class CareerRoadmapResponse(BaseModel):
+    roadmap_id: int
+    candidate_id: int
+    insight_run_id: Optional[int] = None
+    industry: str
+    target_role: str
+    selected_insight: Optional[CareerMarketInsightDTO] = None
+    steps: List[CareerRoadmapStepDTO] = Field(default_factory=list)
+    completed_levels: List[int] = Field(default_factory=list)
+    current_level: int = 1
+    is_active: bool = True
+    generation_source: str
+    model_provider: Optional[str] = None
+    model_name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UpdateCareerRoadmapProgressRequest(BaseModel):
+    completed_levels: List[int] = Field(default_factory=list)
+    current_level: Optional[int] = Field(default=None, ge=1, le=4)
+
+
+class CareerRoadmapHistoryResponse(BaseModel):
+    data: List[CareerRoadmapResponse] = Field(default_factory=list)
+    pagination: PaginationMeta
+
+
+class CareerRoadmapActiveResponse(BaseModel):
+    roadmap: Optional[CareerRoadmapResponse] = None
+
+
+# ════════════════════════════════════════════════════════════════════════
 # Gap 5: Practice Questions
 # ════════════════════════════════════════════════════════════════════════
 
