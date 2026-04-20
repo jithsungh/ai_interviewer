@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Optional, Tuple
@@ -25,6 +26,7 @@ from app.interview.session.domain.state_machine import (
 )
 from app.interview.session.persistence.repository import SubmissionRepository
 from app.interview.session.expiry.service import SubmissionExpiryService
+from app.evaluation.aggregation.service import AggregationService
 from app.persistence.redis.locks import (
     LockAcquisitionError,
     acquire_lock,
@@ -83,7 +85,7 @@ class SessionService:
         submission_id: int,
         candidate_id: Optional[int] = None,
     ) -> Tuple[InterviewSessionDTO, bool]:
-        """in_progress → completed."""
+        """in_progress → completed. Also triggers score calculation and aggregation."""
         lock_key = create_session_lock_key(submission_id)
         actor = f"candidate:{candidate_id}" if candidate_id is not None else "system:complete"
         with self._optional_session_lock(lock_key):
@@ -94,8 +96,152 @@ class SessionService:
             )
 
         self._sync_redis(sub)
+        
+        # Trigger aggregation in background if submission was successfully transitioned
+        if transitioned:
+            try:
+                thread = threading.Thread(
+                    target=self._aggregate_and_update_score,
+                    args=(submission_id,),
+                    daemon=True,
+                )
+                thread.start()
+            except Exception as e:
+                # Log but don't fail if background aggregation fails
+                logger.warning(
+                    "Failed to trigger background aggregation",
+                    extra={"submission_id": submission_id, "error": str(e)},
+                )
+        
         dto = InterviewSessionDTO.from_model(sub)
         return dto, transitioned
+
+    def _aggregate_and_update_score(self, submission_id: int) -> None:
+        """Background task to evaluate exchanges and calculate final_score.
+        
+        Steps:
+            1. Evaluate all exchanges that don't have final evaluations
+            2. Aggregate the evaluations into an interview result
+            3. Update submission with final_score
+        """
+        try:
+            logger.info(
+                f"Starting background evaluation and aggregation for submission {submission_id}"
+            )
+            
+            # Create a new DB session and event loop for the background task
+            from app.persistence.postgres.session import SessionLocal
+            from app.interview.session.persistence.models import InterviewSubmissionModel
+            from app.evaluation.scoring.service import EvaluatorType, ScoringService
+            import asyncio
+            from sqlalchemy import text
+            
+            db = SessionLocal()
+            
+            try:
+                # Create an event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                try:
+                    # Step 1: Evaluate all exchanges that don't have final evaluations
+                    logger.info(f"Step 1: Evaluating exchanges for submission {submission_id}")
+                    
+                    exchange_rows = db.execute(
+                        text(
+                            "SELECT ie.id "
+                            "FROM interview_exchanges ie "
+                            "WHERE ie.interview_submission_id = :sid "
+                            "ORDER BY ie.sequence_order"
+                        ),
+                        {"sid": submission_id},
+                    ).fetchall()
+                    
+                    if not exchange_rows:
+                        logger.warning(
+                            f"No exchanges found for submission {submission_id}"
+                        )
+                        return
+                    
+                    scoring_service = ScoringService(db=db)
+                    evaluated_count = 0
+                    
+                    for row in exchange_rows:
+                        exchange_id = row.id
+                        
+                        try:
+                            # Score the exchange
+                            loop.run_until_complete(
+                                scoring_service.score_exchange(
+                                    interview_exchange_id=exchange_id,
+                                    evaluator_type=EvaluatorType.AI,
+                                    force_rescore=False,
+                                )
+                            )
+                            evaluated_count += 1
+                            logger.debug(
+                                f"Exchange {exchange_id} evaluated successfully"
+                            )
+                        except Exception as e:
+                            # Log and continue if single exchange fails
+                            logger.warning(
+                                f"Failed to evaluate exchange {exchange_id}: {str(e)}"
+                            )
+                    
+                    if evaluated_count == 0:
+                        logger.error(
+                            f"No exchanges were successfully evaluated for submission {submission_id}"
+                        )
+                        return
+                    
+                    logger.info(
+                        f"Step 1 complete: {evaluated_count} exchanges evaluated"
+                    )
+                    
+                    # Step 2: Aggregate the evaluations
+                    logger.info(f"Step 2: Aggregating results for submission {submission_id}")
+                    
+                    agg_service = AggregationService(db=db)
+                    result_data = loop.run_until_complete(
+                        agg_service.aggregate_interview_result(
+                            submission_id=submission_id,
+                            generated_by="system:completion",
+                        )
+                    )
+                    
+                    logger.info(
+                        f"Step 2 complete: Aggregation successful for submission {submission_id}"
+                    )
+                    
+                    # Step 3: Update the submission with the calculated final_score
+                    logger.info(f"Step 3: Updating submission with final_score")
+                    
+                    sub = db.query(InterviewSubmissionModel).filter(
+                        InterviewSubmissionModel.id == submission_id
+                    ).first()
+                    
+                    if sub:
+                        sub.final_score = result_data.normalized_score
+                        db.commit()
+                        logger.info(
+                            f"Final score {result_data.normalized_score} persisted for submission {submission_id}"
+                        )
+                    else:
+                        logger.error(
+                            f"Submission {submission_id} not found when trying to update final_score"
+                        )
+                        
+                finally:
+                    loop.close()
+                    
+            finally:
+                db.close()
+                
+        except Exception as e:
+            logger.error(
+                f"Error during background evaluation/aggregation for submission {submission_id}: {str(e)}",
+                exc_info=True,
+            )
 
     def expire_interview(
         self,
