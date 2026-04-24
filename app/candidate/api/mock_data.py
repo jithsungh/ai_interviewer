@@ -428,8 +428,8 @@ def mock_stats() -> dict:
         "pass_rate": 67.0,
         "total_practice_time_minutes": 1110,
         "total_practice_time": "18h 30m",
-        "strong_areas": ["Arrays & Hash Maps", "React & Frontend", "REST API Design"],
-        "improvement_areas": ["Dynamic Programming", "System Design", "Complexity Analysis"],
+        "strong_areas": ["coding_round", "problem_solving", "behavioral"],
+        "improvement_areas": ["resume_analysis", "self_introduction", "system_design"],
         "score_history": [
             {"date": "2025-10", "score": 68},
             {"date": "2025-11", "score": 74},
@@ -438,12 +438,12 @@ def mock_stats() -> dict:
             {"date": "2026-02", "score": 85},
         ],
         "skill_breakdown": [
-            {"skill": "Problem Solving", "score": 85},
-            {"skill": "Communication", "score": 78},
-            {"skill": "Technical Knowledge", "score": 88},
-            {"skill": "Code Quality", "score": 92},
-            {"skill": "System Design", "score": 72},
-            {"skill": "Behavioral", "score": 80},
+            {"skill": "behavioral", "score": 81},
+            {"skill": "coding_round", "score": 89},
+            {"skill": "resume_analysis", "score": 74},
+            {"skill": "self_introduction", "score": 76},
+            {"skill": "problem_solving", "score": 84},
+            {"skill": "system_design", "score": 79},
         ],
     }
 

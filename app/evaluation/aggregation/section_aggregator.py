@@ -13,6 +13,7 @@ Design:
 
 from __future__ import annotations
 
+import re
 from decimal import Decimal
 from typing import Dict, List, Set
 
@@ -24,6 +25,22 @@ from app.evaluation.aggregation.schemas import (
 from app.shared.observability import get_context_logger
 
 logger = get_context_logger(__name__)
+
+
+SECTION_NAME_ALIASES: Dict[str, str] = {
+    "resume": "resume_analysis",
+    "resume_experience": "resume_analysis",
+    "resume_and_experience_analysis": "resume_analysis",
+    "self_intro": "self_introduction",
+    "selfintroduction": "self_introduction",
+    "behavioral": "behavioral_assessment",
+    "behavioral_round": "behavioral_assessment",
+    "coding": "live_coding",
+    "coding_round": "live_coding",
+    "technical": "technical_concepts",
+    "technical_depth": "technical_concepts",
+    "complexity": "complexity_analysis",
+}
 
 
 class SectionAggregator:
@@ -56,10 +73,26 @@ class SectionAggregator:
             ev.interview_exchange_id: ev for ev in evaluations
         }
 
+        def normalize(section_name: str) -> str:
+            raw = (section_name or "unknown").strip().lower()
+            normalized = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+            if not normalized:
+                return "unknown"
+            compact = normalized.replace("_", "")
+            return (
+                SECTION_NAME_ALIASES.get(normalized)
+                or SECTION_NAME_ALIASES.get(compact)
+                or normalized
+            )
+
+        normalized_template_weights = {
+            normalize(section_name): weight for section_name, weight in template_weights.items()
+        }
+
         # Group exchanges by section and accumulate scores
         section_data: Dict[str, Dict] = {}
         for exchange in exchanges:
-            section = exchange.section_name
+            section = normalize(exchange.section_name)
             if section not in section_data:
                 section_data[section] = {"score": Decimal("0"), "count": 0}
 
@@ -69,8 +102,8 @@ class SectionAggregator:
                 section_data[section]["count"] += 1
 
         # Warn about sections in exchanges but not in template weights
-        exchange_sections: Set[str] = {ex.section_name for ex in exchanges}
-        unmapped_sections = exchange_sections - set(template_weights.keys())
+        exchange_sections: Set[str] = {normalize(ex.section_name) for ex in exchanges}
+        unmapped_sections = exchange_sections - set(normalized_template_weights.keys())
         if unmapped_sections:
             logger.warning(
                 "Exchange sections not in template weights — excluded from aggregation",
@@ -79,7 +112,7 @@ class SectionAggregator:
 
         # Build results for every section in template_weights
         results: List[SectionScore] = []
-        for section_name, weight in template_weights.items():
+        for section_name, weight in normalized_template_weights.items():
             data = section_data.get(section_name, {"score": Decimal("0"), "count": 0})
             results.append(
                 SectionScore(

@@ -23,9 +23,10 @@ Design:
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from sqlalchemy import and_, text
 from sqlalchemy.exc import IntegrityError
@@ -63,6 +64,22 @@ if TYPE_CHECKING:
     from app.ai.llm import BaseLLMProvider
 
 logger = get_context_logger(__name__)
+
+
+SECTION_NAME_ALIASES: Dict[str, str] = {
+    "resume": "resume_analysis",
+    "resume_experience": "resume_analysis",
+    "resume_and_experience_analysis": "resume_analysis",
+    "self_intro": "self_introduction",
+    "selfintroduction": "self_introduction",
+    "behavioral": "behavioral_assessment",
+    "behavioral_round": "behavioral_assessment",
+    "coding": "live_coding",
+    "coding_round": "live_coding",
+    "technical": "technical_concepts",
+    "technical_depth": "technical_concepts",
+    "complexity": "complexity_analysis",
+}
 
 
 # -----------------------------------------------------------------------------
@@ -186,6 +203,10 @@ class AggregationService:
         # Step 5: Fetch template weights
         template_id = submission_row["template_id"]
         template_weights = self._fetch_template_weights(template_id)
+        template_weights = self._apply_conditional_section_rules(
+            template_weights=template_weights,
+            exchanges=exchanges,
+        )
 
         # Step 6: Aggregate by section
         section_scores = self._aggregator.aggregate(
@@ -294,6 +315,84 @@ class AggregationService:
 
         return self._row_to_result_data(row)
 
+    def _apply_conditional_section_rules(
+        self,
+        template_weights: Dict[str, int],
+        exchanges: List[ExchangeSummaryDTO],
+    ) -> Dict[str, int]:
+        """
+        Remove conditional sections that are not applicable for this submission.
+
+        Business rule:
+        - `complexity_analysis` is only applicable when a coding round is present.
+        """
+        adjusted_weights = dict(template_weights)
+
+        has_coding_round = any(ex.section_name == "live_coding" for ex in exchanges)
+        if not has_coding_round and "complexity_analysis" in adjusted_weights:
+            adjusted_weights.pop("complexity_analysis", None)
+            logger.info(
+                "Excluded complexity_analysis from aggregation (no coding round present)",
+                extra={
+                    "exchange_sections": sorted({ex.section_name for ex in exchanges}),
+                },
+            )
+
+        return adjusted_weights
+
+    @staticmethod
+    def _normalize_section_name(section_name: Optional[str]) -> str:
+        raw = (section_name or "unknown").strip().lower()
+        normalized = re.sub(r"[^a-z0-9]+", "_", raw).strip("_")
+        if not normalized:
+            return "unknown"
+        compact = normalized.replace("_", "")
+        return (
+            SECTION_NAME_ALIASES.get(normalized)
+            or SECTION_NAME_ALIASES.get(compact)
+            or normalized
+        )
+
+    def _extract_enabled_sections_from_structure(self, structure: Dict[str, Any]) -> Set[str]:
+        enabled: Set[str] = set()
+
+        sections = structure.get("sections")
+        if isinstance(sections, dict):
+            for key, section in sections.items():
+                normalized_key = self._normalize_section_name(str(key))
+                if not isinstance(section, dict) or section.get("enabled", True):
+                    enabled.add(normalized_key)
+            if enabled:
+                return enabled
+
+        if isinstance(sections, list):
+            for idx, section in enumerate(sections):
+                if isinstance(section, dict):
+                    if section.get("enabled", True) is False:
+                        continue
+                    section_name = (
+                        section.get("section_key")
+                        or section.get("section_name")
+                        or section.get("name")
+                        or section.get("id")
+                        or f"section_{idx}"
+                    )
+                else:
+                    section_name = str(section)
+                enabled.add(self._normalize_section_name(str(section_name)))
+            if enabled:
+                return enabled
+
+        scoring_config = structure.get("scoring_configuration")
+        if isinstance(scoring_config, dict):
+            evaluation_dimensions = scoring_config.get("evaluation_dimensions")
+            if isinstance(evaluation_dimensions, dict):
+                for key, value in evaluation_dimensions.items():
+                    if bool(value):
+                        enabled.add(self._normalize_section_name(str(key)))
+
+        return enabled
+
     # ── Internal: Data Fetching ────────────────────────────────────────
 
     def _fetch_submission(self, submission_id: int) -> Dict[str, Any]:
@@ -330,7 +429,14 @@ class AggregationService:
             metadata = row.content_metadata or {}
             if isinstance(metadata, str):
                 metadata = json.loads(metadata)
-            section_name = metadata.get("section_name", "unknown")
+            raw_section_name = (
+                metadata.get("section_name")
+                or metadata.get("section")
+                or metadata.get("section_key")
+                or metadata.get("question_type")
+                or "unknown"
+            )
+            section_name = self._normalize_section_name(str(raw_section_name))
 
             exchanges.append(
                 ExchangeSummaryDTO(
@@ -476,20 +582,34 @@ class AggregationService:
         if isinstance(structure, str):
             structure = json.loads(structure)
 
+        enabled_sections = self._extract_enabled_sections_from_structure(structure)
+
         # Try scoring_configuration.section_weights
         scoring_config = structure.get("scoring_configuration", {})
         section_weights = scoring_config.get("section_weights")
 
         if section_weights and isinstance(section_weights, dict):
+            normalized_weights: Dict[str, int] = {}
+            for section_name, weight in section_weights.items():
+                normalized_name = self._normalize_section_name(str(section_name))
+                if enabled_sections and normalized_name not in enabled_sections:
+                    continue
+                normalized_weights[normalized_name] = int(weight)
+
+            if not normalized_weights:
+                raise TemplateWeightsNotFoundError(
+                    template_id=template_id,
+                    reason="No enabled section_weights in scoring_configuration",
+                )
+
             logger.info(
                 "Template section weights resolved",
                 extra={
                     "template_id": template_id,
-                    "sections": list(section_weights.keys()),
+                    "sections": list(normalized_weights.keys()),
                 },
             )
-            # Ensure values are ints
-            return {k: int(v) for k, v in section_weights.items()}
+            return normalized_weights
 
         # Fallback: derive sections from template_structure sections
         sections = structure.get("sections", [])
@@ -504,19 +624,45 @@ class AggregationService:
             )
 
             derived_weights: Dict[str, int] = {}
-            for i, section in enumerate(sections):
-                section_name: Optional[str] = None
+            if isinstance(sections, dict):
+                for key, section in sections.items():
+                    if isinstance(section, dict) and section.get("enabled", True) is False:
+                        continue
+                    normalized = self._normalize_section_name(str(key))
+                    if enabled_sections and normalized not in enabled_sections:
+                        continue
+                    section_weight = section.get("weight", 1) if isinstance(section, dict) else 1
+                    if normalized not in derived_weights:
+                        derived_weights[normalized] = int(section_weight)
+            else:
+                for i, section in enumerate(sections):
+                    section_name: Optional[str] = None
+                    if isinstance(section, dict):
+                        if section.get("enabled", True) is False:
+                            continue
+                        section_name = (
+                            section.get("section_key")
+                            or section.get("section_name")
+                            or section.get("name")
+                            or section.get("id")
+                        )
+                        section_weight = int(section.get("weight", 1))
+                    elif isinstance(section, str):
+                        section_name = section.strip()
+                        section_weight = 1
+                    else:
+                        section_name = None
+                        section_weight = 1
 
-                if isinstance(section, dict):
-                    section_name = section.get("section_name") or section.get("name")
-                elif isinstance(section, str):
-                    section_name = section.strip()
+                    if not section_name:
+                        section_name = f"section_{i}"
 
-                if not section_name:
-                    section_name = f"section_{i}"
+                    normalized = self._normalize_section_name(section_name)
+                    if enabled_sections and normalized not in enabled_sections:
+                        continue
 
-                if section_name not in derived_weights:
-                    derived_weights[section_name] = 1
+                    if normalized not in derived_weights:
+                        derived_weights[normalized] = section_weight
 
             if derived_weights:
                 # Self-heal: persist derived equal weights so this warning doesn't repeat
@@ -552,6 +698,16 @@ class AggregationService:
                         },
                     )
                 return derived_weights
+
+        if enabled_sections:
+            logger.warning(
+                "No section_weights found; deriving equal weights from enabled sections",
+                extra={
+                    "template_id": template_id,
+                    "enabled_sections": sorted(enabled_sections),
+                },
+            )
+            return {section_name: 1 for section_name in sorted(enabled_sections)}
 
         logger.error(
             "Unable to resolve section weights from template_structure",
@@ -731,10 +887,18 @@ class AggregationService:
         replace_existing_result_id: Optional[int] = None,
     ) -> InterviewResult:
         """Persist interview result and optional proctoring report."""
-        # Serialize section_scores for JSONB storage
-        section_scores_json = {
-            s.section_name: float(s.score) for s in data.section_scores
-        }
+        # Serialize section_scores for JSONB storage as per-section averages (0-100)
+        # so API/UI don't surface accumulated totals that can exceed 100 when a
+        # section has multiple exchanges.
+        section_scores_json: Dict[str, float] = {}
+        for section in data.section_scores:
+            if section.exchanges_evaluated > 0:
+                avg_score = section.score / Decimal(section.exchanges_evaluated)
+            else:
+                avg_score = Decimal("0")
+            section_scores_json[section.section_name] = float(
+                max(Decimal("0"), min(Decimal("100"), avg_score)).quantize(Decimal("0.01"))
+            )
 
         # strengths / weaknesses stored as text (JSON-encoded list) per actual schema
         strengths_text = json.dumps(data.strengths) if data.strengths else None

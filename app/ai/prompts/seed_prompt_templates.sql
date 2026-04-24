@@ -103,8 +103,16 @@ $QG_USER$,
     1,
     true
 )
-ON CONFLICT (name, version, organization_id) DO NOTHING;
-
+ON CONFLICT (name, version, organization_id)
+DO UPDATE SET
+    prompt_type = EXCLUDED.prompt_type,
+    scope = EXCLUDED.scope,
+    system_prompt = EXCLUDED.system_prompt,
+    user_prompt = EXCLUDED.user_prompt,
+    model_id = EXCLUDED.model_id,
+    model_config = EXCLUDED.model_config,
+    is_active = EXCLUDED.is_active,
+    updated_at = NOW();
 
 -- ============================================================================
 -- 2. EVALUATION AGENT
@@ -135,7 +143,7 @@ Score a single candidate response against the provided rubric dimensions.
 You evaluate ONE exchange in isolation — you have NO access to prior exchanges.
 
 ## Hard Constraints (Non-Negotiable)
-1. Score STRICTLY from the rubric. Do NOT invent criteria.
+1. Score faithfully from the rubric. Do NOT invent criteria.
 2. Each dimension score MUST be between 0 and the dimension's max_score.
 3. You MUST provide a justification for every dimension score.
 4. You have NO access to candidate identity, prior scores, or session trends.
@@ -149,6 +157,13 @@ You evaluate ONE exchange in isolation — you have NO access to prior exchanges
 - Score based SOLELY on response content vs rubric criteria.
 - Verbosity does NOT equal correctness — score substance over length.
 - Partial answers earn partial credit proportional to demonstrated mastery.
+- Minor wording, grammar, or likely speech-to-text artifacts MUST NOT be over-penalized when meaning is clear.
+
+## Fairness Calibration
+- Avoid overly harsh scoring when response intent and technical meaning are correct.
+- If response is largely correct with minor gaps, assign mid/high bands rather than low bands.
+- Use 0 only when evidence is absent, clearly incorrect, or fully off-topic for that dimension.
+- Correct, directly relevant answers should generally score at least 60% of max on applicable correctness dimensions.
 
 ## Scoring Methodology
 For each rubric dimension:
@@ -160,15 +175,15 @@ For each rubric dimension:
 ## Scoring Bands (Guidance)
 - 0-20% of max: No relevant content, completely off-topic, or empty.
 - 21-40% of max: Minimal understanding, major gaps, significant errors.
-- 41-60% of max: Partial understanding, some correct elements, notable gaps.
-- 61-80% of max: Solid understanding, mostly correct, minor gaps.
-- 81-100% of max: Excellent understanding, comprehensive, accurate.
+- 41-60% of max: Emerging understanding, some correct elements, several gaps.
+- 61-80% of max: Good understanding, mostly correct, limited gaps.
+- 81-100% of max: Strong to excellent understanding, accurate and well-supported.
 
 ## Edge Cases
 - Empty/non-answer: Score 0 for all dimensions, flag as "incomplete_response".
 - Off-topic but shows knowledge: Score 0 for relevance dimensions, partial for knowledge.
 - Over-verbose but incorrect: Correctness weight dominates verbosity.
-- Ambiguous rubric criteria: Strictly adhere to defined scoring anchors only.
+- Ambiguous rubric criteria: Use best-faith interpretation grounded in provided rubric text.
 
 ## Output Format
 Return ONLY valid JSON matching the schema below. No markdown, no explanation, no preamble.
@@ -219,8 +234,16 @@ $EVAL_USER$,
     1,
     true
 )
-ON CONFLICT (name, version, organization_id) DO NOTHING;
-
+ON CONFLICT (name, version, organization_id)
+DO UPDATE SET
+    prompt_type = EXCLUDED.prompt_type,
+    scope = EXCLUDED.scope,
+    system_prompt = EXCLUDED.system_prompt,
+    user_prompt = EXCLUDED.user_prompt,
+    model_id = EXCLUDED.model_id,
+    model_config = EXCLUDED.model_config,
+    is_active = EXCLUDED.is_active,
+    updated_at = NOW();
 
 -- ============================================================================
 -- 3. REPORT GENERATION AGENT
@@ -311,4 +334,13 @@ $RG_USER$,
     1,
     true
 )
-ON CONFLICT (name, version, organization_id) DO NOTHING;
+ON CONFLICT (name, version, organization_id)
+DO UPDATE SET
+    prompt_type = EXCLUDED.prompt_type,
+    scope = EXCLUDED.scope,
+    system_prompt = EXCLUDED.system_prompt,
+    user_prompt = EXCLUDED.user_prompt,
+    model_id = EXCLUDED.model_id,
+    model_config = EXCLUDED.model_config,
+    is_active = EXCLUDED.is_active,
+    updated_at = NOW();

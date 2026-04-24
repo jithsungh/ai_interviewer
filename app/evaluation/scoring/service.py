@@ -310,7 +310,7 @@ class ScoringService:
             exchange_id=result.exchange_id,
             question_content=result.question_content or "",
             question_type=result.question_type,
-            answer_content=result.answer_content or "",
+            answer_content=(result.answer_content or "").strip() or (result.audio_transcript or "").strip(),
             transcript=result.audio_transcript
         )
 

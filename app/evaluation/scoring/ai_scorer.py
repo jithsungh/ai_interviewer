@@ -56,8 +56,9 @@ class AIScorer:
     
     # Default prompt template (used if PromptService not available)
     DEFAULT_SYSTEM_PROMPT = (
-        "You are a strict interview evaluator. Treat each request as stateless and self-contained. "
-        "Use only provided evidence. Do not invent missing details. Return JSON only."
+        "You are a fair, evidence-based interview evaluator. Treat each request as stateless and self-contained. "
+        "Use only provided evidence. Do not invent missing details. Award proportional partial credit and avoid overly harsh scoring. "
+        "Return JSON only."
     )
 
     DEFAULT_USER_PROMPT_TEMPLATE = """Evaluate this single exchange.
@@ -85,6 +86,12 @@ RULES:
 - Do not repeat the same sentence across dimensions
 - If answer_length_chars > 0, do not claim "no response provided"
 - Use 0 only when evidence is absent/incorrect for that specific dimension
+- If the response is largely correct with minor gaps, avoid low-band scores
+- If the response is correct and addresses the question directly, assign at least mid-band scores (>= 60% of max) for relevant correctness dimensions
+- For mostly correct answers with minor omissions, prefer upper-mid to high bands (typically 70-85% of max on correctness dimensions)
+- Do not penalize minor wording, grammar, accent, or likely STT noise when technical meaning is clear
+- Reward demonstrated understanding even if the response is brief
+- Do not over-penalize brevity when key reasoning is present
 - Return valid JSON only
 
 OUTPUT JSON:
