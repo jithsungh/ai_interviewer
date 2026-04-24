@@ -1331,6 +1331,34 @@ class WindowService:
         )
         return updated
 
+    def archive_window(self, window_id: int, identity: IdentityContext) -> None:
+        existing = self._windows.get_by_id(window_id)
+        if existing is None:
+            raise NotFoundError(resource_type="Window", resource_id=window_id)
+
+        org_id = existing.organization_id
+        authorize_admin_operation(identity, operation="DELETE", resource_org_id=org_id)
+
+        if self._submissions.window_has_submissions(window_id):
+            raise ConflictError(
+                message=(
+                    "Cannot archive window because interview submissions already reference it. "
+                    "Update the window schedule instead."
+                )
+            )
+
+        self._windows.delete(window_id)
+
+        self._audit.log(
+            organization_id=org_id,
+            actor_user_id=identity.user_id,
+            action="window.archived",
+            entity_type="interview_submission_windows",
+            entity_id=window_id,
+            old_value=asdict(existing),
+            new_value={"archived": True},
+        )
+
     # ── Validation ─────────────────────────────────────────────────────
 
     @staticmethod

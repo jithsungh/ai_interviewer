@@ -12,9 +12,15 @@ When ENABLE_MOCK_DATA is False (default), empty results are returned.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
-from typing import Optional
+import re
+from datetime import datetime, timezone
+from io import BytesIO
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
@@ -75,8 +81,14 @@ from app.candidate.api import mock_data
 from app.candidate.api.career_path_generator import CareerPathGenerator
 from app.candidate.api.practice_prep_generator import PracticePrepGenerator
 from app.candidate.persistence.repository import CandidateQueryRepository
+from app.ai.llm.provider_factory import ProviderFactory
+from app.ai.prompts.repository import SqlPromptTemplateRepository
+from app.ai.prompts.service import PromptService
+from app.question.generation.contracts import GenerationRequest
+from app.question.generation.persistence.fallback_repository import FallbackQuestionRepository
+from app.question.generation.service import QuestionGenerationService
 from app.shared.errors import NotFoundError, ValidationError as AppValidationError
-from app.persistence.blob import upload_blob, BlobStorageError
+from app.config import feature_flags, settings
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +109,122 @@ class CandidateService:
         self._repo = CandidateQueryRepository(db)
         self._career_generator = CareerPathGenerator()
         self._practice_generator = PracticePrepGenerator()
+        self._question_generation_service = self._build_question_generation_service()
+
+    def _build_question_generation_service(self) -> Optional[QuestionGenerationService]:
+        try:
+            llm_provider = ProviderFactory.create_text_provider()
+            prompt_service = PromptService(repository=SqlPromptTemplateRepository(self._db))
+            fallback_repo = FallbackQuestionRepository(self._db)
+            return QuestionGenerationService(
+                llm_provider=llm_provider,
+                prompt_service=prompt_service,
+                fallback_repo=fallback_repo,
+            )
+        except Exception as exc:
+            logger.warning("Question generation fallback unavailable: %s", exc)
+            return None
+
+    @staticmethod
+    def _normalize_generation_question_type(question_type: Optional[str]) -> str:
+        allowed = {"behavioral", "technical", "situational", "coding"}
+        if not question_type:
+            return "technical"
+        normalized = question_type.strip().lower()
+        alias_map = {
+            "system_design": "technical",
+            "architecture": "technical",
+            "dsa": "technical",
+        }
+        normalized = alias_map.get(normalized, normalized)
+        return normalized if normalized in allowed else "technical"
+
+    @staticmethod
+    def _normalize_generation_difficulty(difficulty: Optional[str]) -> str:
+        allowed = {"easy", "medium", "hard"}
+        if not difficulty:
+            return "medium"
+        normalized = difficulty.strip().lower()
+        return normalized if normalized in allowed else "medium"
+
+    @staticmethod
+    def _run_async(coro):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(coro)
+
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            return pool.submit(asyncio.run, coro).result(timeout=60)
+
+    def _generate_and_persist_practice_questions(
+        self,
+        user_id: int,
+        role: str,
+        industry: str,
+        card_count: int,
+        question_type: Optional[str],
+        difficulty: Optional[str],
+    ) -> List[Dict[str, Any]]:
+        if self._question_generation_service is None:
+            return []
+
+        context = self._repo.get_latest_submission_generation_context(user_id)
+        if context:
+            submission_id = int(context["submission_id"])
+            organization_id = int(context["organization_id"])
+        else:
+            submission_id = max(1, int(user_id))
+            organization_id = 1
+
+        normalized_type = self._normalize_generation_question_type(question_type)
+        normalized_difficulty = self._normalize_generation_difficulty(difficulty)
+        topic = (role or industry or "general").strip() or "general"
+
+        generated_rows: List[Dict[str, Any]] = []
+        previous_questions: List[str] = []
+
+        for _ in range(card_count):
+            request = GenerationRequest(
+                submission_id=submission_id,
+                organization_id=organization_id,
+                difficulty=normalized_difficulty,
+                topic=topic,
+                question_type=normalized_type,
+                template_instructions=f"Industry context: {industry}",
+                previous_questions=previous_questions,
+                exchange_number=len(previous_questions) + 1,
+                total_exchanges=card_count,
+            )
+
+            result = self._run_async(self._question_generation_service.generate(request))
+            if not result.question_text:
+                continue
+
+            generated_rows.append(
+                {
+                    "question_text": result.question_text,
+                    "answer_text": result.expected_answer,
+                    "question_type": result.question_type or normalized_type,
+                    "difficulty": result.difficulty or normalized_difficulty,
+                    "estimated_time_minutes": max(
+                        1,
+                        int(math.ceil((result.estimated_time_seconds or 300) / 60)),
+                    ),
+                    "source_type": result.source_type or "generated",
+                }
+            )
+            previous_questions.append(result.question_text)
+
+        if not generated_rows:
+            return []
+
+        return self._repo.create_generated_practice_questions(
+            organization_id=organization_id,
+            questions=generated_rows,
+        )
 
     # ────────────────────────────────────────────────────────────
     # Gap 1: Windows
@@ -574,6 +702,18 @@ class CandidateService:
             difficulty=difficulty,
             limit=max(card_count * 2, card_count),
         )
+        used_direct_generation = False
+        if not question_pool:
+            question_pool = self._generate_and_persist_practice_questions(
+                user_id=user_id,
+                role=role,
+                industry=industry,
+                card_count=card_count,
+                question_type=question_type,
+                difficulty=difficulty,
+            )
+            used_direct_generation = bool(question_pool)
+
         if not question_pool:
             raise AppValidationError("No practice questions are available for the selected filters")
 
@@ -595,7 +735,7 @@ class CandidateService:
             difficulty=difficulty,
             source_question_ids=source_question_ids,
             flashcards=flashcards,
-            generation_source=source,
+            generation_source="direct_generation" if used_direct_generation else source,
             model_provider=provider,
             model_name=model_name,
         )
@@ -769,37 +909,220 @@ class CandidateService:
     ) -> ResumeUploadResponse:
         _ALLOWED_TYPES = {
             "application/pdf",
-            "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         }
+        _ALLOWED_EXTENSIONS = {".pdf", ".docx"}
+
+        filename = file.filename or "resume"
+        suffix = Path(filename).suffix.lower()
         content_type = file.content_type or ""
-        if content_type not in _ALLOWED_TYPES:
+        if content_type not in _ALLOWED_TYPES or suffix not in _ALLOWED_EXTENSIONS:
             raise AppValidationError(
-                "Only PDF and Word documents are accepted (pdf, doc, docx)"
+                "Only PDF and DOCX files are accepted"
             )
 
-        from app.config.settings import AzureStorageSettings
-        try:
-            cfg = AzureStorageSettings()
-            container = cfg.azure_container_resumes
-        except Exception:
-            container = "candidate-resumes"
+        max_size_mb = settings.app.max_resume_upload_size_mb if settings else 10
+        max_size_bytes = max_size_mb * 1024 * 1024
 
         try:
-            result = upload_blob(
-                container_name=container,
-                data=file.file,
-                original_filename=file.filename or "resume",
-                content_type=content_type,
-                prefix=f"candidate_{user_id}",
+            file.file.seek(0, 2)
+            file_size = file.file.tell()
+            file.file.seek(0)
+        except Exception as exc:
+            raise AppValidationError("Unable to inspect uploaded file") from exc
+
+        if file_size <= 0:
+            raise AppValidationError("Uploaded file is empty")
+
+        if file_size > max_size_bytes:
+            raise AppValidationError(
+                f"File exceeds maximum allowed size of {max_size_mb}MB"
             )
-            file_url = result["url"]
-        except BlobStorageError as exc:
-            logger.error("Blob upload failed for user %s: %s", user_id, exc)
-            raise AppValidationError("File upload failed; please try again later") from exc
 
-        row = self._repo.create_resume(user_id=user_id, file_url=file_url)
+        file_bytes = file.file.read()
+        if not file_bytes:
+            raise AppValidationError("Uploaded file is empty")
+
+        file_url = self._save_resume_to_local_storage(
+            user_id=user_id,
+            original_filename=filename,
+            file_bytes=file_bytes,
+        )
+
+        row = self._repo.create_resume(user_id=user_id, file_url=file_url, file_name=filename)
+
+        parsed_text = None
+        extracted_data = None
+        structured_json = None
+        llm_feedback = None
+        ats_score = None
+        ats_feedback = None
+        
+        if feature_flags is not None and feature_flags.ENABLE_RESUME_PARSING:
+            # Step 1: Parse and extract basic info
+            parsed_text, extracted_data = self._parse_and_extract_resume(
+                content=file_bytes,
+                suffix=suffix,
+                original_filename=filename,
+            )
+            
+            row = self._repo.update_resume_analysis(
+                user_id=user_id,
+                resume_id=row["id"],
+                parsed_text=parsed_text,
+                extracted_data=extracted_data,
+            )
+            
+            # Step 2: LLM Analysis (structured JSON, feedback, ATS score)
+            if parsed_text:
+                from app.candidate.api.resume_analysis_service import get_resume_analysis_service
+                analysis_service = get_resume_analysis_service()
+                analysis_result = analysis_service.analyze_resume(
+                    parsed_text,
+                    filename,
+                    extracted_data,
+                )
+                
+                if not analysis_result.get("error"):
+                    structured_json = analysis_result.get("structured_json")
+                    llm_feedback = analysis_result.get("llm_feedback")
+                    ats_score = analysis_result.get("ats_score")
+                    ats_feedback = analysis_result.get("ats_feedback")
+                    
+                    row = self._repo.update_resume_llm_analysis(
+                        user_id=user_id,
+                        resume_id=row["id"],
+                        structured_json=structured_json,
+                        llm_feedback=llm_feedback,
+                        ats_score=ats_score,
+                        ats_feedback=ats_feedback,
+                    )
+                else:
+                    logger.warning(f"LLM analysis failed: {analysis_result.get('error')}")
+            
+            # Step 3: Embeddings intentionally skipped for candidate-facing resume flow.
+
         return ResumeUploadResponse(**row)
+
+    def _save_resume_to_local_storage(
+        self,
+        user_id: int,
+        original_filename: str,
+        file_bytes: bytes,
+    ) -> str:
+        suffix = Path(original_filename).suffix.lower() or ".pdf"
+        storage_root = self._resolve_local_storage_root()
+        candidate_dir = storage_root / "resumes" / f"candidate_{user_id}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        safe_name = f"{timestamp}_{uuid4().hex[:10]}{suffix}"
+        destination = candidate_dir / safe_name
+
+        destination.write_bytes(file_bytes)
+
+        relative_path = destination.relative_to(storage_root)
+        return f"local://{relative_path.as_posix()}"
+
+    def _resolve_local_storage_root(self) -> Path:
+        configured = settings.app.local_storage_dir if settings else "storage"
+        storage_root = Path(configured)
+        if not storage_root.is_absolute():
+            backend_root = Path(__file__).resolve().parents[3]
+            storage_root = backend_root / storage_root
+        storage_root.mkdir(parents=True, exist_ok=True)
+        return storage_root
+
+    def _parse_and_extract_resume(
+        self,
+        content: bytes,
+        suffix: str,
+        original_filename: str,
+    ) -> tuple[str, dict]:
+        try:
+            parsed_text = self._extract_text(content=content, suffix=suffix)
+        except Exception as exc:
+            logger.warning("Resume parse failed for %s: %s", original_filename, exc)
+            return "", {
+                "parse_status": "failed",
+                "error": str(exc),
+                "source": "local_server_parser",
+                "parsed_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+        extracted_data = self._build_extracted_summary(parsed_text)
+        extracted_data["source"] = "local_server_parser"
+        extracted_data["parsed_at"] = datetime.now(timezone.utc).isoformat()
+        extracted_data["parse_status"] = "success"
+        return parsed_text, extracted_data
+
+    def _extract_text(self, content: bytes, suffix: str) -> str:
+        if suffix == ".pdf":
+            try:
+                from pypdf import PdfReader
+            except Exception as exc:
+                raise AppValidationError("PDF parser dependency is unavailable") from exc
+
+            reader = PdfReader(BytesIO(content))
+            chunks = [page.extract_text() or "" for page in reader.pages]
+            text = "\n".join(chunks).strip()
+            if not text:
+                raise AppValidationError("Could not extract text from PDF")
+            return text
+
+        if suffix == ".docx":
+            try:
+                from docx import Document
+            except Exception as exc:
+                raise AppValidationError("DOCX parser dependency is unavailable") from exc
+
+            document = Document(BytesIO(content))
+            chunks = [paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text and paragraph.text.strip()]
+            text = "\n".join(chunks).strip()
+            if not text:
+                raise AppValidationError("Could not extract text from DOCX")
+            return text
+
+        raise AppValidationError("Unsupported file type for parsing")
+
+    def _build_extracted_summary(self, parsed_text: str) -> dict:
+        lines = [line.strip() for line in parsed_text.splitlines() if line.strip()]
+        lowered = parsed_text.lower()
+
+        name = lines[0] if lines else None
+
+        email_match = re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", parsed_text)
+        phone_match = re.search(r"(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3}\)?[\s-]?)?\d{3}[\s-]?\d{4}", parsed_text)
+        years_match = re.search(r"(\d{1,2})\+?\s+years?\s+(?:of\s+)?experience", lowered)
+
+        skill_bank = [
+            "python", "java", "javascript", "typescript", "react", "node", "sql", "postgresql",
+            "aws", "azure", "docker", "kubernetes", "fastapi", "django", "flask", "machine learning",
+            "data structures", "algorithms", "system design", "git", "redis", "mongodb",
+        ]
+        skills = [skill for skill in skill_bank if skill in lowered]
+
+        highlights = []
+        if years_match:
+            highlights.append(f"{years_match.group(1)} years of experience identified")
+        if skills:
+            highlights.append(f"{len(skills)} relevant skills detected")
+        if "education" in lowered:
+            highlights.append("Education section detected")
+        if "experience" in lowered:
+            highlights.append("Work experience section detected")
+
+        summary_preview = " ".join(lines[:4])[:700]
+
+        return {
+            "name": name,
+            "email": email_match.group(0) if email_match else None,
+            "phone": phone_match.group(0) if phone_match else None,
+            "experience_years": int(years_match.group(1)) if years_match else None,
+            "skills": skills,
+            "highlights": highlights,
+            "summary": summary_preview,
+        }
 
     # ────────────────────────────────────────────────────────────
     # Helpers

@@ -2,10 +2,10 @@
 -- PostgreSQL database dump
 --
 
-\restrict Rz3JZ3hiScrO1fDhMzwS4dyaVkEN20XgplZeFBl5ai1PRVdc36X2wYE7wCokVkf
+\restrict 8q91naVy8neIQ4clJuUYcglOmRD3MVVGTwJSCZfKRIXTayzG9cSFNq80OzhKct2
 
--- Dumped from database version 17.9 (Debian 17.9-1.pgdg13+1)
--- Dumped by pg_dump version 18.1 (Ubuntu 18.1-1.pgdg24.04+2)
+-- Dumped from database version 17.8 (Debian 17.8-1.pgdg13+1)
+-- Dumped by pg_dump version 17.9 (Ubuntu 17.9-1.pgdg24.04+1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -305,6 +305,78 @@ CREATE TYPE public.user_status AS ENUM (
 
 ALTER TYPE public.user_status OWNER TO jithsungh;
 
+--
+-- Name: fn_audit_interview_submission_status_transition(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fn_audit_interview_submission_status_transition() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    actor_value TEXT;
+BEGIN
+    IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+        RETURN NEW;
+    END IF;
+
+    actor_value := NULLIF(current_setting('app.actor', true), '');
+
+    INSERT INTO public.interview_submission_status_audit (
+        submission_id,
+        from_status,
+        to_status,
+        actor,
+        occurred_at
+    )
+    VALUES (
+        NEW.id,
+        OLD.status::public.submission_status,
+        NEW.status::public.submission_status,
+        actor_value,
+        now()
+    );
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_audit_interview_submission_status_transition() OWNER TO postgres;
+
+--
+-- Name: fn_validate_interview_submission_status_transition(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fn_validate_interview_submission_status_transition() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- only validate actual status changes
+    IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+        RETURN NEW;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM public.interview_submission_allowed_transitions t
+        WHERE t.from_status = OLD.status::public.submission_status
+          AND t.to_status = NEW.status::public.submission_status
+    ) THEN
+        RAISE EXCEPTION
+            'Invalid interview_submissions.status transition: % -> % (submission_id=%)',
+            OLD.status,
+            NEW.status,
+            OLD.id
+            USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_validate_interview_submission_status_transition() OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -375,7 +447,7 @@ CREATE TABLE public.audio_analytics (
     finalized_at timestamp with time zone,
     CONSTRAINT audio_analytics_confidence_range CHECK (((confidence_score IS NULL) OR ((confidence_score >= 0.0) AND (confidence_score <= 1.0)))),
     CONSTRAINT audio_analytics_sentiment_range CHECK (((sentiment_score IS NULL) OR ((sentiment_score >= '-1.0'::numeric) AND (sentiment_score <= 1.0)))),
-    CONSTRAINT audio_analytics_speech_state_check CHECK (((speech_state)::text = ANY ((ARRAY['complete'::character varying, 'incomplete'::character varying, 'continuing'::character varying])::text[])))
+    CONSTRAINT audio_analytics_speech_state_check CHECK (((speech_state)::text = ANY (ARRAY[('complete'::character varying)::text, ('incomplete'::character varying)::text, ('continuing'::character varying)::text])))
 );
 
 
@@ -494,6 +566,145 @@ COMMENT ON COLUMN public.auth_audit_log.event_type IS 'Event type: login_success
 --
 
 COMMENT ON COLUMN public.auth_audit_log.metadata IS 'Additional context as JSON: {error_code, email, organization_id, admin_role, etc.}';
+
+
+--
+-- Name: candidate_career_insight_runs; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.candidate_career_insight_runs (
+    id bigint NOT NULL,
+    candidate_id bigint NOT NULL,
+    industry text NOT NULL,
+    seniority character varying(30) NOT NULL,
+    insights jsonb DEFAULT '[]'::jsonb NOT NULL,
+    generation_source character varying(20) DEFAULT 'fallback'::character varying NOT NULL,
+    model_provider character varying(50),
+    model_name character varying(100),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.candidate_career_insight_runs OWNER TO postgres;
+
+--
+-- Name: candidate_career_insight_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.candidate_career_insight_runs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.candidate_career_insight_runs_id_seq OWNER TO postgres;
+
+--
+-- Name: candidate_career_insight_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.candidate_career_insight_runs_id_seq OWNED BY public.candidate_career_insight_runs.id;
+
+
+--
+-- Name: candidate_career_roadmaps; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.candidate_career_roadmaps (
+    id bigint NOT NULL,
+    candidate_id bigint NOT NULL,
+    insight_run_id bigint,
+    industry text NOT NULL,
+    target_role text NOT NULL,
+    selected_insight jsonb,
+    steps jsonb DEFAULT '[]'::jsonb NOT NULL,
+    completed_levels jsonb DEFAULT '[]'::jsonb NOT NULL,
+    current_level integer DEFAULT 1 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    generation_source character varying(20) DEFAULT 'fallback'::character varying NOT NULL,
+    model_provider character varying(50),
+    model_name character varying(100),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT candidate_career_roadmaps_current_level_check CHECK (((current_level >= 1) AND (current_level <= 4)))
+);
+
+
+ALTER TABLE public.candidate_career_roadmaps OWNER TO postgres;
+
+--
+-- Name: candidate_career_roadmaps_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.candidate_career_roadmaps_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.candidate_career_roadmaps_id_seq OWNER TO postgres;
+
+--
+-- Name: candidate_career_roadmaps_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.candidate_career_roadmaps_id_seq OWNED BY public.candidate_career_roadmaps.id;
+
+
+--
+-- Name: candidate_practice_deck_runs; Type: TABLE; Schema: public; Owner: jithsungh
+--
+
+CREATE TABLE public.candidate_practice_deck_runs (
+    id bigint NOT NULL,
+    candidate_id bigint NOT NULL,
+    role text NOT NULL,
+    industry text NOT NULL,
+    question_type character varying(30),
+    difficulty character varying(20),
+    source_question_ids jsonb DEFAULT '[]'::jsonb NOT NULL,
+    flashcards jsonb DEFAULT '[]'::jsonb NOT NULL,
+    bookmarked_indices jsonb DEFAULT '[]'::jsonb NOT NULL,
+    mastered_indices jsonb DEFAULT '[]'::jsonb NOT NULL,
+    current_card_index integer DEFAULT 0 NOT NULL,
+    progress_percent integer DEFAULT 0 NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    generation_source character varying(20) DEFAULT 'db'::character varying NOT NULL,
+    model_provider character varying(50),
+    model_name character varying(100),
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT candidate_practice_deck_runs_current_card_index_check CHECK ((current_card_index >= 0)),
+    CONSTRAINT candidate_practice_deck_runs_progress_check CHECK (((progress_percent >= 0) AND (progress_percent <= 100)))
+);
+
+
+ALTER TABLE public.candidate_practice_deck_runs OWNER TO jithsungh;
+
+--
+-- Name: candidate_practice_deck_runs_id_seq; Type: SEQUENCE; Schema: public; Owner: jithsungh
+--
+
+CREATE SEQUENCE public.candidate_practice_deck_runs_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.candidate_practice_deck_runs_id_seq OWNER TO jithsungh;
+
+--
+-- Name: candidate_practice_deck_runs_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: jithsungh
+--
+
+ALTER SEQUENCE public.candidate_practice_deck_runs_id_seq OWNED BY public.candidate_practice_deck_runs.id;
 
 
 --
@@ -1129,6 +1340,50 @@ ALTER SEQUENCE public.interview_results_id_seq OWNED BY public.interview_results
 
 
 --
+-- Name: interview_submission_allowed_transitions; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.interview_submission_allowed_transitions (
+    from_status public.submission_status NOT NULL,
+    to_status public.submission_status NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ck_interview_submission_allowed_transitions_no_self_loop CHECK ((from_status <> to_status))
+);
+
+
+ALTER TABLE public.interview_submission_allowed_transitions OWNER TO postgres;
+
+--
+-- Name: interview_submission_status_audit_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.interview_submission_status_audit_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.interview_submission_status_audit_id_seq OWNER TO postgres;
+
+--
+-- Name: interview_submission_status_audit; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.interview_submission_status_audit (
+    id bigint DEFAULT nextval('public.interview_submission_status_audit_id_seq'::regclass) NOT NULL,
+    submission_id bigint NOT NULL,
+    from_status public.submission_status NOT NULL,
+    to_status public.submission_status NOT NULL,
+    actor text,
+    occurred_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.interview_submission_status_audit OWNER TO postgres;
+
+--
 -- Name: interview_submission_windows; Type: TABLE; Schema: public; Owner: jithsungh
 --
 
@@ -1199,6 +1454,7 @@ CREATE TABLE public.interview_submissions (
     proctoring_risk_classification character varying(20),
     proctoring_flagged boolean DEFAULT false,
     proctoring_reviewed boolean DEFAULT false,
+    version integer DEFAULT 1 NOT NULL,
     CONSTRAINT ck_submissions_exchange_sequence_non_negative CHECK ((current_exchange_sequence >= 0))
 );
 
@@ -1808,7 +2064,21 @@ CREATE TABLE public.resumes (
     parsed_text text,
     extracted_data jsonb,
     uploaded_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    file_name text,
+    structured_json jsonb,
+    llm_feedback jsonb,
+    ats_score integer,
+    ats_feedback text,
+    embeddings jsonb,
+    parse_status character varying(20) DEFAULT 'success'::character varying NOT NULL,
+    llm_analysis_status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
+    embeddings_status character varying(20) DEFAULT 'pending'::character varying NOT NULL,
+    parse_error text,
+    llm_error text,
+    embeddings_error text,
+    analyzed_at timestamp with time zone,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
 
@@ -2275,7 +2545,7 @@ CREATE TABLE public.users (
     user_type character varying(20) NOT NULL,
     last_login_at timestamp with time zone,
     token_version integer DEFAULT 1 NOT NULL,
-    CONSTRAINT users_user_type_check CHECK (((user_type)::text = ANY ((ARRAY['admin'::character varying, 'candidate'::character varying])::text[])))
+    CONSTRAINT users_user_type_check CHECK (((user_type)::text = ANY (ARRAY[('admin'::character varying)::text, ('candidate'::character varying)::text])))
 );
 
 
@@ -2379,6 +2649,27 @@ ALTER TABLE ONLY public.audio_analytics ALTER COLUMN id SET DEFAULT nextval('pub
 --
 
 ALTER TABLE ONLY public.audit_logs ALTER COLUMN id SET DEFAULT nextval('public.audit_logs_id_seq'::regclass);
+
+
+--
+-- Name: candidate_career_insight_runs id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_insight_runs ALTER COLUMN id SET DEFAULT nextval('public.candidate_career_insight_runs_id_seq'::regclass);
+
+
+--
+-- Name: candidate_career_roadmaps id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_roadmaps ALTER COLUMN id SET DEFAULT nextval('public.candidate_career_roadmaps_id_seq'::regclass);
+
+
+--
+-- Name: candidate_practice_deck_runs id; Type: DEFAULT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidate_practice_deck_runs ALTER COLUMN id SET DEFAULT nextval('public.candidate_practice_deck_runs_id_seq'::regclass);
 
 
 --
@@ -2668,6 +2959,30 @@ ALTER TABLE ONLY public.auth_audit_log
 
 
 --
+-- Name: candidate_career_insight_runs candidate_career_insight_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_insight_runs
+    ADD CONSTRAINT candidate_career_insight_runs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: candidate_career_roadmaps candidate_career_roadmaps_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_roadmaps
+    ADD CONSTRAINT candidate_career_roadmaps_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: candidate_practice_deck_runs candidate_practice_deck_runs_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidate_practice_deck_runs
+    ADD CONSTRAINT candidate_practice_deck_runs_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: candidates candidates_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
@@ -2812,19 +3127,27 @@ ALTER TABLE ONLY public.interview_exchanges
 
 
 --
--- Name: interview_results interview_results_interview_submission_id_scoring_version_key; Type: CONSTRAINT; Schema: public; Owner: jithsungh
---
-
-ALTER TABLE ONLY public.interview_results
-    ADD CONSTRAINT interview_results_interview_submission_id_scoring_version_key UNIQUE (interview_submission_id, scoring_version);
-
-
---
 -- Name: interview_results interview_results_pkey; Type: CONSTRAINT; Schema: public; Owner: jithsungh
 --
 
 ALTER TABLE ONLY public.interview_results
     ADD CONSTRAINT interview_results_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: interview_submission_allowed_transitions interview_submission_allowed_transitions_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.interview_submission_allowed_transitions
+    ADD CONSTRAINT interview_submission_allowed_transitions_pkey PRIMARY KEY (from_status, to_status);
+
+
+--
+-- Name: interview_submission_status_audit interview_submission_status_audit_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.interview_submission_status_audit
+    ADD CONSTRAINT interview_submission_status_audit_pkey PRIMARY KEY (id);
 
 
 --
@@ -3350,10 +3673,59 @@ CREATE INDEX idx_auth_audit_user ON public.auth_audit_log USING btree (user_id);
 
 
 --
+-- Name: idx_candidate_practice_deck_runs_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_candidate_practice_deck_runs_active ON public.candidate_practice_deck_runs USING btree (candidate_id, is_active, updated_at DESC);
+
+
+--
+-- Name: idx_candidate_practice_deck_runs_candidate_created; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_candidate_practice_deck_runs_candidate_created ON public.candidate_practice_deck_runs USING btree (candidate_id, created_at DESC);
+
+
+--
+-- Name: idx_candidate_practice_deck_runs_lookup; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_candidate_practice_deck_runs_lookup ON public.candidate_practice_deck_runs USING btree (candidate_id, role, industry, question_type, difficulty, created_at DESC);
+
+
+--
 -- Name: idx_candidates_user; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
 CREATE INDEX idx_candidates_user ON public.candidates USING btree (user_id);
+
+
+--
+-- Name: idx_career_insight_runs_candidate_created; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_career_insight_runs_candidate_created ON public.candidate_career_insight_runs USING btree (candidate_id, created_at DESC);
+
+
+--
+-- Name: idx_career_insight_runs_lookup; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_career_insight_runs_lookup ON public.candidate_career_insight_runs USING btree (candidate_id, industry, seniority, created_at DESC);
+
+
+--
+-- Name: idx_career_roadmaps_active; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_career_roadmaps_active ON public.candidate_career_roadmaps USING btree (candidate_id, is_active, updated_at DESC);
+
+
+--
+-- Name: idx_career_roadmaps_candidate_created; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_career_roadmaps_candidate_created ON public.candidate_career_roadmaps USING btree (candidate_id, created_at DESC);
 
 
 --
@@ -3588,6 +3960,34 @@ CREATE INDEX idx_interview_results_submission ON public.interview_results USING 
 
 
 --
+-- Name: idx_interview_results_submission_scoring_version; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_interview_results_submission_scoring_version ON public.interview_results USING btree (interview_submission_id, scoring_version);
+
+
+--
+-- Name: idx_interview_submission_status_audit_occurred; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_interview_submission_status_audit_occurred ON public.interview_submission_status_audit USING btree (occurred_at DESC);
+
+
+--
+-- Name: idx_interview_submission_status_audit_submission; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_interview_submission_status_audit_submission ON public.interview_submission_status_audit USING btree (submission_id, occurred_at DESC);
+
+
+--
+-- Name: idx_interview_submissions_expiry_scan; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_interview_submissions_expiry_scan ON public.interview_submissions USING btree (scheduled_end) WHERE (status = 'in_progress'::public.submission_status);
+
+
+--
 -- Name: idx_job_descriptions_org; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
@@ -3767,6 +4167,13 @@ CREATE INDEX idx_refresh_tokens_user ON public.refresh_tokens USING btree (user_
 --
 
 CREATE INDEX idx_resumes_candidate ON public.resumes USING btree (candidate_id);
+
+
+--
+-- Name: idx_resumes_candidate_created_at; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE INDEX idx_resumes_candidate_created_at ON public.resumes USING btree (candidate_id, created_at DESC);
 
 
 --
@@ -4008,10 +4415,24 @@ CREATE INDEX idx_windows_time ON public.interview_submission_windows USING btree
 
 
 --
+-- Name: uq_candidate_practice_deck_runs_one_active; Type: INDEX; Schema: public; Owner: jithsungh
+--
+
+CREATE UNIQUE INDEX uq_candidate_practice_deck_runs_one_active ON public.candidate_practice_deck_runs USING btree (candidate_id) WHERE (is_active = true);
+
+
+--
 -- Name: uq_candidate_window_role_non_practice; Type: INDEX; Schema: public; Owner: jithsungh
 --
 
 CREATE UNIQUE INDEX uq_candidate_window_role_non_practice ON public.interview_submissions USING btree (candidate_id, window_id, role_id) WHERE (window_id <> 86);
+
+
+--
+-- Name: uq_career_roadmaps_one_active; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX uq_career_roadmaps_one_active ON public.candidate_career_roadmaps USING btree (candidate_id) WHERE (is_active = true);
 
 
 --
@@ -4026,6 +4447,20 @@ CREATE UNIQUE INDEX uq_evaluations_exchange_final ON public.evaluations USING bt
 --
 
 CREATE UNIQUE INDEX uq_interview_results_submission_current ON public.interview_results USING btree (interview_submission_id) WHERE (is_current = true);
+
+
+--
+-- Name: interview_submissions trg_audit_interview_submission_status_transition; Type: TRIGGER; Schema: public; Owner: jithsungh
+--
+
+CREATE TRIGGER trg_audit_interview_submission_status_transition AFTER UPDATE OF status ON public.interview_submissions FOR EACH ROW EXECUTE FUNCTION public.fn_audit_interview_submission_status_transition();
+
+
+--
+-- Name: interview_submissions trg_validate_interview_submission_status_transition; Type: TRIGGER; Schema: public; Owner: jithsungh
+--
+
+CREATE TRIGGER trg_validate_interview_submission_status_transition BEFORE UPDATE OF status ON public.interview_submissions FOR EACH ROW EXECUTE FUNCTION public.fn_validate_interview_submission_status_transition();
 
 
 --
@@ -4074,6 +4509,38 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.auth_audit_log
     ADD CONSTRAINT auth_audit_log_user_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: candidate_career_insight_runs candidate_career_insight_runs_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_insight_runs
+    ADD CONSTRAINT candidate_career_insight_runs_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.candidates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: candidate_career_roadmaps candidate_career_roadmaps_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_roadmaps
+    ADD CONSTRAINT candidate_career_roadmaps_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.candidates(id) ON DELETE CASCADE;
+
+
+--
+-- Name: candidate_career_roadmaps candidate_career_roadmaps_insight_run_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.candidate_career_roadmaps
+    ADD CONSTRAINT candidate_career_roadmaps_insight_run_id_fkey FOREIGN KEY (insight_run_id) REFERENCES public.candidate_career_insight_runs(id) ON DELETE SET NULL;
+
+
+--
+-- Name: candidate_practice_deck_runs candidate_practice_deck_runs_candidate_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jithsungh
+--
+
+ALTER TABLE ONLY public.candidate_practice_deck_runs
+    ADD CONSTRAINT candidate_practice_deck_runs_candidate_id_fkey FOREIGN KEY (candidate_id) REFERENCES public.candidates(id) ON DELETE CASCADE;
 
 
 --
@@ -4306,6 +4773,14 @@ ALTER TABLE ONLY public.interview_results
 
 ALTER TABLE ONLY public.interview_results
     ADD CONSTRAINT interview_results_model_id_fkey FOREIGN KEY (model_id) REFERENCES public.models(id) ON DELETE SET NULL;
+
+
+--
+-- Name: interview_submission_status_audit interview_submission_status_audit_submission_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.interview_submission_status_audit
+    ADD CONSTRAINT interview_submission_status_audit_submission_fkey FOREIGN KEY (submission_id) REFERENCES public.interview_submissions(id) ON DELETE CASCADE;
 
 
 --
@@ -4686,8 +5161,15 @@ GRANT ALL ON SCHEMA public TO vysali;
 
 
 --
+-- Name: DEFAULT PRIVILEGES FOR TABLES; Type: DEFAULT ACL; Schema: public; Owner: jithsungh
+--
+
+ALTER DEFAULT PRIVILEGES FOR ROLE jithsungh IN SCHEMA public GRANT SELECT ON TABLES TO jithsungh;
+
+
+--
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Rz3JZ3hiScrO1fDhMzwS4dyaVkEN20XgplZeFBl5ai1PRVdc36X2wYE7wCokVkf
+\unrestrict 8q91naVy8neIQ4clJuUYcglOmRD3MVVGTwJSCZfKRIXTayzG9cSFNq80OzhKct2
 

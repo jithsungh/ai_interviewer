@@ -9,7 +9,7 @@ Password complexity rules reuse constants from app.config.constants.
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from app.config.constants import MIN_PASSWORD_LENGTH, MAX_PASSWORD_LENGTH
 
@@ -241,3 +241,42 @@ class LogoutRequest(BaseModel):
         max_length=256,
         description="Refresh token to revoke",
     )
+
+
+class ChangePasswordRequest(BaseModel):
+    """Request schema for authenticated password change."""
+
+    current_password: str = Field(
+        ...,
+        min_length=1,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="Existing account password",
+    )
+    new_password: str = Field(
+        ...,
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="New password meeting complexity requirements",
+    )
+    confirm_password: str = Field(
+        ...,
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=MAX_PASSWORD_LENGTH,
+        description="Confirmation for the new password",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return _validate_password_complexity(v)
+
+    @field_validator("confirm_password")
+    @classmethod
+    def validate_confirm_password_complexity(cls, v: str) -> str:
+        return _validate_password_complexity(v)
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.new_password != self.confirm_password:
+            raise ValueError("Confirm password must match new password")
+        return self

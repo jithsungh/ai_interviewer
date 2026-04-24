@@ -170,6 +170,11 @@ class Candidate(Base):
         back_populates="candidate",
         cascade="all, delete-orphan",
     )
+    resumes = relationship(
+        "ResumeModel",
+        back_populates="candidate",
+        cascade="all, delete-orphan",
+    )
 
 
 class CandidateSettings(Base):
@@ -387,3 +392,64 @@ class AuthAuditLog(Base):
     
     # Relationships
     user = relationship("User", back_populates="audit_logs")
+
+
+class ResumeModel(Base):
+    """
+    Resume table - stores candidate resumes with parsing and analysis results.
+
+    Maps to: public.resumes
+    """
+    __tablename__ = 'resumes'
+
+    id = Column(BigInteger, primary_key=True)
+    candidate_id = Column(
+        BigInteger,
+        ForeignKey('candidates.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    file_url = Column(Text, nullable=True)
+    file_name = Column(Text, nullable=True)
+    
+    # Raw parsing results
+    parsed_text = Column(Text, nullable=True)
+    extracted_data = Column(JSONB, nullable=True)
+    
+    # Comprehensive structured JSON from LLM analysis
+    structured_json = Column(JSONB, nullable=True)
+    
+    # LLM analysis results
+    llm_feedback = Column(JSONB, nullable=True)  # {strengths, weaknesses, suggestions, overall_assessment}
+    ats_score = Column(Integer, nullable=True)  # 0-100
+    ats_feedback = Column(Text, nullable=True)
+    
+    # Embeddings for vector search
+    embeddings = Column(JSONB, nullable=True)  # {full_resume: [float], sections: {education: [float], ...}}
+    
+    # Processing status
+    parse_status = Column(String(20), nullable=False, default='pending')  # pending, success, failed
+    llm_analysis_status = Column(String(20), nullable=False, default='pending')  # pending, success, failed
+    embeddings_status = Column(String(20), nullable=False, default='pending')  # pending, success, failed
+    
+    parse_error = Column(Text, nullable=True)
+    llm_error = Column(Text, nullable=True)
+    embeddings_error = Column(Text, nullable=True)
+    
+    # Metadata
+    uploaded_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    analyzed_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()')
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text('now()'),
+        onupdate=datetime.now(timezone.utc)
+    )
+
+    # Relationships
+    candidate = relationship("Candidate", back_populates="resumes")

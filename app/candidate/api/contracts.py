@@ -698,10 +698,26 @@ class ResumeDTO(BaseModel):
     id: int
     candidate_id: int
     file_url: Optional[str] = None
+    file_name: Optional[str] = None
     parsed_text: Optional[str] = None
     extracted_data: Optional[Dict[str, Any]] = None
+    
+    # LLM Analysis Results
+    structured_json: Optional[Dict[str, Any]] = None
+    llm_feedback: Optional[Dict[str, Any]] = None
+    ats_score: Optional[int] = None
+    ats_feedback: Optional[str] = None
+    
+    # Processing Status
+    parse_status: Optional[str] = None
+    llm_analysis_status: Optional[str] = None
+    
+    # Timestamps
     uploaded_at: Optional[str] = None
+    analyzed_at: Optional[str] = None
     created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
 
 
 class ResumeListResponse(BaseModel):
@@ -712,5 +728,23 @@ class ResumeUploadResponse(BaseModel):
     id: int
     candidate_id: int
     file_url: str
+    file_name: Optional[str] = None
+    parsed_text: Optional[str] = None
+    extracted_data: Optional[Dict[str, Any]] = None
+    
+    # LLM Analysis Results
+    structured_json: Optional[Dict[str, Any]] = None
+    llm_feedback: Optional[Dict[str, Any]] = None
+    ats_score: Optional[int] = None
+    ats_feedback: Optional[str] = None
+    
+    # Processing Status
+    parse_status: Optional[str] = None
+    llm_analysis_status: Optional[str] = None
+    
+    # Timestamps
     uploaded_at: Optional[str] = None
+    analyzed_at: Optional[str] = None
     created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+

@@ -25,6 +25,7 @@ from .schemas import (
     LoginRequest,
     RefreshTokenRequest,
     LogoutRequest,
+    ChangePasswordRequest,
 )
 
 from .responses import (
@@ -33,6 +34,7 @@ from .responses import (
     UserProfileResponse,
     LoginResponse,
     TokenRefreshResponse,
+    ChangePasswordResponse,
     CurrentUserResponse,
     ErrorResponse,
 )
@@ -51,11 +53,13 @@ __all__ = [
     "LoginRequest",
     "RefreshTokenRequest",
     "LogoutRequest",
+    "ChangePasswordRequest",
     # Response schemas
     "RegistrationResponse",
     "UserProfileResponse",
     "LoginResponse",
     "TokenRefreshResponse",
+    "ChangePasswordResponse",
     "CurrentUserResponse",
     "ErrorResponse",
     # Enums

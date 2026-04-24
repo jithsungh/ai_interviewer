@@ -33,6 +33,7 @@ from .contracts import (
     LoginCommand,
     RefreshTokenCommand,
     LogoutCommand,
+    ChangePasswordCommand,
     ValidateTokenCommand,
     AuthenticationResult,
     UserProfile,
@@ -785,6 +786,60 @@ class AuthService:
             "Logout successful",
             event_type="auth.logout.success",
             metadata={"user_id": stored_token.user_id}
+        )
+
+    def change_password(self, user_id: int, command: ChangePasswordCommand) -> None:
+        """
+        Change the authenticated user's password.
+
+        Verifies the current password, stores the new hash, increments token_version,
+        and revokes all active refresh tokens so existing sessions are invalidated.
+        """
+        from app.auth.persistence import User, RefreshToken
+
+        user = self.session.query(User).filter_by(id=user_id).first()
+        if not user:
+            raise NotFoundError(resource_type="User", resource_id=user_id)
+
+        if not self.password_hasher.verify(command.current_password, user.password_hash):
+            logger.warning(
+                "Password change failed - invalid current password",
+                event_type="auth.password_change.invalid_current_password",
+                metadata={"user_id": user_id},
+            )
+            raise AuthenticationError(
+                message="Current password is incorrect",
+                metadata={"error_type": "invalid_current_password"},
+            )
+
+        new_hash = self.password_hasher.hash(command.new_password)
+        user.password_hash = new_hash
+        user.token_version = (user.token_version or 1) + 1
+        user.updated_at = datetime.now(timezone.utc)
+
+        revoked = self.session.query(RefreshToken).filter(
+            RefreshToken.user_id == user.id,
+            RefreshToken.revoked_at.is_(None),
+        ).update(
+            {
+                "revoked_at": datetime.now(timezone.utc),
+                "revoked_reason": "password_change",
+            },
+            synchronize_session="fetch",
+        )
+
+        self._log_audit_event(
+            user_id=user.id,
+            event_type="password_change",
+            ip_address=command.request_ip,
+            user_agent=command.request_user_agent,
+            metadata={"revoked_tokens": revoked},
+        )
+
+        logger.info(
+            "Password changed successfully",
+            event_type="auth.password_change.success",
+            metadata={"user_id": user.id, "revoked_tokens": revoked},
         )
     
     # ============================================================================

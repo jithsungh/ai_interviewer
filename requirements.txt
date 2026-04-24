@@ -30,7 +30,7 @@ bcrypt==4.1.2
 
 # LLM Providers (using httpx for direct API calls instead of SDKs for better timeout control)
 # Future: Uncomment when implementing respective providers
-# openai==1.10.0
+openai==1.56.2
 # anthropic==0.12.0
 groq==0.4.2
 
@@ -48,6 +48,8 @@ vaderSentiment==3.3.2
 python-dateutil==2.8.2
 httpx==0.26.0  # Used for LLM provider API calls with timeout control
 aiofiles==23.2.1
+pypdf==4.3.1
+python-docx==1.1.2
 
 # Azure Blob Storage
 azure-storage-blob==12.25.1

@@ -176,40 +176,10 @@ def register_middleware(app: FastAPI) -> None:
     
     logger.info("Registering middleware...", event_type="middleware.registration.begin")
     
-    # 1. Request Context (FIRST - needed by all subsequent middleware)
-    app.add_middleware(RequestContextMiddleware)
-    logger.debug("✓ RequestContextMiddleware registered")
+    # ⚠️ IMPORTANT: Middleware added with add_middleware() executes in REVERSE order
+    # Last added = First executed. CORS must be added LAST so it executes FIRST.
     
-    # 2. Logging (SECOND - logs all requests)
-    app.add_middleware(LoggingMiddleware)
-    logger.debug("✓ LoggingMiddleware registered")
-    
-    # 3. Error Formatting (THIRD - reformats error responses)
-    app.add_middleware(ErrorFormattingMiddleware)
-    logger.debug("✓ ErrorFormattingMiddleware registered")
-    
-    allowed_origins = ["*"]  # Allow all origins in development
-    
-    # 4. CORS (FOURTH - allow all origins for development)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=allowed_origins,
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-        expose_headers=["X-Request-ID"],
-    )
-    logger.debug("✓ CORSMiddleware registered")
-    
-    # 5. GZip Compression (FIFTH - optional performance)
-    app.add_middleware(GZipMiddleware, minimum_size=1000)
-    logger.debug("✓ GZipMiddleware registered")
-    
-    # 6. Rate Limiting (SIXTH - protects endpoints)
-    app.add_middleware(RateLimitMiddleware)
-    logger.debug("✓ RateLimitMiddleware registered (stub)")
-    
-    # 7. Identity Injection (LAST - requires all context)
+    # 7. Identity Injection (Last to be processed)
     token_validator = get_token_validator()
     app.add_middleware(
         IdentityInjectionMiddleware,
@@ -217,6 +187,40 @@ def register_middleware(app: FastAPI) -> None:
         require_authentication=False  # Allow public endpoints
     )
     logger.debug("✓ IdentityInjectionMiddleware registered")
+    
+    # 6. Rate Limiting (protects endpoints)
+    app.add_middleware(RateLimitMiddleware)
+    logger.debug("✓ RateLimitMiddleware registered (stub)")
+    
+    # 5. GZip Compression (optional performance)
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
+    logger.debug("✓ GZipMiddleware registered")
+    
+    # 4. Error Formatting (reformats error responses)
+    app.add_middleware(ErrorFormattingMiddleware)
+    logger.debug("✓ ErrorFormattingMiddleware registered")
+    
+    # 3. Logging (logs all requests)
+    app.add_middleware(LoggingMiddleware)
+    logger.debug("✓ LoggingMiddleware registered")
+    
+    # 2. Request Context (needed by all subsequent middleware)
+    app.add_middleware(RequestContextMiddleware)
+    logger.debug("✓ RequestContextMiddleware registered")
+    
+    allowed_origins = ["*"]  # Allow all origins in development
+    
+    # 1. CORS (MUST be first! Added last so it executes first)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID", "Content-Type"],
+        max_age=3600,
+    )
+    logger.debug("✓ CORSMiddleware registered (FIRST to execute)")
     
     logger.info(
         "✅ Middleware registration complete",

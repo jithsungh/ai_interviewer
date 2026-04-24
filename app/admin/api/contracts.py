@@ -497,6 +497,29 @@ class WindowListResponse(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Audit Log Contracts
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class AuditLogResponse(BaseModel):
+    """Single audit log entry in response payload."""
+    id: int
+    user_id: Optional[int] = None
+    event_type: str
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    event_metadata: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+
+
+class AuditLogListResponse(BaseModel):
+    """Response for GET /audit-logs."""
+    data: List[AuditLogResponse]
+    pagination: PaginationMeta
+    meta: MetaInfo = Field(default_factory=MetaInfo)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Override Contracts (generic across all content types)
 # ═══════════════════════════════════════════════════════════════════════════
 

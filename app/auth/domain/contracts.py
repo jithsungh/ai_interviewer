@@ -91,6 +91,19 @@ class LogoutCommand:
 
 
 @dataclass(frozen=True)
+class ChangePasswordCommand:
+    """
+    Command to change the current authenticated user's password.
+
+    Requires current password verification and invalidates existing sessions.
+    """
+    current_password: str
+    new_password: str
+    request_ip: Optional[str] = None
+    request_user_agent: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class ValidateTokenCommand:
     """
     Command to validate an access token.

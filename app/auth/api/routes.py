@@ -31,10 +31,12 @@ from app.auth.contracts import (
     LoginRequest,
     RefreshTokenRequest,
     LogoutRequest,
+    ChangePasswordRequest,
     # Response schemas
     RegistrationResponse,
     LoginResponse,
     TokenRefreshResponse,
+    ChangePasswordResponse,
     CurrentUserResponse,
     UserProfileResponse,
 )
@@ -47,6 +49,7 @@ from app.auth.domain import (
     LoginCommand,
     RefreshTokenCommand,
     LogoutCommand,
+    ChangePasswordCommand,
     UserProfile,
 )
 
@@ -365,6 +368,39 @@ def logout(
     auth_service.logout(command)
 
     return {"message": "Logout successful"}
+
+
+@router.post(
+    "/change-password",
+    status_code=200,
+    response_model=ChangePasswordResponse,
+    summary="Change password",
+    description="Update the authenticated user's password after verifying the current password.",
+)
+def change_password(
+    request: Request,
+    body: ChangePasswordRequest,
+    identity: IdentityContext = Depends(get_identity),
+    db: Session = Depends(get_db_session_with_commit),
+) -> ChangePasswordResponse:
+    logger.info(
+        "Change password request received",
+        event_type="auth.api.change_password",
+        metadata={"user_id": identity.user_id},
+    )
+
+    auth_service = _build_auth_service(db)
+
+    command = ChangePasswordCommand(
+        current_password=body.current_password,
+        new_password=body.new_password,
+        request_ip=_get_client_ip(request),
+        request_user_agent=request.headers.get("User-Agent"),
+    )
+
+    auth_service.change_password(user_id=identity.user_id, command=command)
+
+    return ChangePasswordResponse(message="Password updated successfully")
 
 
 @router.get(

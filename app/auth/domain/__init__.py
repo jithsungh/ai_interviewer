@@ -19,6 +19,7 @@ from .contracts import (
     LoginCommand,
     RefreshTokenCommand,
     LogoutCommand,
+    ChangePasswordCommand,
     
     # Results
     AuthenticationResult,
@@ -38,6 +39,7 @@ __all__ = [
     "LoginCommand",
     "RefreshTokenCommand",
     "LogoutCommand",
+    "ChangePasswordCommand",
     
     # Results
     "AuthenticationResult",

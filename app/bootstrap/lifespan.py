@@ -120,8 +120,17 @@ async def lifespan(app: FastAPI):
         if settings.azure_storage is not None:
             logger.info("Initializing Azure Blob Storage...", event_type="startup.blob.begin")
             try:
-                init_blob_client(settings.azure_storage)
-                logger.info("✓ Azure Blob Storage connected", event_type="startup.blob.complete")
+                # Use timeout to prevent hanging on network issues
+                try:
+                    blob_task = asyncio.create_task(asyncio.to_thread(init_blob_client, settings.azure_storage))
+                    await asyncio.wait_for(blob_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "⚠️  Azure Blob Storage connection timeout (skipping)",
+                        event_type="startup.blob.timeout",
+                    )
+                else:
+                    logger.info("✓ Azure Blob Storage connected", event_type="startup.blob.complete")
             except Exception as e:
                 logger.warning(
                     f"⚠️  Azure Blob Storage connection failed: {e}",

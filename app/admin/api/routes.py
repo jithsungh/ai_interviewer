@@ -43,6 +43,7 @@ from app.admin.domain.entities import (
     Window,
     WindowRoleTemplate,
 )
+from app.auth.persistence import Admin as AuthAdmin, AuthAuditLog
 
 from .contracts import (
     CodingProblemCreateRequest,
@@ -73,6 +74,8 @@ from .contracts import (
     RubricListResponse,
     RubricResponse,
     RubricUpdateRequest,
+    AuditLogListResponse,
+    AuditLogResponse,
     TemplateCreateRequest,
     TemplateDetailResponse,
     TemplateListResponse,
@@ -250,6 +253,18 @@ def _window_to_response(w: Window) -> WindowResponse:
         allow_resubmission=w.allow_resubmission,
         created_at=w.created_at,
         updated_at=w.updated_at,
+    )
+
+
+def _audit_log_to_response(entry: AuthAuditLog) -> AuditLogResponse:
+    return AuditLogResponse(
+        id=entry.id,
+        user_id=entry.user_id,
+        event_type=entry.event_type,
+        ip_address=str(entry.ip_address) if entry.ip_address else None,
+        user_agent=entry.user_agent,
+        event_metadata=entry.event_metadata,
+        created_at=entry.created_at,
     )
 
 
@@ -1139,3 +1154,65 @@ def update_window(
         ]
     updated = svc.update_window(window_id, changes, mappings, identity)
     return WindowDetailResponse(data=_window_to_response(updated), meta=_meta(request))
+
+
+@router.delete(
+    "/windows/{window_id}",
+    status_code=204,
+    summary="Archive window",
+)
+def delete_window(
+    window_id: int,
+    identity: IdentityContext = Depends(require_admin),
+    db: Session = Depends(get_db_session_with_commit),
+):
+    svc = build_window_service(db)
+    svc.archive_window(window_id, identity)
+    return Response(status_code=204)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# AUDIT LOG ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+@router.get(
+    "/audit-logs",
+    response_model=AuditLogListResponse,
+    summary="List auth audit logs (paginated)",
+)
+def list_audit_logs(
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    event_type: Optional[str] = Query(None),
+    user_id: Optional[int] = Query(None, ge=1),
+    identity: IdentityContext = Depends(require_admin),
+    db: Session = Depends(get_db_session_with_commit),
+) -> AuditLogListResponse:
+    query = db.query(AuthAuditLog)
+
+    if not identity.is_superadmin():
+        query = query.join(AuthAdmin, AuthAdmin.user_id == AuthAuditLog.user_id).filter(
+            AuthAdmin.organization_id == identity.organization_id
+        )
+
+    if event_type:
+        query = query.filter(AuthAuditLog.event_type == event_type)
+    if user_id is not None:
+        query = query.filter(AuthAuditLog.user_id == user_id)
+
+    total = query.count()
+    offset = (page - 1) * per_page
+    rows = (
+        query.order_by(AuthAuditLog.created_at.desc())
+        .offset(offset)
+        .limit(per_page)
+        .all()
+    )
+
+    return AuditLogListResponse(
+        data=[_audit_log_to_response(entry) for entry in rows],
+        pagination=_pagination(page, per_page, total),
+        meta=_meta(request),
+    )

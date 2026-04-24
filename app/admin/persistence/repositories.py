@@ -675,6 +675,12 @@ class SqlWindowRepository:
         self._session.flush()
         return window_model_to_entity(model)
 
+    def delete(self, window_id: int) -> None:
+        self._session.query(InterviewSubmissionWindowModel).filter(
+            InterviewSubmissionWindowModel.id == window_id
+        ).delete(synchronize_session="fetch")
+        self._session.flush()
+
     def find_overlapping_windows(
         self,
         organization_id: int,

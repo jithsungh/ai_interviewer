@@ -287,6 +287,8 @@ class WindowRepository(Protocol):
 
     def update(self, window: Window) -> Window: ...
 
+    def delete(self, window_id: int) -> None: ...
+
     def find_overlapping_windows(
         self,
         organization_id: int,

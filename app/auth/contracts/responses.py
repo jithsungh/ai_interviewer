@@ -175,6 +175,15 @@ class TokenRefreshResponse(BaseModel):
     }
 
 
+class ChangePasswordResponse(BaseModel):
+    """Response returned after successful password change."""
+
+    message: str = Field(
+        default="Password updated successfully",
+        description="Human-readable confirmation message",
+    )
+
+
 class CurrentUserResponse(BaseModel):
     """
     Response for /me endpoint — full user profile with status fields.

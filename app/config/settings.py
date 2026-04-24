@@ -35,6 +35,8 @@ class AppSettings(BaseSettings):
     app_name: str = Field(default="AI Interviewer API", env="APP_NAME")
     api_version: str = Field(default="1.0.0", env="API_VERSION")
     base_url: str = Field(default="http://localhost:8000", env="BASE_URL")
+    local_storage_dir: str = Field(default="storage", env="LOCAL_STORAGE_DIR")
+    max_resume_upload_size_mb: int = Field(default=10, env="MAX_RESUME_UPLOAD_SIZE_MB")
     
     @model_validator(mode='after')
     def validate_production_settings(self):
@@ -43,6 +45,8 @@ class AppSettings(BaseSettings):
                 raise ValueError("DEBUG must be False in production")
             if not self.base_url.startswith("https://"):
                 logger.warning("BASE_URL should use HTTPS in production")
+        if self.max_resume_upload_size_mb <= 0:
+            raise ValueError("MAX_RESUME_UPLOAD_SIZE_MB must be > 0")
         return self
 
 

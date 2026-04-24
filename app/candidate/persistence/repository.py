@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timezone
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import case, func, text
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import ProgrammingError
 
 from app.admin.persistence.models import (
     CodingProblemModel,
@@ -540,7 +542,30 @@ class CandidateQueryRepository:
         existing_meta = candidate.profile_metadata or {}
         for field in meta_fields:
             if field in updates and updates[field] is not None:
-                existing_meta[field] = updates[field]
+                if field == "skills":
+                    current_skills = existing_meta.get("skills") or []
+                    incoming_skills = updates[field] or []
+                    if not isinstance(current_skills, list):
+                        current_skills = []
+                    if not isinstance(incoming_skills, list):
+                        incoming_skills = []
+
+                    merged_skills = []
+                    seen = set()
+                    for skill in current_skills + incoming_skills:
+                        if skill is None:
+                            continue
+                        normalized = str(skill).strip()
+                        if not normalized:
+                            continue
+                        key = normalized.lower()
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        merged_skills.append(normalized)
+                    existing_meta[field] = merged_skills
+                else:
+                    existing_meta[field] = updates[field]
 
         candidate.profile_metadata = existing_meta
         from sqlalchemy.orm.attributes import flag_modified
@@ -563,11 +588,18 @@ class CandidateQueryRepository:
         if candidate is None:
             return None
 
-        settings = (
-            self._db.query(CandidateSettings)
-            .filter(CandidateSettings.candidate_id == candidate.id)
-            .first()
-        )
+        try:
+            settings = (
+                self._db.query(CandidateSettings)
+                .filter(CandidateSettings.candidate_id == candidate.id)
+                .first()
+            )
+        except ProgrammingError as exc:
+            message = str(exc).lower()
+            if "candidate_settings" in message and "does not exist" in message:
+                self._db.rollback()
+                return self._default_candidate_settings(candidate.id)
+            raise
 
         if settings is None:
             settings = CandidateSettings(
@@ -611,11 +643,34 @@ class CandidateQueryRepository:
         if candidate is None:
             return None
 
-        settings = (
-            self._db.query(CandidateSettings)
-            .filter(CandidateSettings.candidate_id == candidate.id)
-            .first()
-        )
+        try:
+            settings = (
+                self._db.query(CandidateSettings)
+                .filter(CandidateSettings.candidate_id == candidate.id)
+                .first()
+            )
+        except ProgrammingError as exc:
+            message = str(exc).lower()
+            if "candidate_settings" in message and "does not exist" in message:
+                self._db.rollback()
+                default_settings = self._default_candidate_settings(candidate.id)
+                if updates.get("notification_preferences") is not None:
+                    default_settings["notification_preferences"] = {
+                        **default_settings["notification_preferences"],
+                        **updates["notification_preferences"],
+                    }
+                if updates.get("privacy_preferences") is not None:
+                    default_settings["privacy_preferences"] = {
+                        **default_settings["privacy_preferences"],
+                        **updates["privacy_preferences"],
+                    }
+                if updates.get("ui_preferences") is not None:
+                    default_settings["ui_preferences"] = {
+                        **default_settings["ui_preferences"],
+                        **updates["ui_preferences"],
+                    }
+                return default_settings
+            raise
         if settings is None:
             settings = CandidateSettings(candidate_id=candidate.id)
             self._db.add(settings)
@@ -634,6 +689,26 @@ class CandidateQueryRepository:
 
         self._db.flush()
         return self.get_candidate_settings(user_id)
+
+    @staticmethod
+    def _default_candidate_settings(candidate_id: int) -> Dict[str, Any]:
+        return {
+            "candidate_id": candidate_id,
+            "notification_preferences": {
+                "email": True,
+                "interview": True,
+                "reports": True,
+                "marketing": False,
+            },
+            "privacy_preferences": {
+                "profileVisible": True,
+                "shareResults": False,
+                "allowAnalytics": True,
+            },
+            "ui_preferences": {"theme": "system"},
+            "created_at": None,
+            "updated_at": None,
+        }
 
     # ────────────────────────────────────────────────────────────
     # Career Path
@@ -1052,6 +1127,75 @@ class CandidateQueryRepository:
             }
             for q in rows
         ]
+
+    def get_latest_submission_generation_context(self, user_id: int) -> Optional[Dict[str, int]]:
+        """Return latest submission context required by question generation service."""
+        candidate_id = self._resolve_candidate_id(user_id)
+        row = (
+            self._db.query(
+                InterviewSubmissionModel.id.label("submission_id"),
+                InterviewSubmissionWindowModel.organization_id.label("organization_id"),
+            )
+            .join(
+                InterviewSubmissionWindowModel,
+                InterviewSubmissionWindowModel.id == InterviewSubmissionModel.window_id,
+            )
+            .filter(InterviewSubmissionModel.candidate_id == candidate_id)
+            .order_by(
+                InterviewSubmissionModel.started_at.desc().nullslast(),
+                InterviewSubmissionModel.id.desc(),
+            )
+            .first()
+        )
+        if row is None:
+            return None
+
+        return {
+            "submission_id": int(row.submission_id),
+            "organization_id": int(row.organization_id) if row.organization_id else 1,
+        }
+
+    def create_generated_practice_questions(
+        self,
+        *,
+        organization_id: int,
+        questions: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Persist generated practice questions and return normalized pool rows."""
+        if not questions:
+            return []
+
+        normalized_scope = "public" if int(organization_id) == 1 else "organization"
+        normalized_org_id = None if int(organization_id) == 1 else int(organization_id)
+
+        inserted: List[Dict[str, Any]] = []
+        for item in questions:
+            model = QuestionModel(
+                question_text=item["question_text"],
+                answer_text=item.get("answer_text"),
+                question_type=item.get("question_type") or "technical",
+                difficulty=item.get("difficulty") or "medium",
+                scope=normalized_scope,
+                organization_id=normalized_org_id,
+                source_type=item.get("source_type") or "generated_practice_deck",
+                estimated_time_minutes=item.get("estimated_time_minutes") or 5,
+                is_active=True,
+            )
+            self._db.add(model)
+            self._db.flush()
+            inserted.append(
+                {
+                    "id": model.id,
+                    "question_text": model.question_text,
+                    "answer_text": model.answer_text,
+                    "question_type": model.question_type,
+                    "difficulty": model.difficulty,
+                    "estimated_time_minutes": model.estimated_time_minutes,
+                    "completed": False,
+                }
+            )
+
+        return inserted
 
     def get_active_practice_deck(self, user_id: int) -> Optional[Dict[str, Any]]:
         candidate_id = self._resolve_candidate_id(user_id)
@@ -1880,8 +2024,10 @@ class CandidateQueryRepository:
         candidate_id = self._resolve_candidate_id(user_id)
         rows = self._db.execute(
             text(
-                "SELECT id, candidate_id, file_url, parsed_text, "
-                "extracted_data, uploaded_at, created_at "
+                "SELECT id, candidate_id, file_url, file_name, parsed_text, extracted_data, "
+                "structured_json, llm_feedback, ats_score, ats_feedback, embeddings, "
+                "parse_status, llm_analysis_status, embeddings_status, parse_error, llm_error, "
+                "embeddings_error, analyzed_at, uploaded_at, created_at, updated_at "
                 "FROM resumes WHERE candidate_id = :cid "
                 "ORDER BY created_at DESC"
             ),
@@ -1889,37 +2035,148 @@ class CandidateQueryRepository:
         ).fetchall()
 
         return [
-            {
-                "id": r[0],
-                "candidate_id": r[1],
-                "file_url": r[2],
-                "parsed_text": r[3],
-                "extracted_data": r[4],
-                "uploaded_at": self._iso(r[5]),
-                "created_at": self._iso(r[6]),
-            }
+            self._resume_row_to_dict(r)
             for r in rows
         ]
 
-    def create_resume(self, user_id: int, file_url: str) -> Dict[str, Any]:
+    def create_resume(self, user_id: int, file_url: str, file_name: Optional[str] = None) -> Dict[str, Any]:
         """Insert a new resume row and return it."""
         candidate_id = self._resolve_candidate_id(user_id)
         now = datetime.now(timezone.utc)
         row = self._db.execute(
             text(
-                "INSERT INTO resumes (candidate_id, file_url, uploaded_at, created_at) "
-                "VALUES (:cid, :url, :now, :now) "
-                "RETURNING id, candidate_id, file_url, uploaded_at, created_at"
+                "INSERT INTO resumes (candidate_id, file_url, file_name, uploaded_at, created_at) "
+                "VALUES (:cid, :url, :file_name, :now, :now) "
+                "RETURNING id, candidate_id, file_url, file_name, parsed_text, extracted_data, "
+                "structured_json, llm_feedback, ats_score, ats_feedback, embeddings, "
+                "parse_status, llm_analysis_status, embeddings_status, parse_error, llm_error, "
+                "embeddings_error, analyzed_at, uploaded_at, created_at, updated_at"
             ),
-            {"cid": candidate_id, "url": file_url, "now": now},
+            {"cid": candidate_id, "url": file_url, "file_name": file_name, "now": now},
         ).fetchone()
-        return {
-            "id": row[0],
-            "candidate_id": row[1],
-            "file_url": row[2],
-            "uploaded_at": self._iso(row[3]),
-            "created_at": self._iso(row[4]),
-        }
+        return self._resume_row_to_dict(row)
+
+    def update_resume_analysis(
+        self,
+        user_id: int,
+        resume_id: int,
+        parsed_text: Optional[str],
+        extracted_data: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Persist parsed resume text + extraction payload for a candidate-owned resume."""
+        candidate_id = self._resolve_candidate_id(user_id)
+        row = self._db.execute(
+            text(
+                "UPDATE resumes "
+                "SET parsed_text = :parsed_text, extracted_data = CAST(:extracted_data AS JSONB), "
+                "    parse_status = :parse_status, parse_error = :parse_error, updated_at = :now "
+                "WHERE id = :resume_id AND candidate_id = :candidate_id "
+                "RETURNING id, candidate_id, file_url, file_name, parsed_text, extracted_data, "
+                "structured_json, llm_feedback, ats_score, ats_feedback, embeddings, "
+                "parse_status, llm_analysis_status, embeddings_status, parse_error, llm_error, "
+                "embeddings_error, analyzed_at, uploaded_at, created_at, updated_at"
+            ),
+            {
+                "parsed_text": parsed_text,
+                "extracted_data": json.dumps(extracted_data or {}),
+                "parse_status": extracted_data.get("parse_status", "success") if extracted_data else "success",
+                "parse_error": extracted_data.get("error") if extracted_data else None,
+                "now": datetime.now(timezone.utc),
+                "resume_id": resume_id,
+                "candidate_id": candidate_id,
+            },
+        ).fetchone()
+
+        if row is None:
+            raise NotFoundError(resource_type="Resume", resource_id=resume_id)
+
+        return self._resume_row_to_dict(row)
+
+    def update_resume_llm_analysis(
+        self,
+        user_id: int,
+        resume_id: int,
+        structured_json: Optional[Dict[str, Any]],
+        llm_feedback: Optional[Dict[str, Any]],
+        ats_score: Optional[int],
+        ats_feedback: Optional[str],
+    ) -> Dict[str, Any]:
+        """Update resume with LLM analysis results."""
+        candidate_id = self._resolve_candidate_id(user_id)
+        now = datetime.now(timezone.utc)
+        row = self._db.execute(
+            text(
+                "UPDATE resumes "
+                "SET structured_json = CAST(:structured_json AS JSONB), "
+                "    llm_feedback = CAST(:llm_feedback AS JSONB), "
+                "    ats_score = :ats_score, "
+                "    ats_feedback = :ats_feedback, "
+                "    llm_analysis_status = :llm_status, "
+                "    llm_error = :llm_error, "
+                "    analyzed_at = :analyzed_at, "
+                "    updated_at = :now "
+                "WHERE id = :resume_id AND candidate_id = :candidate_id "
+                "RETURNING id, candidate_id, file_url, file_name, parsed_text, extracted_data, "
+                "structured_json, llm_feedback, ats_score, ats_feedback, embeddings, "
+                "parse_status, llm_analysis_status, embeddings_status, parse_error, llm_error, "
+                "embeddings_error, analyzed_at, uploaded_at, created_at, updated_at"
+            ),
+            {
+                "structured_json": json.dumps(structured_json or {}),
+                "llm_feedback": json.dumps(llm_feedback or {}),
+                "ats_score": ats_score,
+                "ats_feedback": ats_feedback,
+                "llm_status": "success" if ats_score is not None else "failed",
+                "llm_error": None if ats_score is not None else "LLM analysis failed",
+                "analyzed_at": now,
+                "now": now,
+                "resume_id": resume_id,
+                "candidate_id": candidate_id,
+            },
+        ).fetchone()
+
+        if row is None:
+            raise NotFoundError(resource_type="Resume", resource_id=resume_id)
+
+        return self._resume_row_to_dict(row)
+
+    def update_resume_embeddings(
+        self,
+        user_id: int,
+        resume_id: int,
+        embeddings: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Update resume with embeddings data."""
+        candidate_id = self._resolve_candidate_id(user_id)
+        now = datetime.now(timezone.utc)
+        row = self._db.execute(
+            text(
+                "UPDATE resumes "
+                "SET embeddings = CAST(:embeddings AS JSONB), "
+                "    embeddings_status = :emb_status, "
+                "    embeddings_error = :emb_error, "
+                "    updated_at = :now "
+                "WHERE id = :resume_id AND candidate_id = :candidate_id "
+                "RETURNING id, candidate_id, file_url, file_name, parsed_text, extracted_data, "
+                "structured_json, llm_feedback, ats_score, ats_feedback, embeddings, "
+                "parse_status, llm_analysis_status, embeddings_status, parse_error, llm_error, "
+                "embeddings_error, analyzed_at, uploaded_at, created_at, updated_at"
+            ),
+            {
+                "embeddings": json.dumps(embeddings or {}),
+                "emb_status": "success" if embeddings else "failed",
+                "emb_error": None if embeddings else "Embedding generation failed",
+                "now": now,
+                "resume_id": resume_id,
+                "candidate_id": candidate_id,
+            },
+        ).fetchone()
+
+        if row is None:
+            raise NotFoundError(resource_type="Resume", resource_id=resume_id)
+
+        return self._resume_row_to_dict(row)
+
 
     # ────────────────────────────────────────────────────────────
     # Helpers
@@ -1931,3 +2188,35 @@ class CandidateQueryRepository:
         if dt is None:
             return None
         return dt.isoformat() if hasattr(dt, "isoformat") else str(dt)
+
+    def _resume_row_to_dict(self, row) -> Dict[str, Any]:
+        """Normalize a resume row to the API response shape using extracted_data as the source of analysis fields."""
+        extracted_data = row[5] if len(row) > 5 else None
+        if isinstance(extracted_data, str):
+            try:
+                extracted_data = json.loads(extracted_data)
+            except Exception:
+                extracted_data = {}
+        extracted_data = extracted_data or {}
+
+        return {
+            "id": row[0],
+            "candidate_id": row[1],
+            "file_url": row[2],
+            "file_name": row[3],
+            "parsed_text": row[4],
+            "extracted_data": extracted_data,
+            "structured_json": row[6],
+            "llm_feedback": row[7],
+            "ats_score": row[8],
+            "ats_feedback": row[9],
+            "parse_status": row[11],
+            "llm_analysis_status": row[12],
+            "parse_error": row[14],
+            "llm_error": row[15],
+            "embeddings_error": row[16],
+            "analyzed_at": self._iso(row[17]),
+            "uploaded_at": self._iso(row[18]),
+            "created_at": self._iso(row[19]),
+            "updated_at": self._iso(row[20]),
+        }

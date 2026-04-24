@@ -666,13 +666,13 @@ def list_resumes(
     status_code=201,
 )
 def upload_resume(
-    file: UploadFile = File(..., description="PDF or Word resume (pdf, doc, docx)"),
+    file: UploadFile = File(..., description="Resume file (pdf, docx)"),
     db: Session = Depends(get_db_session_with_commit),
     identity: IdentityContext = Depends(require_candidate),
 ) -> ResumeUploadResponse:
     """
-    Upload a new resume. Accepted formats: PDF, DOC, DOCX.
-    The file is stored in blob storage and a record is created
+    Upload a new resume. Accepted formats: PDF, DOCX.
+    The file is stored in the server's local storage directory and a record is created
     in the resumes table linked to the candidate.
     """
     svc = _build_service(db)
